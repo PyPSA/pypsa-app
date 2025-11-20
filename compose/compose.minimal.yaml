@@ -5,6 +5,10 @@ services:
   pypsa-app:
     image: ghcr.io/pypsa/pypsa-app:latest
     container_name: pypsa-app
+    # The container does not run as root, which means you need to pass your user ID and group ID
+    # e.g. export UID && export GID=$(id -g)
+    # Alternatively, you can give the mounted volume the correct permissions
+    user: "${UID:-1000}:${GID:-1000}"
     ports:
       - 8000:8000
     volumes:
