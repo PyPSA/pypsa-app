@@ -48,6 +48,8 @@ services:
       - REDIS_URL=redis://redis:6379/0
       - SERVE_FRONTEND=${SERVE_FRONTEND:-false}
       - DEBUG=true
+      # Map configuration
+      - MAPBOX_TOKEN=${MAPBOX_TOKEN}
       # Authentication
       - ENABLE_AUTH=${ENABLE_AUTH:-false}
       - GITHUB_CLIENT_ID=${GITHUB_CLIENT_ID:-}

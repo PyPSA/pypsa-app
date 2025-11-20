@@ -6,10 +6,19 @@ from pypsa_app.backend.api.deps import get_current_user, get_network_or_404
 from pypsa_app.backend.api.utils.task_utils import queue_task
 from pypsa_app.backend.models import Network, User
 from pypsa_app.backend.schemas.common import TaskResponse
+from pypsa_app.backend.settings import settings
 from pypsa_app.backend.tasks import extract_geographic_layer_task
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
+
+
+@router.get("/config")
+def get_map_config():
+    """Get map configuration including Mapbox token"""
+    return {
+        "mapbox_token": settings.mapbox_token or "",
+    }
 
 
 @router.get("/{network_id}/buses", response_model=TaskResponse)

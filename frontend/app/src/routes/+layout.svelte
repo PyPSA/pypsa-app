@@ -54,13 +54,12 @@
 
 		// If auth is enabled and user is not authenticated, redirect to login
 		// (except if already on login page)
+		// Note: The API client's automatic 401 redirect skips /auth/ endpoints
+		// to prevent redirect loops, so we handle the redirect manually here
 		const currentPath = $page.url.pathname;
-		if (!authStore.loading && !authStore.isAuthenticated && authStore.error === null) {
-			// Only redirect if we got a 401/400 response (auth is enabled)
-			// If auth is disabled, we won't redirect
+		if (!authStore.loading && !authStore.isAuthenticated) {
 			if (currentPath !== '/login') {
-				// Try to make a test request to see if auth is required
-				// The API client will handle the redirect if needed
+				goto('/login');
 			}
 		}
 	});

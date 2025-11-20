@@ -2,9 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { Routes, Route, useSearchParams, useNavigate } from 'react-router-dom';
 import KeplerMap from './KeplerMap';
 
-// Get Mapbox token from environment variable
-const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN || '';
-
 function NetworkMap() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -13,17 +10,64 @@ function NetworkMap() {
   const [config, setConfig] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [mapboxToken, setMapboxToken] = useState('');
 
   // Back URL
   const backUrl = id
     ? (import.meta.env.DEV ? `http://localhost:5173/network?id=${id}` : `/network?id=${id}`)
     : '/network';
 
+  // Login URL - in dev mode, the SvelteKit app runs on port 5173
+  const loginUrl = import.meta.env.DEV ? 'http://localhost:5173/login' : '/login';
+
+  // Check authentication on mount
+  useEffect(() => {
+    async function checkAuth() {
+      try {
+        const response = await fetch('/api/v1/auth/me');
+        // If we get 401, redirect to login (auth is enabled and user not authenticated)
+        if (response.status === 401) {
+          window.location.href = loginUrl;
+        }
+      } catch (err) {
+        // Network errors - continue anyway (auth might be disabled)
+        console.warn('Auth check failed:', err);
+      }
+    }
+
+    checkAuth();
+  }, []);
+
+  useEffect(() => {
+    // Fetch mapbox token from backend config
+    async function fetchMapConfig() {
+      try {
+        const response = await fetch('/api/v1/map/config');
+        if (response.ok) {
+          const data = await response.json();
+          setMapboxToken(data.mapbox_token || '');
+        }
+      } catch (err) {
+        console.warn('Failed to fetch map config:', err);
+        // Token will remain empty, map will show warning
+      }
+    }
+
+    fetchMapConfig();
+  }, []);
+
   useEffect(() => {
     // Poll task status until complete
     async function pollTaskStatus(statusUrl, maxAttempts = 60) {
       for (let i = 0; i < maxAttempts; i++) {
         const response = await fetch(statusUrl);
+
+        // Check for auth errors
+        if (response.status === 401) {
+          window.location.href = loginUrl;
+          return;
+        }
+
         const result = await response.json();
 
         if (result.state === 'SUCCESS') {
@@ -43,6 +87,11 @@ function NetworkMap() {
     async function fetchData(endpoint, dataType) {
       const response = await fetch(endpoint);
       if (!response.ok) {
+        if (response.status === 401) {
+          // User not authenticated - redirect to login
+          window.location.href = loginUrl;
+          return;
+        }
         if (response.status === 404) {
           throw new Error(`Network "${id}" not found`);
         }
@@ -209,14 +258,14 @@ function NetworkMap() {
     );
   }
 
-  if (!MAPBOX_TOKEN) {
+  if (!mapboxToken) {
     return (
       <div style={styles.center}>
         <div style={styles.warning}>
           <h2>Mapbox Token Required</h2>
           <p>To display the network map, configure a Mapbox access token in your environment.</p>
           <p style={styles.small}>
-            Set <code>VITE_MAPBOX_TOKEN</code> in your <code>.env</code> file.
+            Set <code>MAPBOX_TOKEN</code> environment variable when running the application.
           </p>
           <p style={styles.small}>
             Create a free account and obtain a token at <a href="https://www.mapbox.com/" target="_blank" rel="noopener">mapbox.com</a>
@@ -238,7 +287,7 @@ function NetworkMap() {
         <KeplerMap
           datasets={datasets}
           config={config}
-          mapboxToken={MAPBOX_TOKEN}
+          mapboxToken={mapboxToken}
         />
       </div>
     </div>

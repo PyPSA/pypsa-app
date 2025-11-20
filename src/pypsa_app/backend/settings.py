@@ -63,5 +63,8 @@ class Settings(BaseSettings):
     session_cookie_name: str = "pypsa_session"
     session_ttl: int = 604800  # 7 days in seconds
 
+    # Map configuration
+    mapbox_token: str | None = None
+
 
 settings = Settings()

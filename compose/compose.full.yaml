@@ -44,6 +44,8 @@ services:
     environment:
       - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST:-postgres}:${POSTGRES_PORT:-5432}/${POSTGRES_DB}
       - REDIS_URL=redis://redis:6379/0
+      # Map configuration
+      - MAPBOX_TOKEN=${MAPBOX_TOKEN}
       # Authentication
       - ENABLE_AUTH=${ENABLE_AUTH}
       - GITHUB_CLIENT_ID=${GITHUB_CLIENT_ID}
