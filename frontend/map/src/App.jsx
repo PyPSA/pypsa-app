@@ -14,7 +14,7 @@ function NetworkMap() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // Back URL 
+  // Back URL
   const backUrl = id
     ? (import.meta.env.DEV ? `http://localhost:5173/network?id=${id}` : `/network?id=${id}`)
     : '/network';

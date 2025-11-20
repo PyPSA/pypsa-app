@@ -50,7 +50,6 @@ RUN mkdir -p /data/networks && \
 
 USER appuser
 
-ENV DATA_DIR=/data
 ENV PATH="/app/.venv/bin:$PATH"
 
 EXPOSE 8000
@@ -65,7 +64,6 @@ WORKDIR /frontend
 
 # Use Docker-compatible build paths
 ENV DOCKER_BUILD=true
-ENV DATA_DIR=/data
 
 COPY frontend/app/package*.json ./
 COPY frontend/app/ ./
@@ -82,7 +80,6 @@ WORKDIR /map
 
 # Use Docker-compatible build paths
 ENV DOCKER_BUILD=true
-ENV DATA_DIR=/data
 
 COPY frontend/map/package*.json ./
 COPY frontend/map/ ./

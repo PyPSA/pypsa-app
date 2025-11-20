@@ -18,7 +18,6 @@ class Settings(BaseSettings):
 
     # Mode flags
     serve_frontend: bool = True
-    enable_auth: bool = False
 
     # API
     api_v1_prefix: str = "/api/v1"
@@ -49,8 +48,7 @@ class Settings(BaseSettings):
     # only relevant when serve_frontend is False
     cors_origins: str = "http://localhost:5173,http://localhost:5174"
 
-    # Redis
-    # only relevant when use_redis is True
+    # Redis (optional)
     redis_url: str | None = None
     plot_cache_ttl: int = 86400
     map_cache_ttl: int = 3600
@@ -58,7 +56,7 @@ class Settings(BaseSettings):
     max_cache_size_mb: int = 50
 
     # Authentication
-    # only relevant when enable_auth is True
+    enable_auth: bool = False
     github_client_id: str | None = None
     github_client_secret: str | None = None
     session_secret_key: str = "dev-secret-key-change-in-production"

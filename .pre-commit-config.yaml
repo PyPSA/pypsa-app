@@ -22,3 +22,15 @@ repos:
         args: [--fix]
       # Run the formatter
       - id: ruff-format
+
+  # Detect secrets
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.24.2
+    hooks:
+      - id: gitleaks
+
+  # Lint Github Actions
+  - repo: https://github.com/rhysd/actionlint
+    rev: v1.7.8
+    hooks:
+      - id: actionlint

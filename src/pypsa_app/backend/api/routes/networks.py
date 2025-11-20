@@ -6,13 +6,13 @@ from sqlalchemy.orm import Session
 
 from pypsa_app.backend.api.deps import get_current_user, get_db, get_network_or_404
 from pypsa_app.backend.api.utils.task_utils import queue_task
-from pypsa_app.backend.settings import settings
 from pypsa_app.backend.models import Network, User
 from pypsa_app.backend.schemas.common import MessageResponse, TaskResponse
 from pypsa_app.backend.schemas.network import (
     NetworkListResponse,
     NetworkSchema,
 )
+from pypsa_app.backend.settings import settings
 from pypsa_app.backend.tasks import scan_networks_task
 
 router = APIRouter()
@@ -43,8 +43,8 @@ def list_networks(
         query = query.filter(
             or_(
                 Network.user_id == user.id,  # User's own networks
-                Network.is_public == True,  # Public networks
-                Network.user_id == None,  # Legacy networks (no owner)
+                Network.is_public is True,
+                Network.user_id is None,  # No owner
             )
         )
 

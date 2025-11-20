@@ -43,7 +43,6 @@ def serve(host, port, data_dir, dev, reload, database_url):
     # Set up environment
     if data_dir:
         os.environ["DATA_DIR"] = str(data_dir)
-        os.environ["NETWORKS_PATH"] = str(data_dir / "networks")
 
     if database_url:
         os.environ["DATABASE_URL"] = database_url
@@ -86,7 +85,6 @@ def serve(host, port, data_dir, dev, reload, database_url):
 
     # Start server
     click.echo(f"\n   Database: {os.getenv('DATABASE_URL', 'Not configured')}")
-    click.echo(f"   Networks: {os.getenv('NETWORKS_PATH', './data/networks')}\n")
 
     uvicorn.run(
         "pypsa_app.backend.main:app",
@@ -130,10 +128,9 @@ def info():
 
     click.echo("\nEnvironment variables:")
     for key in [
+        "DATA_DIR",
         "DATABASE_URL",
-        "NETWORKS_PATH",
         "SERVE_FRONTEND",
-        "USE_CELERY",
         "USE_REDIS",
     ]:
         value = os.getenv(key, "(not set)")
