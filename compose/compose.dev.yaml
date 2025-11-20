@@ -85,7 +85,7 @@ services:
       [
         "celery",
         "-A",
-        "pypsa_app.backend.celery_app",
+        "pypsa_app.backend.task_queue.task_app",
         "worker",
         "--loglevel=${CELERY_LOGLEVEL:-info}",
         "--concurrency=${CELERY_CONCURRENCY:-2}",

@@ -2,6 +2,7 @@ import logging
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from pypsa_app.backend.api.deps import get_current_user, get_db, get_network_or_404
@@ -37,14 +38,12 @@ def list_networks(
     query = db.query(Network)
 
     # When auth is enabled, filter by ownership or public networks
-    if settings.enable_auth and user is not None:
-        from sqlalchemy import or_
-
+    if settings.enable_auth:
         query = query.filter(
             or_(
                 Network.user_id == user.id,  # User's own networks
-                Network.is_public is True,
-                Network.user_id is None,  # No owner
+                Network.is_public == True,  # noqa: E712
+                Network.user_id == None,  # noqa: E711  # Legacy networks without owner
             )
         )
 
