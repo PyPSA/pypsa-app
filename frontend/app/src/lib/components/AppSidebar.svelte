@@ -16,6 +16,12 @@
 	// Version info
 	let versionData = $state(null);
 
+	// Format version for display (remove .post1. and git hash)
+	function formatVersion(version) {
+		if (!version) return version;
+		return version.replace(/\.post\d+\./, '.').split('+')[0];
+	}
+
 	onMount(async () => {
 		// Try to load from localStorage first for instant display
 		try {
@@ -59,7 +65,7 @@
 									<Tooltip.Root>
 										<Tooltip.Trigger>
 											<Badge variant="default">
-												v{versionData.backend}
+												v{formatVersion(versionData.backend)}
 											</Badge>
 										</Tooltip.Trigger>
 										<Tooltip.Content side="bottom" class="bg-popover text-popover-foreground">

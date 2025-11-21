@@ -19,6 +19,7 @@ ENV PATH="/root/.local/bin:$PATH"
 
 COPY pyproject.toml uv.lock MANIFEST.in ./
 COPY src/ src/
+COPY .git/ .git/
 
 # Sync dependencies with uv
 RUN uv sync --frozen --extra full --no-dev

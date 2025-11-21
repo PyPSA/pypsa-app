@@ -1,7 +1,7 @@
 [project]
 name = "pypsa-app"
-version = "0.1.0-alpha.1"
 description = "tbd"
+dynamic = ["version"]
 authors = [
     { name = "Lukas Trippe", email = "lkstrp@pm.me" }
 ]
@@ -52,7 +52,7 @@ Repository = "https://github.com/PyPSA/pypsa-app"
 Issues = "https://github.com/PyPSA/pypsa-app/issues"
 
 [build-system]
-requires = ["setuptools>=61", "wheel"]
+requires = ["setuptools>=64", "setuptools_scm>=8"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
@@ -63,3 +63,6 @@ where = ["src"]
 
 [tool.setuptools.package-data]
 "pypsa_app.backend" = ["static/**/*"]
+
+[tool.setuptools_scm]
+version_scheme = "no-guess-dev"

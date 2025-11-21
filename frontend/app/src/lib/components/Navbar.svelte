@@ -15,6 +15,12 @@
 	let pypsaVersion = cachedVersion.pypsa;
 	let appVersion = cachedVersion.app;
 
+	// Format version for display (remove .post1. and git hash)
+	function formatVersion(version) {
+		if (!version) return version;
+		return version.replace(/\.post\d+\./, '.').split('+')[0];
+	}
+
 	// Get the current page path to highlight active nav item
 	const currentPath = $derived($page.url.pathname);
 
@@ -121,7 +127,7 @@
 					class="text-xs bg-primary text-primary-foreground px-2 py-0.5 rounded font-normal cursor-help"
 					title="PyPSA Framework v{pypsaVersion}"
 				>
-					v{appVersion}
+					v{formatVersion(appVersion)}
 				</span>
 			{/if}
 		</a>
