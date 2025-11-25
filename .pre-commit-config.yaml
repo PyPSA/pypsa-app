@@ -15,7 +15,7 @@ repos:
 
   # Python - Ruff
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.14.4
+    rev: v0.14.6
     hooks:
       # Run the linter
       - id: ruff
@@ -25,12 +25,12 @@ repos:
 
   # Detect secrets
   - repo: https://github.com/gitleaks/gitleaks
-    rev: v8.24.2
+    rev: v8.29.1
     hooks:
       - id: gitleaks
 
   # Lint Github Actions
   - repo: https://github.com/rhysd/actionlint
-    rev: v1.7.8
+    rev: v1.7.9
     hooks:
       - id: actionlint
