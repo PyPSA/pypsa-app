@@ -50,7 +50,7 @@ Check out the difference between the minimal and full version [below](README##Ar
 
 To deploy a minimal local instance:
 - Put your networks in `./data/networks` (or upload them in the web interface)
-- Run `docker --user $(id -u):$(id -g) -p 8000:8000 -v $(pwd)/data:/app/data ghcr.io/pypsa/pypsa-app:latest`
+- Run `docker run --user $(id -u):$(id -g) -p 8000:8000 -v $(pwd)/data:/app/data ghcr.io/pypsa/pypsa-app:latest`
 
 Open your browser at [`http://localhost:8000`](http://localhost:8000).
 
