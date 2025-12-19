@@ -10,6 +10,7 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from pypsa_app.backend.__version__ import __description__, __version__
 from pypsa_app.backend.api.routes import (
+    admin,
     auth,
     cache,
     map,
@@ -21,7 +22,7 @@ from pypsa_app.backend.api.routes import (
 )
 from pypsa_app.backend.cache import cache_service
 from pypsa_app.backend.database import Base, SessionLocal, engine
-from pypsa_app.backend.settings import settings
+from pypsa_app.backend.settings import API_V1_PREFIX, settings
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
@@ -38,8 +39,8 @@ async def lifespan(app: FastAPI):
         "Starting PyPSA Web App API",
         extra={
             "version": __version__,
-            "api_prefix": settings.api_v1_prefix,
-            "serve_frontend": settings.serve_frontend,
+            "api_prefix": API_V1_PREFIX,
+            "backend_only": settings.backend_only,
         },
     )
     logger.info(
@@ -157,9 +158,9 @@ app = FastAPI(
     title="PyPSA App",
     version=__version__,
     description=__description__,
-    openapi_url=f"{settings.api_v1_prefix}/openapi.json",
-    docs_url="/api/docs" if settings.serve_frontend else "/docs",
-    redoc_url="/api/redoc" if settings.serve_frontend else "/redoc",
+    openapi_url=f"{API_V1_PREFIX}/openapi.json",
+    docs_url="/docs" if settings.backend_only else "/api/docs",
+    redoc_url="/redoc" if settings.backend_only else "/api/redoc",
     lifespan=lifespan,
 )
 
@@ -174,7 +175,7 @@ app.add_middleware(
 )
 
 # Configure CORS (only needed in dev mode with separate frontend server)
-if not settings.serve_frontend:
+if settings.backend_only:
     # Parse comma-separated CORS origins from environment variable
     cors_origins = [origin.strip() for origin in settings.cors_origins.split(",")]
     app.add_middleware(
@@ -216,28 +217,21 @@ async def global_exception_handler(request: Request, exc: Exception):
 
 
 # Include routers
-app.include_router(auth.router, prefix=f"{settings.api_v1_prefix}/auth", tags=["auth"])
+app.include_router(auth.router, prefix=f"{API_V1_PREFIX}/auth", tags=["auth"])
+app.include_router(admin.router, prefix=f"{API_V1_PREFIX}/admin", tags=["admin"])
 app.include_router(
-    networks.router, prefix=f"{settings.api_v1_prefix}/networks", tags=["networks"]
+    networks.router, prefix=f"{API_V1_PREFIX}/networks", tags=["networks"]
 )
-app.include_router(
-    plots.router, prefix=f"{settings.api_v1_prefix}/plots", tags=["plots"]
-)
+app.include_router(plots.router, prefix=f"{API_V1_PREFIX}/plots", tags=["plots"])
 app.include_router(
     statistics.router,
-    prefix=f"{settings.api_v1_prefix}/statistics",
+    prefix=f"{API_V1_PREFIX}/statistics",
     tags=["statistics"],
 )
-app.include_router(
-    cache.router, prefix=f"{settings.api_v1_prefix}/cache", tags=["cache"]
-)
-app.include_router(
-    version.router, prefix=f"{settings.api_v1_prefix}/version", tags=["version"]
-)
-app.include_router(map.router, prefix=f"{settings.api_v1_prefix}/map", tags=["map"])
-app.include_router(
-    tasks.router, prefix=f"{settings.api_v1_prefix}/tasks", tags=["tasks"]
-)
+app.include_router(cache.router, prefix=f"{API_V1_PREFIX}/cache", tags=["cache"])
+app.include_router(version.router, prefix=f"{API_V1_PREFIX}/version", tags=["version"])
+app.include_router(map.router, prefix=f"{API_V1_PREFIX}/map", tags=["map"])
+app.include_router(tasks.router, prefix=f"{API_V1_PREFIX}/tasks", tags=["tasks"])
 
 
 # Health check endpoint
@@ -273,7 +267,7 @@ def health_check():
 
 
 # Serve frontend static files (production mode)
-if settings.serve_frontend:
+if not settings.backend_only:
     from fastapi.staticfiles import StaticFiles
 
     from pypsa_app.backend.spa_static_files import SPAStaticFiles

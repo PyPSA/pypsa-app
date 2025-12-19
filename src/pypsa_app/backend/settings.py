@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from pydantic import Field
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 API_V1_PREFIX = "/api/v1"
@@ -78,11 +78,6 @@ class Settings(BaseSettings):
         description="Session time-to-live in seconds (default: 7 days)",
         json_schema_extra={"category": "Authentication", "depends_on": "enable_auth"},
     )
-    admin_github_username: str | None = Field(
-        default=None,
-        description="GitHub username that becomes admin on first login",
-        json_schema_extra={"category": "Authentication", "depends_on": "enable_auth"},
-    )
 
     # Map
     mapbox_token: str | None = Field(
@@ -129,6 +124,17 @@ class Settings(BaseSettings):
         description="Comma-separated list of allowed CORS origins (only used in backend-only mode)",
         json_schema_extra={"category": "Development", "depends_on": "backend_only"},
     )
+
+    @model_validator(mode="after")
+    def validate_session_secret(self):
+        if (
+            self.enable_auth
+            and self.session_secret_key == "dev-secret-key-change-in-production"
+        ):
+            raise ValueError(
+                "Must set a secure SESSION_SECRET_KEY when authentication is enabled"
+            )
+        return self
 
 
 settings = Settings()

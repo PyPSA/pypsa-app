@@ -1,22 +1,17 @@
 <script>
 	import { authStore } from '$lib/stores/auth.svelte.js';
-	import { CircleAlert } from 'lucide-svelte';
-	import * as Alert from '$lib/components/ui/alert';
-	import LoginForm from '$lib/components/login-form.svelte';
+	import Button from '$lib/components/ui/button/button.svelte';
 
-	let loading = $state(false);
-	let error = $state(null);
+	// User data from server guard
+	let { data } = $props();
 
-	// Server guard handles redirect if already logged in
-
-	function handleLogin() {
-		loading = true;
-		authStore.login();
+	function handleLogout() {
+		authStore.logout();
 	}
 </script>
 
 <svelte:head>
-	<title>Login - PyPSA App</title>
+	<title>Pending Approval - PyPSA App</title>
 </svelte:head>
 
 <div class="grid min-h-svh lg:grid-cols-2">
@@ -31,14 +26,23 @@
 		</div>
 		<div class="flex flex-1 items-center justify-center">
 			<div class="w-full max-w-xs">
-				{#if error}
-					<Alert.Root variant="destructive" class="mb-6">
-						<CircleAlert class="size-4" />
-						<Alert.Title>Error</Alert.Title>
-						<Alert.Description>{error}</Alert.Description>
-					</Alert.Root>
-				{/if}
-				<LoginForm onclick={handleLogin} {loading} />
+				<div class="flex flex-col gap-6">
+					<div class="flex flex-col items-center gap-1 text-center">
+						<h1 class="text-2xl font-bold">Account Pending Approval</h1>
+						<p class="text-muted-foreground text-balance text-sm">
+							Thank you for signing up, {data.user?.username}!
+						</p>
+					</div>
+
+					<p class="text-center text-sm text-muted-foreground">
+						Your account is pending approval by an administrator.
+						You will be able to access the application once approved.
+					</p>
+
+					<Button variant="outline" onclick={handleLogout}>
+						Sign Out
+					</Button>
+				</div>
 			</div>
 		</div>
 	</div>

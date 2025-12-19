@@ -6,6 +6,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, computed_field
 
+from pypsa_app.backend.schemas.common import PaginationMeta
+
 
 class NetworkSchema(BaseModel):
     """Pydantic schema for Network model"""
@@ -37,4 +39,4 @@ class NetworkSchema(BaseModel):
 
 class NetworkListResponse(BaseModel):
     data: list[NetworkSchema]
-    meta: dict
+    meta: PaginationMeta

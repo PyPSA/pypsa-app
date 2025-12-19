@@ -1,6 +1,5 @@
 <script>
 	import { onMount } from 'svelte';
-	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
 	import '../app.css';
 	import favicon from '$lib/assets/favicon.svg';
@@ -30,8 +29,10 @@
 	// Sidebar open state - initialize from cookie if available
 	let sidebarOpen = $state(true);
 
-	// Determine if we should show the sidebar (hide only on login page)
-	const showSidebar = $derived($page.url.pathname !== '/login');
+	// Determine if we should show the sidebar
+	const showSidebar = $derived(
+		$page.url.pathname !== '/login' && $page.url.pathname !== '/pending-approval'
+	);
 
 	// Determine if we should show the right sidebar (only on network page)
 	// Disabled - will move filters into main content area instead
@@ -49,19 +50,8 @@
 			sidebarOpen = value === 'true';
 		}
 
-		// Initialize auth state on app load
+		// Initialize auth state for better client-side UI
 		await authStore.init();
-
-		// If auth is enabled and user is not authenticated, redirect to login
-		// (except if already on login page)
-		// Note: The API client's automatic 401 redirect skips /auth/ endpoints
-		// to prevent redirect loops, so we handle the redirect manually here
-		const currentPath = $page.url.pathname;
-		if (!authStore.loading && authStore.authEnabled && !authStore.isAuthenticated) {
-			if (currentPath !== '/login') {
-				goto('/login');
-			}
-		}
 	});
 </script>
 

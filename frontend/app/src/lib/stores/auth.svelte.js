@@ -11,10 +11,7 @@ class AuthStore {
 	error = $state(null);
 	authEnabled = $state(null); // null = unknown, true = enabled, false = disabled
 
-	/**
-	 * Initialize auth state by fetching current user
-	 * Call this on app startup
-	 */
+	/** Call on app startup to initialize auth state */
 	async init() {
 		this.loading = true;
 		this.error = null;
@@ -45,16 +42,10 @@ class AuthStore {
 		}
 	}
 
-	/**
-	 * Redirect to GitHub OAuth login
-	 */
 	login() {
 		auth.login();
 	}
 
-	/**
-	 * Logout and clear session
-	 */
 	async logout() {
 		this.loading = true;
 		try {
@@ -67,25 +58,44 @@ class AuthStore {
 		}
 	}
 
-	/**
-	 * Check if user is authenticated
-	 */
 	get isAuthenticated() {
 		return this.user !== null;
 	}
 
-	/**
-	 * Get user's display name
-	 */
 	get displayName() {
 		return this.user?.username || 'User';
 	}
 
-	/**
-	 * Get user's avatar URL
-	 */
 	get avatarUrl() {
 		return this.user?.avatar_url || null;
+	}
+
+	get permissions() {
+		return this.user?.permissions || [];
+	}
+
+	hasPermission(permission) {
+		return this.permissions.includes(permission);
+	}
+
+	get isAdmin() {
+		return this.hasPermission('admin');
+	}
+
+	get isApproved() {
+		return this.permissions.length > 0;
+	}
+
+	get isPending() {
+		return this.user !== null && this.permissions.length === 0;
+	}
+
+	get canManageNetworks() {
+		return this.hasPermission('delete_networks');
+	}
+
+	get canViewNetworks() {
+		return this.hasPermission('view_networks');
 	}
 }
 

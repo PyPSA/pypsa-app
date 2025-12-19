@@ -4,6 +4,7 @@
 	import { version } from '$lib/api/client.js';
 	import { authStore } from '$lib/stores/auth.svelte.js';
 	import NavMain from './sidebar/NavMain.svelte';
+	import NavAdmin from './sidebar/NavAdmin.svelte';
 	import NavUser from './sidebar/NavUser.svelte';
 	import NavNetworksList from './sidebar/NavNetworksList.svelte';
 	import * as Sidebar from '$lib/components/ui/sidebar';
@@ -88,6 +89,7 @@
 
 	<Sidebar.Content class="flex flex-col overflow-hidden">
 		<NavMain />
+		<NavAdmin />
 		{#if isNetworkPage}
 			<NavNetworksList />
 		{/if}

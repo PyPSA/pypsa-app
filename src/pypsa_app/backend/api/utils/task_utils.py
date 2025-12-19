@@ -3,7 +3,7 @@
 import logging
 
 from pypsa_app.backend.task_queue import task_app
-from pypsa_app.backend.settings import settings
+from pypsa_app.backend.settings import API_V1_PREFIX
 
 logger = logging.getLogger(__name__)
 
@@ -67,6 +67,6 @@ def queue_task(celery_task, *args, **kwargs) -> dict:
     return {
         "status": "processing",
         "task_id": task.id,
-        "status_url": f"{settings.api_v1_prefix}/tasks/status/{task.id}",
+        "status_url": f"{API_V1_PREFIX}/tasks/status/{task.id}",
         "message": "Task queued. Poll status_url for results.",
     }

@@ -78,24 +78,12 @@ async function request(endpoint, options = {}, cancellationKey = null) {
 
 // Auth API
 export const auth = {
-	/**
-	 * Get current authenticated user
-	 * @returns {Promise<object>} User object
-	 */
 	async me() {
 		return request('/auth/me');
 	},
-
-	/**
-	 * Logout (redirects to login page)
-	 */
 	logout() {
 		window.location.href = '/api/v1/auth/logout';
 	},
-
-	/**
-	 * Login (redirects to GitHub OAuth)
-	 */
 	login() {
 		window.location.href = '/api/v1/auth/login';
 	}
@@ -103,57 +91,24 @@ export const auth = {
 
 // Networks API
 export const networks = {
-	/**
-	 * List all networks
-	 * @param {number} skip - Number of records to skip
-	 * @param {number} limit - Number of records to return
-	 */
 	async list(skip = 0, limit = 100) {
 		return request(`/networks/?skip=${skip}&limit=${limit}`);
 	},
-
-	/**
-	 * Get network by ID
-	 * @param {string} id - Network UUID
-	 */
 	async get(id) {
 		return request(`/networks/${id}`, {}, `network-${id}`);
 	},
-
-	/**
-	 * Get network summary
-	 * @param {string} id - Network UUID
-	 */
 	async getSummary(id) {
 		return request(`/networks/${id}/summary`, {}, `network-summary-${id}`);
 	},
-
-	/**
-	 * Scan for new networks
-	 */
 	async scan() {
 		return request('/networks/', { method: 'PUT' });
 	},
-
-	/**
-	 * Get scan task status
-	 * @param {string} taskId - Task ID
-	 */
 	async getScanStatus(taskId) {
 		return request(`/tasks/status/${taskId}`);
 	},
-
-	/**
-	 * Reset all network data (destructive operation)
-	 */
 	async reset() {
 		return request('/networks/reset', { method: 'DELETE' });
 	},
-
-	/**
-	 * Delete network
-	 * @param {string} id - Network UUID
-	 */
 	async delete(id) {
 		return request(`/networks/${id}`, { method: 'DELETE' });
 	}
@@ -161,12 +116,6 @@ export const networks = {
 
 // Statistics API
 export const statistics = {
-	/**
-	 * Get statistics data for single or multiple networks
-	 * @param {string|string[]} networkIds - Network UUID(s) - single ID or array of IDs
-	 * @param {string} statistic - Statistic name (e.g., 'installed_capacity')
-	 * @param {object} parameters - Additional parameters
-	 */
 	async get(networkIds, statistic, parameters = {}) {
 		// Ensure networkIds is always an array
 		const idsArray = Array.isArray(networkIds) ? networkIds : [networkIds];
@@ -185,14 +134,6 @@ export const statistics = {
 
 // Plots API
 export const plots = {
-	/**
-	 * Generate plot for single or multiple networks
-	 * @param {string|string[]} networkIds - Network UUID(s) - single ID or array of IDs
-	 * @param {string} statistic - Statistic name
-	 * @param {string} plotType - Plot type (e.g., 'bar', 'area')
-	 * @param {object} parameters - Additional parameters
-	 * @returns {Promise<object>} Plot data or throws error
-	 */
 	async generate(networkIds, statistic, plotType, parameters = {}) {
 		// Ensure networkIds is always an array
 		const idsArray = Array.isArray(networkIds) ? networkIds : [networkIds];
@@ -221,20 +162,11 @@ export const plots = {
 		}
 	},
 
-	/**
-	 * Get status of a plot generation task
-	 * @param {string} taskId - Task ID
-	 */
 	async getStatus(taskId) {
 		return request(`/tasks/status/${taskId}`);
 	},
 
-	/**
-	 * Poll task status until completion
-	 * @param {string} taskId - Task ID to poll
-	 * @param {number} maxAttempts - Maximum number of poll attempts
-	 * @returns {Promise<object>} Plot data when ready
-	 */
+	/** Poll task status until completion with exponential backoff */
 	async pollTaskStatus(taskId, maxAttempts = 30) {
 		let attempts = 0;
 		let delay = 200; // Start with 200ms
@@ -286,17 +218,9 @@ export const plots = {
 
 // Cache API
 export const cache = {
-	/**
-	 * Clear cache for specific network
-	 * @param {string} networkId - Network UUID
-	 */
 	async clearNetwork(networkId) {
 		return request(`/cache/${networkId}`, { method: 'DELETE' });
 	},
-
-	/**
-	 * Clear all cache
-	 */
 	async clearAll() {
 		return request('/cache/', { method: 'DELETE' });
 	}
@@ -304,9 +228,6 @@ export const cache = {
 
 // Version API
 export const version = {
-	/**
-	 * Get version information
-	 */
 	async get() {
 		return request('/version/');
 	}
@@ -314,9 +235,6 @@ export const version = {
 
 // Health check
 export const health = {
-	/**
-	 * Get application health status (includes cache health)
-	 */
 	async check() {
 		// Health endpoint is outside /api/v1
 		const url = '/health';
@@ -325,5 +243,33 @@ export const health = {
 			throw new Error(`HTTP ${response.status}: ${response.statusText}`);
 		}
 		return await response.json();
+	}
+};
+
+// Admin API
+export const admin = {
+	/** List users with optional role filter */
+	async listUsers(skip = 0, limit = 100, role = null) {
+		let url = `/admin/users?skip=${skip}&limit=${limit}`;
+		if (role) url += `&role=${role}`;
+		return request(url);
+	},
+
+	/** Approve a pending user */
+	async approveUser(userId) {
+		return request(`/admin/users/${userId}/approve`, { method: 'POST' });
+	},
+
+	/** Update user role */
+	async updateUserRole(userId, role) {
+		return request(`/admin/users/${userId}/role`, {
+			method: 'PATCH',
+			body: JSON.stringify({ role })
+		});
+	},
+
+	/** Delete a user */
+	async deleteUser(userId) {
+		return request(`/admin/users/${userId}`, { method: 'DELETE' });
 	}
 };

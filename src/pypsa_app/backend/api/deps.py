@@ -1,5 +1,6 @@
 """FastAPI dependencies"""
 
+import logging
 from typing import Generator
 from uuid import UUID
 
@@ -8,7 +9,10 @@ from sqlalchemy.orm import Session
 
 from pypsa_app.backend.database import SessionLocal
 from pypsa_app.backend.models import Network, User
-from pypsa_app.backend.settings import settings
+from pypsa_app.backend.permissions import Permission, has_permission
+from pypsa_app.backend.settings import SESSION_COOKIE_NAME, settings
+
+logger = logging.getLogger(__name__)
 
 
 def get_db() -> Generator[Session, None, None]:
@@ -33,7 +37,7 @@ async def get_current_user_optional(
         return None
 
     # Get session cookie
-    session_id = request.cookies.get(settings.session_cookie_name)
+    session_id = request.cookies.get(SESSION_COOKIE_NAME)
     if not session_id:
         return None
 
@@ -50,12 +54,13 @@ async def get_current_user_optional(
         # Load user from database
         user = db.query(User).filter(User.id == user_id).first()
 
-        if not user or not user.is_active:
+        if not user:
             return None
 
         return user
 
-    except Exception:
+    except Exception as e:
+        logger.error(f"Auth check error: {e}", exc_info=True)
         return None
 
 
@@ -75,6 +80,33 @@ async def get_current_user(
     # When auth is disabled, user will be None but we don't raise an exception
     # This allows the endpoint to proceed without authentication
     return user
+
+
+def require_permission(permission: Permission):
+    """Require a specific permission for the endpoint."""
+
+    async def checker(
+        user: User | None = Depends(get_current_user_optional),
+    ) -> User:
+        # When auth is disabled, allow access
+        if not settings.enable_auth:
+            return user
+
+        if user is None:
+            raise HTTPException(
+                status_code=401,
+                detail="Authentication required. Please log in.",
+            )
+
+        if not has_permission(user, permission):
+            raise HTTPException(
+                status_code=403,
+                detail="You don't have permission to perform this action.",
+            )
+
+        return user
+
+    return checker
 
 
 def get_network_or_404(
@@ -148,4 +180,6 @@ __all__ = [
     "get_networks_or_404",
     "get_current_user_optional",
     "get_current_user",
+    "require_permission",
+    "Permission",
 ]
