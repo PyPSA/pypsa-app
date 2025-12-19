@@ -1,6 +1,9 @@
 # Data
 data
 
+# setuptools-scm version
+src/pypsa_app/backend/_version_info.py
+
 # Environment variables
 .env
 .env.local
