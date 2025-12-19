@@ -71,6 +71,7 @@ htmlcov/
 # Docker
 compose/compose.prod.yaml
 compose/.env
+compose/.env.dev
 
 # Alembic
 alembic/versions/*.pyc

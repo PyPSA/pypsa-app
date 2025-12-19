@@ -1,21 +1,23 @@
 # Development setup - backend only (run frontend with npm run dev)
+# Copy .env.dev.example to .env.dev and configure your settings
 
 services:
   postgres:
     image: postgres:18-alpine
     container_name: pypsa-postgres
     restart: unless-stopped
+    env_file: .env.dev
     environment:
-      POSTGRES_DB: ${POSTGRES_DB:-pypsa_dev}
-      POSTGRES_USER: ${POSTGRES_USER:-pypsa}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-devpassword}
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     # Uncomment for access Postgres on host machine
     # ports:
     #   - "${POSTGRES_PORT:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-pypsa}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -24,6 +26,7 @@ services:
     image: redis:8-alpine
     container_name: pypsa-redis
     restart: unless-stopped
+    env_file: .env.dev
     # Uncomment to access Redis from host machine
     # ports:
     #   - "6379:6379"
@@ -43,21 +46,12 @@ services:
     restart: unless-stopped
     ports:
       - "${APP_PORT:-8000}:8000"
+    env_file: .env.dev
     environment:
-      - DATABASE_URL=postgresql://${POSTGRES_USER:-pypsa}:${POSTGRES_PASSWORD:-devpassword}@${POSTGRES_HOST:-postgres}:${POSTGRES_PORT:-5432}/${POSTGRES_DB:-pypsa_dev}
-      - REDIS_URL=redis://redis:6379/0
-      - SERVE_FRONTEND=${SERVE_FRONTEND:-false}
-      - DEBUG=true
-      # Map configuration
-      - MAPBOX_TOKEN=${MAPBOX_TOKEN}
-      # Authentication
-      - ENABLE_AUTH=${ENABLE_AUTH:-false}
-      - GITHUB_CLIENT_ID=${GITHUB_CLIENT_ID:-}
-      - GITHUB_CLIENT_SECRET=${GITHUB_CLIENT_SECRET:-}
-      - SESSION_SECRET_KEY=${SESSION_SECRET_KEY:-dev-secret-key-change-in-production}
-      - SESSION_COOKIE_NAME=${SESSION_COOKIE_NAME:-pypsa_session}
-      - SESSION_TTL=${SESSION_TTL:-604800}
-      - BASE_URL=${BASE_URL:-http://localhost:5173}
+      # These use docker network hostnames, so we construct them here
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      REDIS_URL: redis://redis:6379/0
+      DEBUG: true
     volumes:
       - ../src:/app/src
       - ../data:/data
@@ -68,13 +62,7 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-    command:
-      [
-        "pypsa-app",
-        "serve",
-        "--reload",
-        "--dev",
-      ]
+    command: ["pypsa-app", "serve", "--reload", "--dev"]
 
   celery-worker:
     build:
@@ -83,6 +71,10 @@ services:
       target: backend
     container_name: pypsa-celery-worker
     restart: unless-stopped
+    env_file: .env.dev
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      REDIS_URL: redis://redis:6379/0
     command:
       [
         "celery",
@@ -92,9 +84,6 @@ services:
         "--loglevel=${CELERY_LOGLEVEL:-info}",
         "--concurrency=${CELERY_CONCURRENCY:-2}",
       ]
-    environment:
-      - DATABASE_URL=postgresql://${POSTGRES_USER:-pypsa}:${POSTGRES_PASSWORD:-devpassword}@${POSTGRES_HOST:-postgres}:${POSTGRES_PORT:-5432}/${POSTGRES_DB:-pypsa_dev}
-      - REDIS_URL=redis://redis:6379/0
     volumes:
       - ../src:/app/src
       - ../data:/data
