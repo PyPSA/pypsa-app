@@ -40,7 +40,7 @@ function isPending(user) {
 }
 
 function isAdmin(user) {
-	return user.permissions?.includes('admin');
+	return user.permissions?.includes('users:manage');
 }
 
 /**

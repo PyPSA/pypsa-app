@@ -128,3 +128,36 @@
         @apply bg-background text-foreground;
     }
 }
+
+/* Tag color classes */
+.tag-model {
+    background-color: #D10A49;
+    color: white;
+}
+.tag-model:hover {
+    background-color: #B00940;
+}
+
+.tag-version {
+    background-color: #504078;
+    color: white;
+}
+.tag-version:hover {
+    background-color: #423462;
+}
+
+.tag-config {
+    background-color: #2993B5;
+    color: white;
+}
+.tag-config:hover {
+    background-color: #237A9A;
+}
+
+.tag-default {
+    background-color: var(--primary);
+    color: white;
+}
+.tag-default:hover {
+    opacity: 0.9;
+}

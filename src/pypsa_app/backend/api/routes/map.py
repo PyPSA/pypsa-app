@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Response
 from pypsa_app.backend.api.deps import get_current_user, get_network_or_404
 from pypsa_app.backend.api.utils.task_utils import queue_task
 from pypsa_app.backend.models import Network, User
-from pypsa_app.backend.schemas.common import TaskResponse
+from pypsa_app.backend.schemas.task import TaskQueuedResponse
 from pypsa_app.backend.settings import settings
 from pypsa_app.backend.tasks import extract_geographic_layer_task
 
@@ -21,7 +21,7 @@ def get_map_config():
     }
 
 
-@router.get("/{network_id}/buses", response_model=TaskResponse)
+@router.get("/{network_id}/buses", response_model=TaskQueuedResponse)
 def get_buses(
     network: Network = Depends(get_network_or_404),
     user: User = Depends(get_current_user),
@@ -32,7 +32,7 @@ def get_buses(
     )
 
 
-@router.get("/{network_id}/lines", response_model=TaskResponse)
+@router.get("/{network_id}/lines", response_model=TaskQueuedResponse)
 def get_lines(
     network: Network = Depends(get_network_or_404),
     user: User = Depends(get_current_user),

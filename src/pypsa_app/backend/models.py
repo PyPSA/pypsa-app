@@ -8,7 +8,6 @@ from sqlalchemy import (
     JSON,
     TIMESTAMP,
     BigInteger,
-    Boolean,
     Column,
     Enum,
     ForeignKey,
@@ -18,13 +17,14 @@ from sqlalchemy import (
     UniqueConstraint,
 )
 from sqlalchemy.dialects.postgresql import UUID as PostgreSQL_UUID
+from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
 from pypsa_app.backend.database import Base
 
 
 class UuidType(TypeDecorator):
-    """Store UUIDs efficiently: native UUID in PostgreSQL (16 bytes), string in SQLite (36 bytes)"""
+    """Store UUIDs efficiently. Native UUID in PostgreSQL and string in SQLite."""
 
     impl = String(36)
     cache_ok = True
@@ -46,7 +46,14 @@ class UuidType(TypeDecorator):
         return value if isinstance(value, uuid.UUID) else uuid.UUID(value)
 
 
-UUID_COLUMN = UuidType()
+def str_enum(enum_cls, name):
+    """Create SQLAlchemy Enum that stores enum values as native PostgreSQL enum."""
+    return Enum(
+        enum_cls,
+        name=name,
+        native_enum=True,
+        values_callable=lambda e: [m.value for m in e],
+    )
 
 
 class UserRole(str, enum.Enum):
@@ -57,13 +64,36 @@ class UserRole(str, enum.Enum):
     PENDING = "pending"
 
 
+class Permission(str, enum.Enum):
+    """Permission constants for access control. Format: resource:action"""
+
+    # Network permissions
+    NETWORKS_VIEW = "networks:view"
+    NETWORKS_CREATE = "networks:create"  # Upload new networks
+    NETWORKS_SCAN = "networks:scan"  # Scan file system for networks
+    NETWORKS_UPDATE = "networks:update"
+    NETWORKS_DELETE = "networks:delete"
+    NETWORKS_VIEW_ALL = "networks:view_all"
+
+    # User management permissions
+    USERS_VIEW = "users:view"
+    USERS_MANAGE = "users:manage"
+
+
+class NetworkVisibility(str, enum.Enum):
+    """Network visibility options for access control"""
+
+    PUBLIC = "public"
+    PRIVATE = "private"
+
+
 class User(Base):
     __tablename__ = "users"
 
     # Primary key
-    id = Column(UUID_COLUMN, primary_key=True, default=uuid.uuid4)
+    id = Column(UuidType(), primary_key=True, default=uuid.uuid4)
 
-    # User profile (synced from OAuth provider)
+    # User profile (currently synced from OAuth provider/ GitHub)
     username = Column(String(255), nullable=False, unique=True)
     email = Column(String(255), nullable=True)
     avatar_url = Column(String(512), nullable=True)
@@ -74,12 +104,7 @@ class User(Base):
 
     # Role is used for permissions
     role = Column(
-        Enum(
-            UserRole,
-            name="user_role",
-            native_enum=True,
-            values_callable=lambda e: [m.value for m in e],
-        ),
+        str_enum(UserRole, "user_role"),
         default=UserRole.PENDING,
         nullable=False,
         index=True,
@@ -91,17 +116,9 @@ class User(Base):
 
     @property
     def permissions(self) -> list[str]:
-        mapping = {
-            UserRole.ADMIN: [
-                "admin",
-                "view_networks",
-                "create_networks",
-                "delete_networks",
-            ],
-            UserRole.USER: ["view_networks", "create_networks", "delete_networks"],
-            UserRole.PENDING: [],
-        }
-        return mapping.get(self.role, [])
+        from pypsa_app.backend.permissions import get_user_permissions
+
+        return [p.value for p in get_user_permissions(self)]
 
 
 class UserOAuthProvider(Base):
@@ -109,9 +126,9 @@ class UserOAuthProvider(Base):
 
     __tablename__ = "user_oauth_providers"
 
-    id = Column(UUID_COLUMN, primary_key=True, default=uuid.uuid4)
+    id = Column(UuidType(), primary_key=True, default=uuid.uuid4)
     user_id = Column(
-        UUID_COLUMN,
+        UuidType(),
         ForeignKey("users.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
@@ -120,6 +137,8 @@ class UserOAuthProvider(Base):
     provider_id = Column(String(255), nullable=False)
 
     created_at = Column(TIMESTAMP, server_default=func.now())
+
+    user = relationship("User")
 
     __table_args__ = (
         UniqueConstraint("provider", "provider_id", name="uq_provider_provider_id"),
@@ -130,16 +149,24 @@ class Network(Base):
     __tablename__ = "networks"
 
     # Primary key
-    id = Column(UUID_COLUMN, primary_key=True, default=uuid.uuid4)
+    id = Column(UuidType(), primary_key=True, default=uuid.uuid4)
 
-    # Ownership (nullable for backwards compatibility with existing networks)
+    # Ownership (nullable for system networks without an owner)
     user_id = Column(
-        UUID_COLUMN,
+        UuidType(),
         ForeignKey("users.id", ondelete="SET NULL"),
         nullable=True,
         index=True,
     )
-    is_public = Column(Boolean, default=False, nullable=False)
+    owner = relationship("User", foreign_keys=[user_id])
+
+    # Visibility: public (all users) or private (owner only)
+    visibility = Column(
+        str_enum(NetworkVisibility, "network_visibility"),
+        default=NetworkVisibility.PRIVATE,
+        nullable=False,
+        index=True,
+    )
 
     # Timestamps
     created_at = Column(TIMESTAMP, server_default=func.now(), index=True)
@@ -160,6 +187,5 @@ class Network(Base):
 
     @property
     def tags(self) -> list | None:
-        if self.meta and "tags" in self.meta and isinstance(self.meta["tags"], list):
-            return self.meta["tags"]
-        return None
+        tags = self.meta.get("tags") if self.meta else None
+        return tags if isinstance(tags, list) else None

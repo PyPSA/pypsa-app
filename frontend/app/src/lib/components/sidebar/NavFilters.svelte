@@ -119,21 +119,3 @@
 		</Sidebar.GroupContent>
 	</Sidebar.Group>
 {/if}
-
-<style>
-	.tag-model {
-		background-color: #D10A49;
-	}
-
-	.tag-version {
-		background-color: #1B8C83;
-	}
-
-	.tag-config {
-		background-color: #504078;
-	}
-
-	.tag-default {
-		background-color: hsl(155.71 87.5% 28.235%);
-	}
-</style>

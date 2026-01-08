@@ -1,11 +1,13 @@
 import { renderComponent } from '$lib/components/ui/data-table/render-helpers.js';
-import TopologyCell from './cells/topology-cell.svelte';
-import FileCell from './cells/file-cell.svelte';
-import DimensionsCell from './cells/dimensions-cell.svelte';
-import ComponentsCell from './cells/components-cell.svelte';
-import TagsCell from './cells/tags-cell.svelte';
-import UpdateHistoryCell from './cells/update-history-cell.svelte';
-import ActionsCell from './cells/actions-cell.svelte';
+import TopologyCell from '../cells/topology-cell.svelte';
+import FileCell from '../cells/file-cell.svelte';
+import DimensionsCell from '../cells/dimensions-cell.svelte';
+import ComponentsCell from '../cells/components-cell.svelte';
+import TagsCell from '../cells/tags-cell.svelte';
+import UpdateHistoryCell from '../cells/update-history-cell.svelte';
+import ActionsCell from '../cells/actions-cell.svelte';
+import VisibilityCell from '../cells/visibility-cell.svelte';
+import OwnerCell from '../cells/owner-cell.svelte';
 
 export const createColumns = (helpers) => {
 	const {
@@ -16,7 +18,12 @@ export const createColumns = (helpers) => {
 		formatDate,
 		handleDelete,
 		toggleComponentsExpanded,
-		expandedComponents
+		getExpandedComponents,
+		handleVisibilityToggle,
+		canEditVisibility,
+		authEnabled,
+		getDeletingId = () => null,
+		getUpdatingVisibilityId = () => null
 	} = helpers;
 
 	return [
@@ -64,7 +71,7 @@ export const createColumns = (helpers) => {
 			enableSorting: false,
 			cell: (info) => {
 				const network = info.row.original;
-				const isExpanded = expandedComponents.has(network.id);
+				const isExpanded = getExpandedComponents().has(network.id);
 				return renderComponent(ComponentsCell, {
 					network,
 					isExpanded,
@@ -98,6 +105,33 @@ export const createColumns = (helpers) => {
 				});
 			}
 		},
+		// Auth-only columns
+		...(authEnabled
+			? [
+					{
+						accessorKey: 'visibility',
+						header: 'Visibility',
+						enableSorting: true,
+						cell: (info) => {
+							const network = info.row.original;
+							return renderComponent(VisibilityCell, {
+								network,
+								canEdit: canEditVisibility(network),
+								onToggle: handleVisibilityToggle
+							});
+						}
+					},
+					{
+						accessorKey: 'owner',
+						header: 'Owner',
+						enableSorting: false,
+						cell: (info) => {
+							const network = info.row.original;
+							return renderComponent(OwnerCell, { network });
+						}
+					}
+				]
+			: []),
 		{
 			accessorKey: 'file_size',
 			header: 'Size',
@@ -136,9 +170,16 @@ export const createColumns = (helpers) => {
 			enableSorting: false,
 			cell: (info) => {
 				const network = info.row.original;
+				const canEdit = canEditVisibility(network);
+				const isDeleting = getDeletingId() === network.id;
+				const isUpdatingVisibility = getUpdatingVisibilityId() === network.id;
 				return renderComponent(ActionsCell, {
 					network,
-					handleDelete
+					handleDelete,
+					handleVisibilityToggle,
+					canEdit,
+					isDeleting,
+					isUpdatingVisibility
 				});
 			}
 		}

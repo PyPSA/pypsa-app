@@ -18,7 +18,7 @@
 	const isLastPage = $derived(currentPage === totalPages);
 
 	// Selected page size for Select component
-	let selectedValue = $state(pageSize.toString());
+	const selectedValue = $derived(pageSize.toString());
 
 	// Page size options
 	const pageSizeOptions = [10, 25, 50, 100];
@@ -36,10 +36,6 @@
 		}
 	}
 
-	// Update selected value when pageSize prop changes
-	$effect(() => {
-		selectedValue = pageSize.toString();
-	});
 </script>
 
 <div class="flex flex-col items-center gap-4">
@@ -82,7 +78,7 @@
 
 		<div class="flex items-center gap-2">
 			<span class="text-xs text-muted-foreground">Per page:</span>
-			<Select.Root type="single" bind:value={selectedValue} onValueChange={handlePageSizeChange}>
+			<Select.Root type="single" value={selectedValue} onValueChange={handlePageSizeChange}>
 				<Select.Trigger class="h-7 w-[70px] text-xs">
 					{selectedValue}
 				</Select.Trigger>

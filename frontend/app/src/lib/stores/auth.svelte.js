@@ -79,7 +79,7 @@ class AuthStore {
 	}
 
 	get isAdmin() {
-		return this.hasPermission('admin');
+		return this.hasPermission('users:manage');
 	}
 
 	get isApproved() {
@@ -87,15 +87,7 @@ class AuthStore {
 	}
 
 	get isPending() {
-		return this.user !== null && this.permissions.length === 0;
-	}
-
-	get canManageNetworks() {
-		return this.hasPermission('delete_networks');
-	}
-
-	get canViewNetworks() {
-		return this.hasPermission('view_networks');
+		return this.isAuthenticated && !this.isApproved;
 	}
 }
 

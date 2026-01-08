@@ -4,11 +4,15 @@
 	import { browser, dev } from '$app/environment';
 	import { goto } from '$app/navigation';
 	import { networks, plots } from '$lib/api/client.js';
+	import { formatFileSize, formatDate, formatRelativeTime, formatNumber, getDirectoryPath, getTagType, getTagColor } from '$lib/utils.js';
 	import { Network, AlertCircle, FolderOpen, Clock, CalendarRange, Waypoints, Map, ChevronLeft, ChevronRight, SlidersHorizontal, PanelRight } from 'lucide-svelte';
 	import NavNetworkFilters from '$lib/components/sidebar/NavNetworkFilters.svelte';
 	import Button from '$lib/components/ui/button/button.svelte';
 	import * as Tabs from '$lib/components/ui/tabs';
 	import Badge from '$lib/components/ui/badge/badge.svelte';
+	import NetworkDetailSkeleton from './components/NetworkDetailSkeleton.svelte';
+	import PlotSkeleton from './components/PlotSkeleton.svelte';
+	import { Skeleton } from '$lib/components/ui/skeleton';
 	import {
 		networksList as networksListStore,
 		loadingNetworks as loadingNetworksStore,
@@ -130,7 +134,6 @@
 		// Check for network data in both single mode (network) and compare mode (selectedNetworks)
 		const hasNetworkData = compareMode ? selectedNetworks.length > 0 : !!network;
 		if (browser && hasNetworkData && Plotly && activeTab && selectedCarriers.length > 0 && currentFilterState !== lastFilterState && !isLoadingInitial) {
-			console.log('Filter state changed, scheduling plot update');
 			lastFilterState = currentFilterState;
 			// Cancel any pending plot updates
 			clearTimeout(filterUpdateTimeout);
@@ -249,6 +252,7 @@
 		loadingNetworksStore.set(true);
 		try {
 			const response = await networks.list();
+
 			networksListStore.set(response.data);
 			loadingNetworksStore.set(false);
 
@@ -259,6 +263,10 @@
 				goto(`/network?id=${firstNetworkId}`);
 			}
 		} catch (err) {
+			if (err.cancelled) {
+				loadingNetworksStore.set(false);
+				return;
+			}
 			console.error('Failed to load networks list:', err);
 			loadingNetworksStore.set(false);
 		}
@@ -272,11 +280,7 @@
 		plotData = null;
 
 		try {
-			console.log('Loading network with ID:', networkId);
 			network = await networks.get(networkId);
-			console.log('Network loaded successfully:', network);
-			console.log('Network meta:', network?.meta);
-			console.log('Network carriers:', network?.meta?.carriers);
 			loading = false;
 
 			// Reset filters when loading a new network
@@ -306,7 +310,6 @@
 
 			if (response.status === 202) {
 				// Data still being generated, retry after a delay
-				console.log('Topology SVG still being generated, retrying in 3 seconds...');
 				setTimeout(() => loadThumbnail(), 3000);
 				return;
 			}
@@ -464,12 +467,10 @@
 			if (selectedCarriers.length > 0 && Plotly) {
 				loadPlotsForCarriers();
 			} else if (selectedCarriers.length > 0 && !Plotly) {
-				console.log('Waiting for Plotly to load before rendering plot');
 				// Plotly not loaded yet, wait a bit and try again
 				const checkPlotly = setInterval(() => {
 					if (Plotly) {
 						clearInterval(checkPlotly);
-						console.log('Plotly loaded, now triggering plot load');
 						loadPlotsForCarriers();
 					}
 				}, 100);
@@ -508,7 +509,6 @@
 		const defaultCarriers = ['AC', 'Hydrogen Storage', 'Low Voltage'];
 		if (network?.facets?.carriers) {
 			const availableCarriers = Object.keys(network.facets.carriers);
-			console.log('Available carriers:', availableCarriers);
 
 			// Try to preserve existing selections
 			const preservedCarriers = Array.from(currentCarriers).filter(c => availableCarriers.includes(c));
@@ -516,7 +516,6 @@
 			if (preservedCarriers.length > 0) {
 				// Keep existing selections that are still available
 				selectedCarriersStore.set(new Set(preservedCarriers));
-				console.log('Preserved carriers:', Array.from(preservedCarriers));
 			} else {
 				// No existing selections or none are valid, use defaults
 				const selectedCarriersArray = defaultCarriers.filter(c => availableCarriers.includes(c));
@@ -525,10 +524,8 @@
 				} else {
 					selectedCarriersStore.set(new Set(selectedCarriersArray));
 				}
-				console.log('Selected carriers after reset:', Array.from($selectedCarriersStore));
 			}
 		} else {
-			console.log('No carriers found in network.facets.carriers');
 			selectedCarriersStore.set(new Set());
 		}
 
@@ -539,11 +536,9 @@
 			if (preservedCountries.length > 0) {
 				// Keep existing selections that are still available
 				selectedCountriesStore.set(new Set(preservedCountries));
-				console.log('Preserved countries:', Array.from(preservedCountries));
 			} else {
 				// No existing selections, select all by default
 				selectedCountriesStore.set(new Set(network.facets.countries));
-				console.log('Selected all countries by default:', Array.from($selectedCountriesStore));
 			}
 		} else {
 			selectedCountriesStore.set(new Set());
@@ -558,15 +553,12 @@
 
 			// Trigger initial plot load (only if Plotly is loaded)
 			if (selectedCarriers.length > 0 && Plotly) {
-				console.log('Triggering initial plot load');
 				loadPlotsForCarriers();
 			} else if (selectedCarriers.length > 0 && !Plotly) {
-				console.log('Waiting for Plotly to load before rendering plot');
 				// Plotly not loaded yet, wait a bit and try again
 				const checkPlotly = setInterval(() => {
 					if (Plotly) {
 						clearInterval(checkPlotly);
-						console.log('Plotly loaded, now triggering plot load');
 						loadPlotsForCarriers();
 					}
 				}, 100);
@@ -660,66 +652,41 @@ async function loadPlot(statistic, plotType, parameters = {}) {
 
 		loadingPlot = true;
 		error = null;
-		console.log('=== loadPlot START ===');
-		console.log('loadPlot called with:', { statistic, plotType, parameters, requestId: currentRequestId });
-		console.log('Current state:', { compareMode, networkId, networkIds, plotDiv: !!plotDiv, Plotly: !!Plotly });
 		try {
 			// Use networkIds for compare mode, networkId for single mode
 			const ids = compareMode ? networkIds : networkId;
-			console.log('Requesting plot for IDs:', ids);
 			const response = await plots.generate(ids, statistic, plotType, parameters);
 
 			// Check if this request is still valid (not superseded by a newer request)
 			if (currentRequestId !== plotRequestId || !componentMounted) {
-				console.log('Plot request superseded or component unmounted, aborting');
-				return;
-			}
-
-			console.log('Plot response received:', {
-				hasPlotData: !!response?.plot_data,
-				cached: response?.cached,
-				plotDataKeys: response?.plot_data ? Object.keys(response.plot_data) : []
-			});
-
-			// Check if request was cancelled (returns null)
-			if (!response) {
-				console.log('Plot request was cancelled');
-				loadingPlot = false;
 				return;
 			}
 
 			plotData = { statistic, plotType, ...response };
-			console.log('plotData set:', { statistic, plotType, hasPlotData: !!response.plot_data });
 			loadingPlot = false;
 
 			// Wait for Svelte to update DOM, then render plot
 			await tick();
-			console.log('After tick, plotDiv exists:', !!plotDiv);
 
 			// Check again if request is still valid
 			if (currentRequestId !== plotRequestId || !componentMounted) {
-				console.log('Plot request superseded after tick, aborting');
 				return;
 			}
 
 			// Wait up to 1 second for plotDiv to be bound
 			let attempts = 0;
 			while (!plotDiv && attempts < 20 && currentRequestId === plotRequestId && componentMounted) {
-				console.log(`Waiting for plotDiv, attempt ${attempts + 1}/20`);
 				await new Promise(resolve => setTimeout(resolve, 50));
 				attempts++;
 			}
 
 			// Final check before proceeding
 			if (currentRequestId !== plotRequestId || !componentMounted) {
-				console.log('Plot request superseded while waiting for element, aborting');
 				return;
 			}
 
-			console.log('After waiting, plotDiv exists:', !!plotDiv);
 
 			if (plotDiv && response.plot_data && Plotly) {
-				console.log('All requirements met, checking dimensions...');
 				// Check if container has dimensions - retry up to 1 second
 				let rect = plotDiv.getBoundingClientRect();
 				attempts = 0;
@@ -732,7 +699,6 @@ async function loadPlot(statistic, plotType, parameters = {}) {
 
 				// Final check before rendering
 				if (currentRequestId !== plotRequestId || !componentMounted) {
-					console.log('Plot request superseded while checking dimensions, aborting');
 					return;
 				}
 
@@ -741,7 +707,6 @@ async function loadPlot(statistic, plotType, parameters = {}) {
 					return;
 				}
 
-				console.log('Container has valid dimensions:', rect);
 
 				// Final element existence check right before rendering
 				if (!plotDiv || !document.body.contains(plotDiv)) {
@@ -758,7 +723,6 @@ async function loadPlot(statistic, plotType, parameters = {}) {
 
 				// Cleanup existing plot if any (prevents memory leaks and rendering conflicts)
 				if (plotDiv._plotly) {
-					console.log('Cleaning up existing Plotly instance');
 					try {
 						Plotly.purge(plotDiv);
 					} catch (purgeErr) {
@@ -775,11 +739,9 @@ async function loadPlot(statistic, plotType, parameters = {}) {
 					margin: { l: 60, r: 30, t: 30, b: 60 }
 				};
 
-				console.log('Calling Plotly.newPlot...');
 				try {
 					// Final guard: verify element still valid and request not superseded
 					if (!plotDiv || !document.body.contains(plotDiv) || currentRequestId !== plotRequestId || !componentMounted) {
-						console.log('Pre-render validation failed, aborting');
 						return;
 					}
 
@@ -789,7 +751,6 @@ async function loadPlot(statistic, plotType, parameters = {}) {
 						displayModeBar: true,
 						displaylogo: false
 					});
-					console.log('Plotly.newPlot completed');
 
 					// Force a resize to ensure full width after plot is created
 					await new Promise(resolve => setTimeout(resolve, 100));
@@ -797,7 +758,6 @@ async function loadPlot(statistic, plotType, parameters = {}) {
 					if (plotDiv && document.body.contains(plotDiv) && currentRequestId === plotRequestId && componentMounted) {
 						Plotly.Plots.resize(plotDiv);
 					}
-					console.log('=== loadPlot END (success) ===');
 				} catch (plotlyErr) {
 					console.error('Plotly.newPlot error:', plotlyErr);
 					error = `Failed to render plot: ${plotlyErr.message}`;
@@ -808,11 +768,14 @@ async function loadPlot(statistic, plotType, parameters = {}) {
 					plotData: !!response?.plot_data,
 					Plotly: !!Plotly
 				});
-				console.log('=== loadPlot END (missing requirements) ===');
 			}
 		} catch (err) {
 			// Only set error if this is still the current request
 			if (currentRequestId === plotRequestId) {
+				if (err.cancelled) {
+					loadingPlot = false;
+					return;
+				}
 				error = err.message;
 				loadingPlot = false;
 				plotData = null; // Clear old plot data when error occurs
@@ -831,100 +794,6 @@ async function loadPlot(statistic, plotType, parameters = {}) {
 		}
 		return 0;
 	}
-	function formatFileSize(bytes) {
-		if (!bytes) return 'N/A';
-		const mb = bytes / (1024 * 1024);
-		return `${mb.toFixed(2)} MB`;
-	}
-
-	function formatDate(dateString) {
-		if (!dateString) return 'N/A';
-		const date = new Date(dateString);
-		const now = new Date();
-		const diffInSeconds = Math.floor((now - date) / 1000);
-
-		// Less than 1 minute
-		if (diffInSeconds < 60) return 'just now';
-		// Less than 1 hour
-		if (diffInSeconds < 3600) {
-			const minutes = Math.floor(diffInSeconds / 60);
-			return `${minutes}m ago`;
-		}
-		// Less than 24 hours
-		if (diffInSeconds < 86400) {
-			const hours = Math.floor(diffInSeconds / 3600);
-			return `${hours}h ago`;
-		}
-		// Less than 7 days
-		if (diffInSeconds < 604800) {
-			const days = Math.floor(diffInSeconds / 86400);
-			return `${days}d ago`;
-		}
-		// Otherwise show date
-		return date.toLocaleDateString();
-	}
-
-	function formatNumber(num) {
-		if (num >= 1000) {
-			return (num / 1000).toFixed(1) + 'k';
-		}
-		return num.toString();
-	}
-
-	function getTagType(tag) {
-		if (typeof tag === 'string') {
-			return 'default';
-		}
-		const name = tag.name?.toLowerCase() || '';
-		const url = tag.url?.toLowerCase() || '';
-
-		// Check for config type
-		if (name.includes('config') || name.endsWith('.yaml') || name.endsWith('.yml')) {
-			return 'config';
-		}
-
-		// Check for version type (commit hash or version-like)
-		if (url.includes('/commit/') || /^[a-f0-9]{7,}$/.test(name) || name === 'master' || name === 'main') {
-			return 'version';
-		}
-
-		// Otherwise, assume it's a model/project
-		return 'model';
-	}
-
-	function getTagColorClass(type) {
-		switch (type) {
-			case 'model':
-				return 'tag-model';
-			case 'version':
-				return 'tag-version';
-			case 'config':
-				return 'tag-config';
-			default:
-				return 'tag-default';
-		}
-	}
-
-	function getDirectoryPath(fullPath) {
-		if (!fullPath) return '';
-		// Extract the part after /networks/ or /data/networks/
-		let relativePath = fullPath;
-
-		// Remove /data/networks prefix if present
-		if (relativePath.includes('/data/networks/')) {
-			relativePath = relativePath.split('/data/networks/')[1] || '';
-		} else if (relativePath.includes('/networks/')) {
-			relativePath = relativePath.split('/networks/')[1] || '';
-		}
-
-		// Get directory path (everything except filename)
-		const lastSlashIndex = relativePath.lastIndexOf('/');
-		if (lastSlashIndex === -1) {
-			return '';
-		}
-		return relativePath.substring(0, lastSlashIndex + 1);
-	}
-
 	function getRelativePath(fullPath) {
 		if (!fullPath) return '';
 		// Remove /data/networks prefix if present
@@ -973,7 +842,6 @@ async function loadPlot(statistic, plotType, parameters = {}) {
 
 	async function loadPlotsForCarriers() {
 		if (!selectedCarriers || selectedCarriers.length === 0) {
-			console.log('No carriers selected, skipping plot load');
 			return;
 		}
 
@@ -983,14 +851,10 @@ async function loadPlot(statistic, plotType, parameters = {}) {
 		// Increment request ID to invalidate any previous in-flight requests
 		const currentRequestId = ++plotRequestId;
 
-		console.log('Loading plots for carriers:', selectedCarriers, 'requestId:', currentRequestId);
-		console.log('Active tab config:', activeTabConfig);
-		console.log('Individual plots:', individualPlots);
 
 		try {
 			if (individualPlots) {
 				// Create separate plots for each carrier (stacked)
-				console.log('Creating separate plots for each carrier');
 				loadingPlot = true;
 				error = null;
 
@@ -998,14 +862,12 @@ async function loadPlot(statistic, plotType, parameters = {}) {
 				for (const carrier of selectedCarriers) {
 					// Check if request is still valid before each carrier
 					if (currentRequestId !== plotRequestId || !componentMounted) {
-						console.log('Plot request superseded during carrier loop, aborting');
 						return;
 					}
 
 					try {
 						// Build parameters for single carrier
 						const parameters = buildFilterParameters(activeTabConfig, [carrier]);
-						console.log(`Plot parameters for ${carrier}:`, parameters);
 
 						// Generate plot for this carrier (use appropriate IDs based on mode)
 						const ids = compareMode ? networkIds : networkId;
@@ -1013,19 +875,16 @@ async function loadPlot(statistic, plotType, parameters = {}) {
 
 						// Check again after async operation
 						if (currentRequestId !== plotRequestId || !componentMounted) {
-							console.log('Plot request superseded after carrier plot generation, aborting');
 							return;
 						}
 
-						if (response) {
-							// Get carrier name from appropriate source
-							const carrierInfo = compareMode ? mergedCarriers : network?.meta?.carriers;
-							carrierPlots.push({
-								carrier,
-								carrierName: carrierInfo?.[carrier]?.nice_name || carrier,
-								plotData: response.plot_data
-							});
-						}
+						// Get carrier name from appropriate source
+						const carrierInfo = compareMode ? mergedCarriers : network?.meta?.carriers;
+						carrierPlots.push({
+							carrier,
+							carrierName: carrierInfo?.[carrier]?.nice_name || carrier,
+							plotData: response.plot_data
+						});
 					} catch (err) {
 						console.error(`Failed to generate plot for carrier ${carrier}:`, err);
 					}
@@ -1033,7 +892,6 @@ async function loadPlot(statistic, plotType, parameters = {}) {
 
 				// Final check before setting plot data
 				if (currentRequestId !== plotRequestId || !componentMounted) {
-					console.log('Plot request superseded after all carriers, aborting');
 					return;
 				}
 
@@ -1051,7 +909,6 @@ async function loadPlot(statistic, plotType, parameters = {}) {
 
 				// Check again before rendering
 				if (currentRequestId !== plotRequestId || !componentMounted) {
-					console.log('Plot request superseded before rendering, aborting');
 					return;
 				}
 
@@ -1059,7 +916,6 @@ async function loadPlot(statistic, plotType, parameters = {}) {
 					for (let index = 0; index < carrierPlots.length; index++) {
 						// Check for each plot
 						if (currentRequestId !== plotRequestId || !componentMounted) {
-							console.log('Plot request superseded during rendering loop, aborting');
 							return;
 						}
 
@@ -1077,7 +933,6 @@ async function loadPlot(statistic, plotType, parameters = {}) {
 
 						// Check after waiting
 						if (currentRequestId !== plotRequestId || !componentMounted) {
-							console.log(`Plot request superseded while waiting for ${plotDivId}, aborting`);
 							return;
 						}
 
@@ -1094,7 +949,6 @@ async function loadPlot(statistic, plotType, parameters = {}) {
 
 							// Check after dimension wait
 							if (currentRequestId !== plotRequestId || !componentMounted) {
-								console.log(`Plot request superseded while checking ${plotDivId} dimensions, aborting`);
 								return;
 							}
 
@@ -1141,13 +995,16 @@ async function loadPlot(statistic, plotType, parameters = {}) {
 			} else {
 				// Merge all carriers into a single plot (combined)
 				const parameters = buildFilterParameters(activeTabConfig, selectedCarriers);
-				console.log('Plot parameters (combined):', parameters);
 				await loadPlot(activeTabConfig.statistic, activeTabConfig.plotType, parameters);
 			}
 		} catch (err) {
 			console.error('Error in loadPlotsForCarriers:', err);
 			// Only set error if this is still the current request
 			if (currentRequestId === plotRequestId) {
+				if (err.cancelled) {
+					loadingPlot = false;
+					return;
+				}
 				error = err.message;
 				loadingPlot = false;
 				plotData = null; // Clear old plot data when error occurs
@@ -1177,47 +1034,6 @@ async function loadPlot(statistic, plotType, parameters = {}) {
 	:global(.svg-container) {
 		width: 100% !important;
 	}
-
-	/* Tag color classes */
-	:global(.tag-model) {
-		background-color: #D10A49 !important;
-		color: white !important;
-		border-color: #D10A49 !important;
-	}
-
-	:global(.tag-model:hover) {
-		background-color: #B00940 !important;
-	}
-
-	:global(.tag-version) {
-		background-color: #504078 !important;
-		color: white !important;
-		border-color: #504078 !important;
-	}
-
-	:global(.tag-version:hover) {
-		background-color: #423462 !important;
-	}
-
-	:global(.tag-config) {
-		background-color: #2993B5 !important;
-		color: white !important;
-		border-color: #2993B5 !important;
-	}
-
-	:global(.tag-config:hover) {
-		background-color: #237A9A !important;
-	}
-
-	:global(.tag-default) {
-		background-color: var(--primary) !important;
-		color: white !important;
-		border-color: var(--primary) !important;
-	}
-
-	:global(.tag-default:hover) {
-		opacity: 0.9;
-	}
 </style>
 
 {#if compareMode && networkIds.length === 0}
@@ -1231,12 +1047,7 @@ async function loadPlot(statistic, plotType, parameters = {}) {
 				</div>
 			</div>
 		{:else if compareMode && loadingInfo}
-			<div class="flex items-center justify-center h-full w-full">
-				<div class="text-center">
-					<div class="inline-block animate-spin rounded-full h-12 w-12 border-4 border-primary border-t-transparent"></div>
-					<p class="mt-4 text-muted-foreground">Loading networks...</p>
-				</div>
-			</div>
+			<NetworkDetailSkeleton />
 		{:else if compareMode && error}
 			<div class="flex items-center justify-center h-full w-full">
 				<div class="text-center">
@@ -1306,10 +1117,15 @@ async function loadPlot(statistic, plotType, parameters = {}) {
 
 					<!-- Plot Content (shared with single mode) -->
 					{#if loadingPlot}
-						<div class="text-center py-12">
-							<div class="inline-block animate-spin rounded-full h-8 w-8 border-4 border-primary border-t-transparent"></div>
-							<p class="mt-2 text-muted-foreground">Generating plot{individualPlots && selectedCarriers.length > 1 ? 's' : ''}...</p>
-						</div>
+						{#if individualPlots && selectedCarriers.length > 1}
+							<div class="space-y-6">
+								{#each selectedCarriers.slice(0, 3) as carrier, i}
+									<PlotSkeleton title={carrier} />
+								{/each}
+							</div>
+						{:else}
+							<PlotSkeleton />
+						{/if}
 					{:else if error}
 						<div class="bg-red-50 border border-red-300 text-red-800 px-4 py-3 rounded-lg">
 							<div class="font-semibold mb-2">Error:</div>
@@ -1386,12 +1202,7 @@ async function loadPlot(statistic, plotType, parameters = {}) {
 			</div>
 		</div>
 		{:else if loading && !network}
-			<div class="flex items-center justify-center h-full w-full">
-				<div class="text-center">
-					<div class="inline-block animate-spin rounded-full h-12 w-12 border-4 border-primary border-t-transparent"></div>
-					<p class="mt-4 text-muted-foreground">Loading network...</p>
-				</div>
-			</div>
+			<NetworkDetailSkeleton />
 		{:else if error && !network}
 			<div class="flex items-center justify-center h-full w-full">
 				<div class="text-center">
@@ -1400,7 +1211,18 @@ async function loadPlot(statistic, plotType, parameters = {}) {
 					<p class="text-muted-foreground">{error}</p>
 				</div>
 			</div>
-		{:else if network}
+		{:else if !networkId && !compareMode}
+		<!-- Empty state for single mode with no networks available -->
+		<div class="flex items-center justify-center h-full w-full">
+			<div class="text-center">
+				<Network size={64} class="mx-auto mb-4 text-muted-foreground" strokeWidth={1.5} />
+				<h2 class="text-2xl font-bold mb-2">No Networks Available</h2>
+				<p class="text-muted-foreground">
+					Upload networks in the Database to get started
+				</p>
+			</div>
+		</div>
+	{:else if network}
 			<div class="flex gap-6">
 				<!-- Main Content -->
 				<div class="flex-1 min-w-0">
@@ -1600,7 +1422,7 @@ async function loadPlot(statistic, plotType, parameters = {}) {
 										<div class="flex flex-wrap gap-1.5">
 											{#each network.tags as tag}
 												{@const tagType = getTagType(tag)}
-												{@const colorClass = getTagColorClass(tagType)}
+												{@const colorClass = getTagColor(tagType)}
 												{#if typeof tag === 'object' && tag.name && tag.url}
 													<a
 														href={tag.url}
@@ -1643,11 +1465,9 @@ async function loadPlot(statistic, plotType, parameters = {}) {
 						<h3 class="text-sm font-semibold text-foreground">Map</h3>
 					</div>
 
-					<div class="flex items-center justify-center bg-muted/20 rounded-md border border-border aspect-4/3">
+					<div class="flex items-center justify-center bg-muted/20 rounded-md border border-border aspect-4/3 overflow-hidden">
 						{#if thumbnailLoading}
-							<div class="text-center">
-								<div class="inline-block animate-spin rounded-full h-6 w-6 border-2 border-primary border-t-transparent"></div>
-							</div>
+							<Skeleton class="w-full h-full" />
 						{:else if thumbnailError}
 							<div class="text-center">
 								<Map size={24} class="mx-auto text-muted-foreground" />
@@ -1688,10 +1508,15 @@ async function loadPlot(statistic, plotType, parameters = {}) {
 
 				<!-- Plot Content -->
 				{#if loadingPlot}
-					<div class="text-center py-12">
-						<div class="inline-block animate-spin rounded-full h-8 w-8 border-4 border-primary border-t-transparent"></div>
-						<p class="mt-2 text-muted-foreground">Generating plot{individualPlots && selectedCarriers.length > 1 ? 's' : ''}...</p>
-					</div>
+					{#if individualPlots && selectedCarriers.length > 1}
+						<div class="space-y-6">
+							{#each selectedCarriers.slice(0, 3) as carrier, i}
+								<PlotSkeleton title={carrier} />
+							{/each}
+						</div>
+					{:else}
+						<PlotSkeleton />
+					{/if}
 				{:else if error}
 					<div class="bg-red-50 border border-red-300 text-red-800 px-4 py-3 rounded-lg">
 						<div class="font-semibold mb-2">Error:</div>

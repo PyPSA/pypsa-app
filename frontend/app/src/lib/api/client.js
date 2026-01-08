@@ -47,10 +47,8 @@ async function request(endpoint, options = {}, cancellationKey = null) {
 			const err = new Error(error.detail || `HTTP ${response.status}: ${response.statusText}`);
 			err.status = response.status;
 
-			// Handle authentication errors - but only redirect for 401, not 400
-			// 400 means auth is disabled, 401 means auth is enabled but user not logged in
+			// 401 = auth required, redirect to login (skip for auth endpoints themselves)
 			if (response.status === 401 && !endpoint.includes('/auth/')) {
-				// Redirect to login page if not authenticated (except for auth endpoints)
 				if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/login')) {
 					window.location.href = '/login';
 				}
@@ -61,10 +59,10 @@ async function request(endpoint, options = {}, cancellationKey = null) {
 
 		return await response.json();
 	} catch (error) {
-		// Don't log AbortError as it's expected when cancelling requests
 		if (error.name === 'AbortError') {
-			console.log('Request cancelled:', endpoint);
-			return null;
+			const cancelError = new Error('Request cancelled');
+			cancelError.cancelled = true;
+			throw cancelError;
 		}
 		console.error('API request failed:', error);
 		throw error;
@@ -91,8 +89,12 @@ export const auth = {
 
 // Networks API
 export const networks = {
-	async list(skip = 0, limit = 100) {
-		return request(`/networks/?skip=${skip}&limit=${limit}`);
+	async list(skip = 0, limit = 100, owners = null) {
+		const params = new URLSearchParams({ skip, limit });
+		if (owners && owners.length > 0) {
+			owners.forEach(owner => params.append('owners', owner));
+		}
+		return request(`/networks/?${params}`);
 	},
 	async get(id) {
 		return request(`/networks/${id}`, {}, `network-${id}`);
@@ -111,6 +113,12 @@ export const networks = {
 	},
 	async delete(id) {
 		return request(`/networks/${id}`, { method: 'DELETE' });
+	},
+	async updateVisibility(id, visibility) {
+		return request(`/networks/${id}`, {
+			method: 'PATCH',
+			body: JSON.stringify({ visibility })
+		});
 	}
 };
 
@@ -248,19 +256,16 @@ export const health = {
 
 // Admin API
 export const admin = {
-	/** List users with optional role filter */
 	async listUsers(skip = 0, limit = 100, role = null) {
 		let url = `/admin/users?skip=${skip}&limit=${limit}`;
 		if (role) url += `&role=${role}`;
 		return request(url);
 	},
 
-	/** Approve a pending user */
 	async approveUser(userId) {
 		return request(`/admin/users/${userId}/approve`, { method: 'POST' });
 	},
 
-	/** Update user role */
 	async updateUserRole(userId, role) {
 		return request(`/admin/users/${userId}/role`, {
 			method: 'PATCH',
@@ -268,8 +273,29 @@ export const admin = {
 		});
 	},
 
-	/** Delete a user */
 	async deleteUser(userId) {
 		return request(`/admin/users/${userId}`, { method: 'DELETE' });
+	},
+
+	async listNetworks(skip = 0, limit = 100, filters = {}) {
+		let url = `/admin/networks?skip=${skip}&limit=${limit}`;
+		if (filters.visibility) url += `&visibility=${filters.visibility}`;
+		if (filters.owner) url += `&owner=${filters.owner}`;
+		return request(url);
+	},
+
+	async updateNetwork(networkId, updates) {
+		return request(`/admin/networks/${networkId}`, {
+			method: 'PATCH',
+			body: JSON.stringify(updates)
+		});
+	},
+
+	async deleteNetwork(networkId) {
+		return request(`/admin/networks/${networkId}`, { method: 'DELETE' });
+	},
+
+	async getPermissions() {
+		return request('/admin/permissions');
 	}
 };

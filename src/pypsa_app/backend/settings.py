@@ -126,7 +126,14 @@ class Settings(BaseSettings):
     )
 
     @model_validator(mode="after")
-    def validate_session_secret(self):
+    def validate_auth_settings(self):
+        if self.enable_auth and self.database_url.startswith("sqlite"):
+            raise ValueError(
+                "Authentication requires PostgreSQL. "
+                "SQLite does not support the features needed for multi-user auth. "
+                "Either set ENABLE_AUTH=false or use a PostgreSQL DATABASE_URL."
+            )
+
         if (
             self.enable_auth
             and self.session_secret_key == "dev-secret-key-change-in-production"

@@ -31,7 +31,5 @@
 				</span>
 			{/if}
 		{/each}
-	{:else}
-		<span class="text-xs text-muted-foreground">-</span>
 	{/if}
 </div>

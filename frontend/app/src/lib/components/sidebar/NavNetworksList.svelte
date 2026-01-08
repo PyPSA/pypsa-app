@@ -4,6 +4,7 @@
 	import * as Sidebar from '$lib/components/ui/sidebar';
 	import { Switch } from '$lib/components/ui/switch';
 	import { Button } from '$lib/components/ui/button';
+	import NetworksListSkeleton from './NetworksListSkeleton.svelte';
 	import {
 		networksList,
 		loadingNetworks,
@@ -67,9 +68,7 @@
 	</Sidebar.GroupLabel>
 	<Sidebar.GroupContent class="flex-1 overflow-hidden">
 		{#if $loadingNetworks}
-			<div class="flex justify-center py-4">
-				<div class="inline-block animate-spin rounded-full h-6 w-6 border-2 border-primary border-t-transparent"></div>
-			</div>
+			<NetworksListSkeleton />
 		{:else if $networksList.length === 0}
 			<div class="text-sm text-muted-foreground text-center py-4">No networks found</div>
 		{:else}

@@ -1,6 +1,6 @@
 <script>
 	import { page } from '$app/stores';
-	import { Users } from 'lucide-svelte';
+	import { Users, Network } from 'lucide-svelte';
 	import { authStore } from '$lib/stores/auth.svelte.js';
 	import * as Sidebar from '$lib/components/ui/sidebar';
 
@@ -9,6 +9,11 @@
 			title: 'User Management',
 			url: '/admin/users',
 			icon: Users
+		},
+		{
+			title: 'Network Management',
+			url: '/admin/networks',
+			icon: Network
 		}
 	];
 

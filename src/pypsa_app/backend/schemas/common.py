@@ -14,10 +14,3 @@ class PaginationMeta(BaseModel):
 
 class MessageResponse(BaseModel):
     message: str
-
-
-class TaskResponse(BaseModel):
-    status: str
-    task_id: str
-    status_url: str
-    message: str

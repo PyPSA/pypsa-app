@@ -8,6 +8,7 @@
 	import * as Avatar from '$lib/components/ui/avatar';
 	import * as Dialog from '$lib/components/ui/dialog';
 	import { Badge } from '$lib/components/ui/badge';
+	import UsersSkeleton from './components/UsersSkeleton.svelte';
 
 	let users = $state([]);
 	let loading = $state(true);
@@ -15,10 +16,22 @@
 	let filter = $state('all');
 	let selectedUser = $state(null);
 	let dialogOpen = $state(false);
+	let allPermissions = $state([]);
+	let rolePermissions = $state({});
 
 	onMount(async () => {
-		await loadUsers();
+		await Promise.all([loadUsers(), loadPermissions()]);
 	});
+
+	async function loadPermissions() {
+		try {
+			const response = await admin.getPermissions();
+			allPermissions = response.permissions;
+			rolePermissions = response.role_permissions;
+		} catch (err) {
+			console.error('Failed to load permissions:', err);
+		}
+	}
 
 	async function loadUsers() {
 		loading = true;
@@ -76,7 +89,7 @@
 
 	function getRole(user) {
 		if (!user.permissions?.length) return 'pending';
-		if (user.permissions.includes('admin')) return 'admin';
+		if (user.permissions.includes('users:manage')) return 'admin';
 		return 'user';
 	}
 
@@ -90,9 +103,6 @@
 		if (!dateString) return '-';
 		return new Date(dateString).toLocaleDateString();
 	}
-
-	// All available permissions for display
-	const allPermissions = ['admin', 'view_networks', 'create_networks', 'delete_networks'];
 </script>
 
 <svelte:head>
@@ -146,7 +156,7 @@
 	</div>
 
 	{#if loading}
-		<p class="text-muted-foreground">Loading users...</p>
+		<UsersSkeleton />
 	{:else if users.length === 0}
 		<p class="text-muted-foreground">No users found.</p>
 	{:else}

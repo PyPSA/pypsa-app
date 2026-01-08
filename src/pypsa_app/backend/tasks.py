@@ -6,7 +6,7 @@ from typing import Any, Callable, Dict
 
 from pypsa_app.backend.cache import cache
 from pypsa_app.backend.task_queue import task_app
-from pypsa_app.backend.schemas.task import TaskResult
+from pypsa_app.backend.schemas.task import TaskResultResponse
 from pypsa_app.backend.services.map import extract_geographic_layer
 from pypsa_app.backend.services.network import scan_networks
 from pypsa_app.backend.services.statistics import get_plot as get_plot_service
@@ -23,7 +23,7 @@ def _execute_task(self, name: str, func: Callable, **kwargs) -> Dict[str, Any]:
     self.update_state(state="PROGRESS", meta={"status": f"{name} in progress"})
     try:
         data = func(**kwargs)
-        return TaskResult(
+        return TaskResultResponse(
             status="success",
             task_id=self.request.id,
             generated_at=datetime.now(timezone.utc).isoformat(),
@@ -41,7 +41,7 @@ def _execute_task(self, name: str, func: Callable, **kwargs) -> Dict[str, Any]:
             },
             exc_info=True,
         )
-        return TaskResult(
+        return TaskResultResponse(
             status="error", task_id=self.request.id, error=str(e)
         ).model_dump()
 

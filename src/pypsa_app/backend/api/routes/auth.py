@@ -82,8 +82,8 @@ async def callback(request: Request, db: Session = Depends(get_db)):
             logger.info(f"User logged in: {user.username} (role: {user.role})")
         else:
             # New user - first user becomes admin, others are pending
-            user_count = db.query(User).with_for_update().limit(1).count()
-            is_first_user = user_count == 0
+            existing_user = db.query(User).limit(1).first()
+            is_first_user = existing_user is None
 
             if is_first_user:
                 role = UserRole.ADMIN
@@ -129,7 +129,6 @@ async def callback(request: Request, db: Session = Depends(get_db)):
             httponly=True,
             secure=not is_localhost,
             samesite="lax",
-            domain="localhost" if is_localhost else None,
             max_age=settings.session_ttl,
         )
 

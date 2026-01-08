@@ -9,19 +9,23 @@ from pydantic import BaseModel
 from pypsa_app.backend.schemas.common import PaginationMeta
 
 
-class UserResponse(BaseModel):
-    """User information response"""
+class UserPublicResponse(BaseModel):
+    """Minimal public user info for embedding in other responses"""
 
     id: UUID
     username: str
-    email: str | None
-    avatar_url: str | None
-    created_at: datetime
-    last_login: datetime | None
-    permissions: list[str]
+    avatar_url: str | None = None
 
-    class Config:
-        from_attributes = True
+    model_config = {"from_attributes": True}
+
+
+class UserResponse(UserPublicResponse):
+    """Full user information response"""
+
+    email: str | None = None
+    created_at: datetime
+    last_login: datetime | None = None
+    permissions: list[str]
 
 
 class UserListResponse(BaseModel):

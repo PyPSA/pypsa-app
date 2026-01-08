@@ -4,61 +4,97 @@
 	import { browser } from '$app/environment';
 	import { page } from '$app/stores';
 	import { networks } from '$lib/api/client.js';
+	import { formatFileSize, formatDate, getDirectoryPath, getTagType, getTagColor } from '$lib/utils.js';
 	import Pagination from '$lib/components/Pagination.svelte';
-	import { FolderOpen, Upload, Globe, FileUp, Network, CircleAlert, Search, Eye, EyeOff } from 'lucide-svelte';
-	import { Button } from '$lib/components/ui/button';
-	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
-	import * as Empty from '$lib/components/ui/empty';
+	import { CircleAlert } from 'lucide-svelte';
 	import * as Alert from '$lib/components/ui/alert';
-	import { Input } from '$lib/components/ui/input';
-	import DataTable from './data-table.svelte';
-	import { createColumns } from './columns.js';
+	import DataTable from './components/data-table.svelte';
+	import { createColumns } from './components/columns.js';
+	import { authStore } from '$lib/stores/auth.svelte.js';
 
+	// Components
+	import ActionsBar from './components/ActionsBar.svelte';
+	import FilterBar from './components/FilterBar.svelte';
+	import EmptyState from './components/EmptyState.svelte';
+	import TableSkeleton from './components/TableSkeleton.svelte';
+
+	// Data state
 	let networksList = $state([]);
 	let loading = $state(true);
 	let error = $state(null);
-	let expandedComponents = $state(new Set()); // Track which networks have expanded components
+	let scanning = $state(false);
+	let totalNetworks = $state(0);
+	let deletingId = $state(null);  // Track which network is being deleted
+	let updatingVisibilityId = $state(null);  // Track which network visibility is being updated
 
-	// Filter state
-	let selectedTags = $state(new Set());
-	let tagSearchQuery = $state('');
+	// Filter state (unified)
+	let filters = $state({
+		search: '',
+		owners: new Set()  // empty = all, contains IDs = filter to those
+	});
 
 	// Pagination state
 	let currentPage = $state(1);
 	let pageSize = $state(25);
-	let totalNetworks = $state(0);
 
 	// Table state
 	let sorting = $state([]);
 	let columnVisibility = $state({});
-	let globalFilter = $state('');
+	let expandedComponents = $state(new Set());
+
+	// Available owners from API (all unique owners across all visible networks)
+	let availableOwners = $state([]);
+
+	// Derived: view state for conditional rendering
+	const viewState = $derived.by(() => {
+		if (loading) return 'loading';
+		// Empty when no filters and no networks
+		if (networksList.length === 0 && filters.owners.size === 0) return 'empty';
+		// No matches when filters active but no results
+		if (networksList.length === 0) return 'no-matches';
+		return 'data';
+	});
+
+	// Columns config - only recreate when authEnabled changes
+	// Use getters for dynamic values to avoid recreating columns on every state change
+	const columns = $derived.by(() => {
+		// Only depend on authEnabled for conditional columns
+		const authEnabled = authStore.authEnabled;
+		return createColumns({
+			getDirectoryPath,
+			getTagType,
+			getTagColor,
+			formatFileSize,
+			formatDate,
+			handleDelete,
+			toggleComponentsExpanded,
+			getExpandedComponents: () => expandedComponents,
+			handleVisibilityToggle,
+			canEditVisibility,
+			authEnabled,
+			getDeletingId: () => deletingId,
+			getUpdatingVisibilityId: () => updatingVisibilityId
+		});
+	});
 
 	onMount(async () => {
-		// Load page size from localStorage
 		if (browser) {
 			const savedPageSize = localStorage.getItem('networksPageSize');
-			if (savedPageSize) {
-				pageSize = parseInt(savedPageSize);
-			}
+			if (savedPageSize) pageSize = parseInt(savedPageSize);
 		}
 
-		// Get page and size from URL
 		const urlPage = $page.url.searchParams.get('page');
 		const urlSize = $page.url.searchParams.get('size');
 
 		if (urlPage) {
-			const parsedPage = parseInt(urlPage);
-			if (!isNaN(parsedPage) && parsedPage > 0) {
-				currentPage = parsedPage;
-			}
+			const parsed = parseInt(urlPage);
+			if (!isNaN(parsed) && parsed > 0) currentPage = parsed;
+		}
+		if (urlSize) {
+			const parsed = parseInt(urlSize);
+			if (!isNaN(parsed) && [1, 10, 25, 50, 100].includes(parsed)) pageSize = parsed;
 		}
 
-		if (urlSize) {
-			const parsedSize = parseInt(urlSize);
-			if (!isNaN(parsedSize) && [1, 10, 25, 50, 100].includes(parsedSize)) {
-				pageSize = parsedSize;
-			}
-		}
 		await loadNetworks();
 	});
 
@@ -66,181 +102,123 @@
 		loading = true;
 		error = null;
 		try {
-			// Calculate skip for pagination
+			// Handle "none" filter - show empty results without API call
+			if (filters.owners.has('__none__')) {
+				networksList = [];
+				totalNetworks = 0;
+				loading = false;
+				return;
+			}
+
 			const skip = (currentPage - 1) * pageSize;
 
-			// Fetch paginated data
-			const response = await networks.list(skip, pageSize);
+			// Convert owner Set to API format (use 'me' for current user's ID)
+			const ownerIds = filters.owners.size > 0
+				? Array.from(filters.owners).map(id => id === authStore.user?.id ? 'me' : id)
+				: null;
+
+			const response = await networks.list(skip, pageSize, ownerIds);
 
 			networksList = response.data;
 			totalNetworks = response.meta.total;
+			if (response.meta.owners) {
+				availableOwners = response.meta.owners;
+			}
 
-			// Validate current page doesn't exceed total pages
 			const totalPages = Math.ceil(totalNetworks / pageSize);
 			if (currentPage > totalPages && totalPages > 0) {
-				// Redirect to last page
 				currentPage = totalPages;
 				await updateURL();
 				return loadNetworks();
 			}
-
-			loading = false;
 		} catch (err) {
+			if (err.cancelled) return;
 			error = err.message;
+		} finally {
 			loading = false;
 		}
 	}
 
 	async function updateURL() {
 		if (!browser) return;
-
 		const url = new URL(window.location.href);
 		url.searchParams.set('page', currentPage.toString());
 		url.searchParams.set('size', pageSize.toString());
-
 		await goto(url.toString(), { replaceState: true, keepFocus: true, noScroll: true });
+	}
+
+	async function handleFilterChange(newFilters) {
+		filters = newFilters;
+		currentPage = 1;
+		await updateURL();
+		await loadNetworks();
+	}
+
+	function handleColumnVisibilityChange(visibility) {
+		columnVisibility = visibility;
 	}
 
 	async function handlePageChange(page) {
 		currentPage = page;
 		await updateURL();
 		await loadNetworks();
-
-		// Scroll to top smoothly
-		if (browser) {
-			window.scrollTo({ top: 0, behavior: 'smooth' });
-		}
+		if (browser) window.scrollTo({ top: 0, behavior: 'smooth' });
 	}
 
 	async function handlePageSizeChange(size) {
 		pageSize = size;
-		currentPage = 1; // Reset to first page when changing page size
-
-		// Save to localStorage
-		if (browser) {
-			localStorage.setItem('networksPageSize', size.toString());
-		}
-
+		currentPage = 1;
+		if (browser) localStorage.setItem('networksPageSize', size.toString());
 		await updateURL();
 		await loadNetworks();
 	}
 
+	async function handleScan() {
+		scanning = true;
+		error = null;
+		try {
+			await networks.scan();
+			await loadNetworks();
+		} catch (err) {
+			error = err.message;
+		} finally {
+			scanning = false;
+		}
+	}
+
 	async function handleDelete(networkId) {
+		if (deletingId) return;  // Prevent double-click
 		if (!confirm('Are you sure you want to delete this network? This will remove both the database record and the file from disk. This action cannot be undone.')) {
 			return;
 		}
-
+		deletingId = networkId;
+		error = null;
 		try {
 			await networks.delete(networkId);
 			await loadNetworks();
 		} catch (err) {
-			error = err.message;
+			if (!err.cancelled) error = err.message;
+		} finally {
+			deletingId = null;
 		}
 	}
 
-	function formatFileSize(bytes) {
-		if (!bytes) return 'N/A';
-		const mb = bytes / (1024 * 1024);
-		return `${mb.toFixed(2)} MB`;
-	}
-
-	function formatDate(dateString) {
-		if (!dateString) return 'N/A';
-		const date = new Date(dateString);
-		return date.toLocaleDateString() + ' ' + date.toLocaleTimeString();
+	async function handleVisibilityToggle(networkId, newVisibility) {
+		if (updatingVisibilityId) return;  // Prevent double-click
+		updatingVisibilityId = networkId;
+		error = null;
+		try {
+			await networks.updateVisibility(networkId, newVisibility);
+			await loadNetworks();
+		} catch (err) {
+			if (!err.cancelled) error = err.message;
+		} finally {
+			updatingVisibilityId = null;
+		}
 	}
 
 	function viewNetwork(networkId) {
 		goto(`/network?id=${networkId}`);
-	}
-
-	function getComponentCount(network, primary, fallback = []) {
-		const mapping = network?.components_count;
-		if (!mapping) return 0;
-		const keys = [primary, ...fallback];
-		for (const key of keys) {
-			if (key in mapping) {
-				return mapping[key] ?? 0;
-			}
-		}
-		return 0;
-	}
-
-	function getTotalComponents(network) {
-		const counts = network?.components_count;
-		if (!counts) return 0;
-
-		// Sum up major components (excluding snapshots)
-		const buses = getComponentCount(network, 'Bus', ['Buses', 'bus', 'buses']);
-		const generators = getComponentCount(network, 'Generator', ['Generators', 'generator', 'generators']);
-		const lines = getComponentCount(network, 'Line', ['Lines', 'line', 'lines']);
-		const loads = getComponentCount(network, 'Load', ['Loads', 'load', 'loads']);
-
-		return buses + generators + lines + loads;
-	}
-
-	function formatNumber(num) {
-		if (num >= 1000) {
-			return (num / 1000).toFixed(1) + 'k';
-		}
-		return num.toString();
-	}
-
-	function getDirectoryPath(fullPath) {
-		if (!fullPath) return '';
-		// Extract the part after /networks/
-		const parts = fullPath.split('/networks/');
-		const relativePath = parts.length > 1 ? parts[parts.length - 1] : fullPath;
-
-		// Get just the directory portion (remove filename)
-		const lastSlashIndex = relativePath.lastIndexOf('/');
-		if (lastSlashIndex === -1) {
-			// File is in root networks directory
-			return '';
-		}
-		return relativePath.substring(0, lastSlashIndex + 1);
-	}
-
-	function getTagType(tag) {
-		if (typeof tag === 'string') {
-			return 'default';
-		}
-		const name = tag.name?.toLowerCase() || '';
-		const url = tag.url?.toLowerCase() || '';
-
-		// Check for config type
-		if (name.includes('config') || name.endsWith('.yaml') || name.endsWith('.yml')) {
-			return 'config';
-		}
-
-		// Check for version type (commit hash or version-like)
-		if (url.includes('/commit/') || /^[a-f0-9]{7,}$/.test(name) || name === 'master' || name === 'main') {
-			return 'version';
-		}
-
-		// Otherwise, assume it's a model/project
-		return 'model';
-	}
-
-	function getTagColor(type) {
-		switch (type) {
-			case 'model':
-				return 'tag-model';
-			case 'version':
-				return 'tag-version';
-			case 'config':
-				return 'tag-config';
-			default:
-				return 'tag-default';
-		}
-	}
-
-	function handleUploadFromUrl() {
-		alert('Upload from URL - Coming soon!');
-	}
-
-	function handleUploadFromLocal() {
-		alert('Upload from local file - Coming soon!');
 	}
 
 	function toggleComponentsExpanded(networkId) {
@@ -249,261 +227,60 @@
 		} else {
 			expandedComponents.add(networkId);
 		}
-		expandedComponents = expandedComponents; // Trigger reactivity
+		expandedComponents = expandedComponents;
 	}
 
-	// Extract unique tags from all networks - reactive
-	const allTags = $derived.by(() => {
-		const tagsMap = new Map(); // Map tag name to tag object
-		networksList.forEach(network => {
-			if (network.tags && Array.isArray(network.tags)) {
-				network.tags.forEach(tag => {
-					const tagName = typeof tag === 'string' ? tag : tag.name;
-					if (tagName && !tagsMap.has(tagName)) {
-						tagsMap.set(tagName, tag);
-					}
-				});
-			}
-		});
-		return Array.from(tagsMap.values()).sort((a, b) => {
-			const aName = typeof a === 'string' ? a : a.name;
-			const bName = typeof b === 'string' ? b : b.name;
-			return aName.localeCompare(bName);
-		});
-	});
-
-	// Filter tags based on search query
-	const filteredTags = $derived(allTags.filter(tag => {
-		const tagName = typeof tag === 'string' ? tag : tag.name;
-		return tagName.toLowerCase().includes(tagSearchQuery.toLowerCase());
-	}));
-
-	// Toggle tag filter (works with tag name strings)
-	function toggleTagFilter(tagName) {
-		if (selectedTags.has(tagName)) {
-			selectedTags.delete(tagName);
-		} else {
-			selectedTags.add(tagName);
-		}
-		selectedTags = selectedTags; // Trigger reactivity
+	function canEditVisibility(network) {
+		if (!authStore.authEnabled || !authStore.user) return false;
+		// Only owner can edit - admin powers are on /admin/networks
+		return network.owner?.id === authStore.user.id;
 	}
 
-	// Filter networks based on selected tags (client-side filtering of current page only)
-	const filteredNetworks = $derived(networksList.filter(network => {
-		// If no tags selected, show all
-		if (selectedTags.size === 0) return true;
-
-		// Check if network has any of the selected tags
-		const networkTags = network.tags?.map(tag =>
-			typeof tag === 'string' ? tag : tag.name
-		) || [];
-
-		return Array.from(selectedTags).some(tag => networkTags.includes(tag));
-	}));
-
-	// Reset to page 1 when tag filters change
-	let previousTagsSize = $state(0);
-	$effect(() => {
-		if (browser) {
-			const currentSize = selectedTags.size;
-			if (currentSize !== previousTagsSize) {
-				previousTagsSize = currentSize;
-				if (currentPage !== 1) {
-					currentPage = 1;
-					updateURL().then(() => loadNetworks());
-				}
-			}
-		}
-	});
-
-	// Create columns for data table - use derived to ensure reactivity
-	const columns = $derived(createColumns({
-		getDirectoryPath,
-		getTagType,
-		getTagColor,
-		formatFileSize,
-		formatDate,
-		handleDelete,
-		toggleComponentsExpanded,
-		expandedComponents
-	}));
 </script>
 
-{#snippet toolbar()}
-	<DropdownMenu.Root>
-		<DropdownMenu.Trigger asChild>
-			{#snippet child({ props })}
-				<Button variant="default" size="sm" {...props}>
-					<Upload class="h-4 w-4 mr-2" />
-					Upload
-				</Button>
-			{/snippet}
-		</DropdownMenu.Trigger>
-		<DropdownMenu.Content align="end">
-			<DropdownMenu.Item onclick={handleUploadFromUrl}>
-				<Globe class="h-4 w-4 mr-2" />
-				Upload from URL
-			</DropdownMenu.Item>
-			<DropdownMenu.Item onclick={handleUploadFromLocal}>
-				<FileUp class="h-4 w-4 mr-2" />
-				Upload from local file
-			</DropdownMenu.Item>
-		</DropdownMenu.Content>
-	</DropdownMenu.Root>
-{/snippet}
-
 <div class="min-h-screen">
-	<!-- Main Content -->
-	<div>
-		<div style="max-width: 80rem; margin: 0 auto; padding-top: 2rem; padding-bottom: 2rem;">
-			{#if !loading && networksList.length > 0}
-				<div class="mb-8 flex items-center justify-between gap-4">
-					<div class="flex items-center gap-4 flex-1">
-						<!-- Global Search -->
-						<div class="relative max-w-sm flex-1">
-							<Search class="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-							<Input
-								type="text"
-								placeholder="Search networks..."
-								bind:value={globalFilter}
-								class="pl-10"
-							/>
-						</div>
+	<div style="max-width: 80rem; margin: 0 auto; padding-top: 2rem; padding-bottom: 2rem;">
+		<!-- Actions Bar (Scan + Upload) -->
+		<ActionsBar {scanning} onScan={handleScan} />
 
-						<!-- Column Visibility Toggle -->
-						<DropdownMenu.Root>
-							<DropdownMenu.Trigger asChild>
-								{#snippet child({ props })}
-									<Button variant="outline" size="sm" {...props}>
-										<Eye class="h-4 w-4 mr-2" />
-										Columns
-									</Button>
-								{/snippet}
-							</DropdownMenu.Trigger>
-							<DropdownMenu.Content align="start">
-								<DropdownMenu.Label>Toggle Columns</DropdownMenu.Label>
-								<DropdownMenu.Separator />
-								{#each columns as column}
-									{#if column.accessorKey || column.id}
-										{@const columnId = column.id || column.accessorKey}
-										{@const isVisible = columnVisibility[columnId] !== false}
-										<DropdownMenu.CheckboxItem
-											checked={isVisible}
-											onCheckedChange={(checked) => {
-												columnVisibility = {
-													...columnVisibility,
-													[columnId]: checked
-												};
-											}}
-										>
-											{#if isVisible}
-												<Eye class="h-4 w-4 mr-2" />
-											{:else}
-												<EyeOff class="h-4 w-4 mr-2" />
-											{/if}
-											{column.header}
-										</DropdownMenu.CheckboxItem>
-									{/if}
-								{/each}
-							</DropdownMenu.Content>
-						</DropdownMenu.Root>
-					</div>
+		<!-- Filter Bar (always visible) -->
+		<FilterBar
+			{filters}
+			{availableOwners}
+			{columns}
+			{columnVisibility}
+			onFilterChange={handleFilterChange}
+			onColumnVisibilityChange={handleColumnVisibilityChange}
+		/>
 
-					<!-- Upload Button -->
-					<DropdownMenu.Root>
-						<DropdownMenu.Trigger asChild>
-							{#snippet child({ props })}
-								<Button variant="default" size="sm" {...props}>
-									<Upload class="h-4 w-4 mr-2" />
-									Upload
-								</Button>
-							{/snippet}
-						</DropdownMenu.Trigger>
-						<DropdownMenu.Content align="end">
-							<DropdownMenu.Item onclick={handleUploadFromUrl}>
-								<Globe class="h-4 w-4 mr-2" />
-								Upload from URL
-							</DropdownMenu.Item>
-							<DropdownMenu.Item onclick={handleUploadFromLocal}>
-								<FileUp class="h-4 w-4 mr-2" />
-								Upload from local file
-							</DropdownMenu.Item>
-						</DropdownMenu.Content>
-					</DropdownMenu.Root>
-				</div>
-			{/if}
-
+		<!-- Error Alert -->
 		{#if error}
-			<Alert.Root variant="destructive">
+			<Alert.Root variant="destructive" class="mb-4">
 				<CircleAlert class="size-4" />
 				<Alert.Title>Error</Alert.Title>
 				<Alert.Description>{error}</Alert.Description>
 			</Alert.Root>
 		{/if}
 
-	{#if loading}
-		<div class="flex justify-center items-center py-12">
-			<div class="inline-block animate-spin rounded-full h-12 w-12 border-4 border-primary border-t-transparent"></div>
-		</div>
-	{:else if networksList.length === 0}
-		<Empty.Root>
-			<Empty.Header>
-				<Empty.Media variant="icon">
-					<Network />
-				</Empty.Media>
-				<Empty.Title>No Networks Found</Empty.Title>
-				<Empty.Description>
-					You haven't uploaded any PyPSA networks yet.
-				</Empty.Description>
-			</Empty.Header>
-			<Empty.Content>
-				<DropdownMenu.Root>
-					<DropdownMenu.Trigger asChild>
-						{#snippet child({ props })}
-							<Button {...props}>
-								<Upload class="h-4 w-4 mr-2" />
-								Upload Network
-							</Button>
-						{/snippet}
-					</DropdownMenu.Trigger>
-					<DropdownMenu.Content>
-						<DropdownMenu.Item onclick={handleUploadFromUrl}>
-							<Globe class="h-4 w-4 mr-2" />
-							Upload from URL
-						</DropdownMenu.Item>
-						<DropdownMenu.Item onclick={handleUploadFromLocal}>
-							<FileUp class="h-4 w-4 mr-2" />
-							Upload from local file
-						</DropdownMenu.Item>
-					</DropdownMenu.Content>
-				</DropdownMenu.Root>
-			</Empty.Content>
-		</Empty.Root>
-	{:else if filteredNetworks.length === 0}
-		<Empty.Root>
-			<Empty.Header>
-				<Empty.Media variant="icon">
-					<FolderOpen />
-				</Empty.Media>
-				<Empty.Title>No Networks Match Filters</Empty.Title>
-				<Empty.Description>
-					No networks match your current filter selections. Try adjusting your filters to see more results.
-				</Empty.Description>
-			</Empty.Header>
-		</Empty.Root>
-	{:else}
-		<DataTable
-			data={filteredNetworks}
-			{columns}
-			totalItems={totalNetworks}
-			{pageSize}
-			bind:sorting
-			bind:columnVisibility
-			bind:globalFilter
-			onRowClick={(network) => viewNetwork(network.id)}
-		/>
+		<!-- Content based on view state -->
+		{#if viewState === 'loading'}
+			<TableSkeleton rows={pageSize > 10 ? 10 : pageSize} />
+		{:else if viewState === 'empty'}
+			<EmptyState type="empty" />
+		{:else if viewState === 'no-matches'}
+			<EmptyState type="no-matches" />
+		{:else}
+			<DataTable
+				data={networksList}
+				{columns}
+				totalItems={totalNetworks}
+				{pageSize}
+				bind:sorting
+				bind:columnVisibility
+				globalFilter={filters.search}
+				onRowClick={(network) => viewNetwork(network.id)}
+			/>
 
-			<!-- Pagination -->
 			<div class="mt-6">
 				<Pagination
 					{currentPage}
@@ -513,15 +290,6 @@
 					onPageSizeChange={handlePageSizeChange}
 				/>
 			</div>
-
-			<!-- Filter info (if filters active) -->
-			{#if selectedTags.size > 0 && filteredNetworks.length !== networksList.length}
-				<div class="mt-4 text-sm text-muted-foreground italic text-center">
-					Note: Showing {filteredNetworks.length} of {networksList.length} networks on this page that match your filters.
-					Tag filters only apply to the current page.
-				</div>
-			{/if}
 		{/if}
-		</div>
 	</div>
 </div>
