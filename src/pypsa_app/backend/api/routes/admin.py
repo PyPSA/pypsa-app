@@ -94,7 +94,7 @@ def create_user(
     if existing:
         raise HTTPException(status_code=409, detail="Username already taken")
 
-    user = User(username=body.username, role=body.role)
+    user = User(username=body.username, role=body.role, avatar_url=body.avatar_url)
     db.add(user)
     db.commit()
     db.refresh(user)

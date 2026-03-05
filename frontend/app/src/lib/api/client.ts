@@ -8,6 +8,7 @@ import type {
 	VersionInfo,
 	HealthStatus,
 	ApiError,
+	ApiKey,
 	NetworkFilters,
 	NetworkUpdate,
 	PaginatedResponse,
@@ -59,6 +60,9 @@ async function request<T>(endpoint: string, options: RequestInit = {}, cancellat
 			throw err;
 		}
 
+		if (response.status === 204) {
+			return undefined as T;
+		}
 		return await response.json();
 	} catch (error) {
 		if (error instanceof Error && error.name === 'AbortError') {
@@ -295,6 +299,13 @@ export const admin = {
 		});
 	},
 
+	async createUser(username: string, role: string = 'bot', avatarUrl?: string): Promise<User> {
+		return request<User>('/admin/users', {
+			method: 'POST',
+			body: JSON.stringify({ username, role, avatar_url: avatarUrl || null })
+		});
+	},
+
 	async deleteUser(userId: string): Promise<void> {
 		return request<void>(`/admin/users/${userId}`, { method: 'DELETE' });
 	},
@@ -319,5 +330,23 @@ export const admin = {
 
 	async getPermissions(): Promise<Record<string, unknown>> {
 		return request<Record<string, unknown>>('/admin/permissions');
+	}
+};
+
+// API Keys
+export const apiKeys = {
+	async list(): Promise<ApiKey[]> {
+		return request<ApiKey[]>('/auth/api-keys/');
+	},
+
+	async create(name: string, expiresInDays: number, userId: string): Promise<ApiKey> {
+		return request<ApiKey>('/auth/api-keys/', {
+			method: 'POST',
+			body: JSON.stringify({ name, expires_in_days: expiresInDays, user_id: userId })
+		});
+	},
+
+	async delete(keyId: string): Promise<void> {
+		return request<void>(`/auth/api-keys/${keyId}`, { method: 'DELETE' });
 	}
 };

@@ -6,9 +6,20 @@ export interface User {
 	email?: string;
 	avatar_url?: string;
 	permissions: string[];
-	role?: string;
+	role: string;
 	created_at?: string;
 	last_login?: string;
+}
+
+export interface ApiKey {
+	id: string;
+	name: string;
+	key_prefix: string;
+	user_id: string;
+	created_at: string;
+	last_used_at?: string;
+	expires_at?: string;
+	key?: string;
 }
 
 export interface NetworkTag {

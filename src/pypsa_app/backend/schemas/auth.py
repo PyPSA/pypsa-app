@@ -23,6 +23,7 @@ class UserResponse(UserPublicResponse):
     """Full user information response"""
 
     email: str | None = None
+    role: str
     created_at: datetime
     last_login: datetime | None = None
     permissions: list[str]
@@ -46,3 +47,4 @@ class UserCreate(BaseModel):
 
     username: str = Field(..., min_length=1, max_length=255)
     role: UserRole
+    avatar_url: str | None = Field(None, max_length=512)
