@@ -2,9 +2,9 @@ import logging
 
 from fastapi import APIRouter, Depends
 
-from pypsa_app.backend.api.deps import get_current_user
+from pypsa_app.backend.api.deps import require_permission
 from pypsa_app.backend.cache import cache_service
-from pypsa_app.backend.models import User
+from pypsa_app.backend.models import Permission, User
 from pypsa_app.backend.schemas.cache import (
     ClearCacheResponse,
     NetworkCacheStatsResponse,
@@ -18,7 +18,9 @@ logger = logging.getLogger(__name__)
 
 
 @router.get("/redis/stats", response_model=RedisStatsResponse)
-def get_redis_stats(user: User = Depends(get_current_user)) -> dict:
+def get_redis_stats(
+    user: User = Depends(require_permission(Permission.SYSTEM_MANAGE)),
+) -> dict:
     """Get Redis cache statistics"""
     stats = {
         "available": cache_service.ping(),
@@ -44,13 +46,17 @@ def get_redis_stats(user: User = Depends(get_current_user)) -> dict:
 
 
 @router.get("/networks/stats", response_model=NetworkCacheStatsResponse)
-def get_network_cache_stats(user: User = Depends(get_current_user)) -> dict:
+def get_network_cache_stats(
+    user: User = Depends(require_permission(Permission.SYSTEM_MANAGE)),
+) -> dict:
     """Get in-memory PyPSA network cache statistics"""
     return _network_cache.stats()
 
 
 @router.delete("/redis/plots", response_model=ClearCacheResponse)
-def clear_plot_cache(user: User = Depends(get_current_user)) -> dict:
+def clear_plot_cache(
+    user: User = Depends(require_permission(Permission.SYSTEM_MANAGE)),
+) -> dict:
     """Clear all plot caches"""
     deleted_count = cache_service.clear_plot_cache()
     return {"message": "Cleared all plot caches", "deleted_keys": deleted_count}
@@ -58,7 +64,7 @@ def clear_plot_cache(user: User = Depends(get_current_user)) -> dict:
 
 @router.delete("/redis/{network_id}", response_model=ClearCacheResponse)
 def clear_redis_for_network(
-    network_id: str, user: User = Depends(get_current_user)
+    network_id: str, user: User = Depends(require_permission(Permission.SYSTEM_MANAGE))
 ) -> dict:
     """Clear Redis cache for a specific network"""
     deleted_count = cache_service.clear_network_cache(network_id)
@@ -71,14 +77,18 @@ def clear_redis_for_network(
 
 
 @router.delete("/redis", response_model=ClearCacheResponse)
-def clear_redis_cache(user: User = Depends(get_current_user)) -> dict:
+def clear_redis_cache(
+    user: User = Depends(require_permission(Permission.SYSTEM_MANAGE)),
+) -> dict:
     """Clear all Redis cache"""
     deleted_count = cache_service.clear_all_cache()
     return {"message": "Cleared all Redis cache", "deleted_keys": deleted_count}
 
 
 @router.delete("/networks", response_model=MessageResponse)
-def clear_network_cache(user: User = Depends(get_current_user)) -> dict:
+def clear_network_cache(
+    user: User = Depends(require_permission(Permission.SYSTEM_MANAGE)),
+) -> dict:
     """Clear in-memory PyPSA network cache"""
     _network_cache.clear()
     logger.info(

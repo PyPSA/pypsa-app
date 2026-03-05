@@ -2,6 +2,8 @@
 
 from pydantic import BaseModel
 
+from pypsa_app.backend.schemas.common import MessageResponse
+
 
 class RedisStatsResponse(BaseModel):
     available: bool
@@ -10,11 +12,20 @@ class RedisStatsResponse(BaseModel):
     memory_used: str | None = None
 
 
+class CachedNetworkEntry(BaseModel):
+    file_path: str
+    cached_at: str
+
+
 class NetworkCacheStatsResponse(BaseModel):
-    total_networks: int
-    networks: dict[str, dict]
+    size: int
+    max_size: int
+    ttl_seconds: int
+    hits: int
+    misses: int
+    hit_rate_percent: float
+    cached_networks: list[CachedNetworkEntry]
 
 
-class ClearCacheResponse(BaseModel):
-    message: str
+class ClearCacheResponse(MessageResponse):
     deleted_keys: int

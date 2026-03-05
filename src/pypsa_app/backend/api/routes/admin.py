@@ -17,6 +17,7 @@ from pypsa_app.backend.models import (
 )
 from pypsa_app.backend.permissions import ROLE_PERMISSIONS
 from pypsa_app.backend.schemas.auth import (
+    UserCreate,
     UserListResponse,
     UserResponse,
     UserRoleUpdate,
@@ -77,6 +78,36 @@ def list_users(
     )
 
 
+@router.post("/users", response_model=UserResponse, status_code=201)
+def create_user(
+    body: UserCreate,
+    db: Session = Depends(get_db),
+    admin: User = Depends(require_permission(Permission.USERS_MANAGE)),
+) -> User:
+    """Create a user (currently only bot role is supported)."""
+    if body.role != UserRole.BOT:
+        raise HTTPException(
+            status_code=400, detail="Only bot users can be created via API"
+        )
+
+    existing = db.query(User).filter(User.username == body.username).first()
+    if existing:
+        raise HTTPException(status_code=409, detail="Username already taken")
+
+    user = User(username=body.username, role=body.role)
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+
+    logger.info(
+        "User created: %s (role=%s) by %s",
+        user.username,
+        body.role,
+        admin.username,
+    )
+    return user
+
+
 @router.patch("/users/{user_id}/role", response_model=UserResponse)
 def update_user_role(
     user_id: UUID,
@@ -85,17 +116,15 @@ def update_user_role(
     admin: User = Depends(require_permission(Permission.USERS_MANAGE)),
 ) -> User:
     """Update user role"""
-    new_role = UserRole(role_update.role)
-
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
-    if user.id == admin.id and new_role != UserRole.ADMIN:
+    if user.id == admin.id and role_update.role != UserRole.ADMIN:
         raise HTTPException(status_code=400, detail="Cannot remove your own admin role")
 
     old_role = user.role
-    user.role = new_role
+    user.role = role_update.role
     db.commit()
     db.refresh(user)
 
@@ -168,7 +197,7 @@ def list_all_networks(
         None, description="Filter: 'system' for no owner, or user_id"
     ),
     db: Session = Depends(get_db),
-    admin: User = Depends(require_permission(Permission.NETWORKS_VIEW_ALL)),
+    admin: User = Depends(require_permission(Permission.NETWORKS_MANAGE_ALL)),
 ) -> NetworkListResponse:
     """List ALL networks (admin only) - bypasses normal visibility rules"""
     query = db.query(Network).options(joinedload(Network.owner))
@@ -211,7 +240,7 @@ def update_network_admin(
     network_id: UUID,
     body: NetworkAdminUpdate,
     db: Session = Depends(get_db),
-    admin: User = Depends(require_permission(Permission.NETWORKS_VIEW_ALL)),
+    admin: User = Depends(require_permission(Permission.NETWORKS_MANAGE_ALL)),
 ) -> Network:
     """Update network properties (admin only) - can change owner, visibility, name"""
     network = (
@@ -269,7 +298,7 @@ def update_network_admin(
 def delete_network_admin(
     network_id: UUID,
     db: Session = Depends(get_db),
-    admin: User = Depends(require_permission(Permission.NETWORKS_VIEW_ALL)),
+    admin: User = Depends(require_permission(Permission.NETWORKS_MANAGE_ALL)),
 ) -> dict:
     """Delete any network (admin only)"""
     network = db.query(Network).filter(Network.id == str(network_id)).first()

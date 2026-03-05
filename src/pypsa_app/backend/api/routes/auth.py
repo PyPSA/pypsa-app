@@ -2,13 +2,14 @@
 
 import logging
 from datetime import UTC, datetime
+from urllib.parse import urlparse
 
 from authlib.integrations.starlette_client import OAuth, OAuthError
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 
-from pypsa_app.backend.api.deps import get_current_user, get_db
+from pypsa_app.backend.api.deps import get_current_user_optional, get_db
 from pypsa_app.backend.auth.session import get_session_store
 from pypsa_app.backend.models import User, UserOAuthProvider, UserRole
 from pypsa_app.backend.schemas.auth import UserResponse
@@ -122,7 +123,7 @@ async def callback(request: Request, db: Session = Depends(get_db)) -> RedirectR
 
         # Set session cookie
         response = RedirectResponse(url=redirect_url)
-        is_localhost = "localhost" in settings.base_url
+        is_localhost = urlparse(settings.base_url).hostname in ("localhost", "127.0.0.1", "::1")
         response.set_cookie(
             key=SESSION_COOKIE_NAME,
             value=session_id,
@@ -159,9 +160,15 @@ async def logout(request: Request) -> RedirectResponse:
 
 
 @router.get("/me", response_model=UserResponse)
-async def get_current_user_info(user: User = Depends(get_current_user)) -> User:
+async def get_current_user_info(
+    user: User | None = Depends(get_current_user_optional),
+) -> User:
     """Get current authenticated user information"""
     if not settings.enable_auth:
         raise HTTPException(status_code=400, detail="Authentication is disabled")
+    if user is None:
+        raise HTTPException(
+            status_code=401, detail="Authentication required. Please log in."
+        )
 
     return user

@@ -1,7 +1,10 @@
 """Workflow run routes."""
 
 import logging
+import re
+import urllib.parse
 import uuid
+from pathlib import PurePosixPath
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi import Path as PathParam
@@ -9,8 +12,8 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session, joinedload
 
 from pypsa_app.backend.api.deps import get_db, require_permission
-from pypsa_app.backend.models import Permission, Run, RunStatus, User, UserRole
-from pypsa_app.backend.schemas.auth import UserPublicResponse
+from pypsa_app.backend.models import Permission, Run, RunStatus, User
+from pypsa_app.backend.permissions import can_access_run, can_modify_run, has_permission
 from pypsa_app.backend.schemas.common import MessageResponse
 from pypsa_app.backend.schemas.run import (
     RunCreate,
@@ -33,31 +36,7 @@ def _get_smk_client() -> SmkExecutorClient:
     return SmkExecutorClient(settings.smk_executor_url)
 
 
-def _can_access(user: User | None, run: Run) -> bool:
-    """Check if user can view this run."""
-    if not settings.enable_auth:
-        return True
-    if run.user_id is None:
-        return True
-    if user is None:
-        return False
-    if user.role == UserRole.ADMIN:
-        return True
-    return run.user_id == user.id
-
-
-def _can_modify(user: User | None, run: Run) -> bool:
-    """Check if user can cancel/remove this run."""
-    if not settings.enable_auth:
-        return True
-    if user is None:
-        return False
-    if user.role == UserRole.ADMIN:
-        return True
-    return run.user_id is not None and run.user_id == user.id
-
-
-def _check_run_or_404(run_id: uuid.UUID, db: Session, user: User | None) -> Run:
+def _check_run_or_404(run_id: uuid.UUID, db: Session, user: User) -> Run:
     """Load run record with access check."""
     run = (
         db.query(Run)
@@ -67,7 +46,7 @@ def _check_run_or_404(run_id: uuid.UUID, db: Session, user: User | None) -> Run:
     )
     if not run:
         raise HTTPException(404, "Run not found")
-    if not _can_access(user, run):
+    if not can_access_run(user, run):
         raise HTTPException(404, "Run not found")
     return run
 
@@ -108,28 +87,11 @@ def _sync_run_from_job(run: Run, job: dict, db: Session) -> None:
         db.flush()
 
 
-def _run_to_response(run: Run) -> RunResponse:
-    """Build RunResponse from a local Run record."""
-    return RunResponse(
-        id=str(run.job_id),
-        workflow=run.workflow,
-        configfile=run.configfile,
-        git_ref=run.git_ref,
-        git_sha=run.git_sha,
-        status=run.status.value if run.status else "PENDING",
-        exit_code=run.exit_code,
-        created_at=run.created_at,
-        started_at=run.started_at,
-        completed_at=run.completed_at,
-        owner=(UserPublicResponse.model_validate(run.owner) if run.owner else None),
-    )
-
-
 @router.post("/", response_model=RunResponse, status_code=201)
 def create_run(
     body: RunCreate,
     db: Session = Depends(get_db),
-    user: User = Depends(require_permission(Permission.RUNS_CREATE)),
+    user: User = Depends(require_permission(Permission.RUNS_MODIFY)),
     smk_client: SmkExecutorClient = Depends(_get_smk_client),
 ) -> RunResponse:
     """Submit a new run."""
@@ -138,7 +100,7 @@ def create_run(
 
     run = Run(
         job_id=result["job_id"],
-        user_id=user.id if user else None,
+        user_id=user.id,
         workflow=result.get("workflow", body.workflow),
         configfile=result.get("configfile", body.configfile),
         snakemake_args=body.snakemake_args,
@@ -152,18 +114,11 @@ def create_run(
         "Run created",
         extra={
             "run_id": result["job_id"],
-            "user": user.username if user else "anonymous",
+            "user": user.username,
         },
     )
 
-    return RunResponse(
-        id=result["job_id"],
-        workflow=run.workflow,
-        configfile=run.configfile,
-        status=run.status.value,
-        created_at=run.created_at,
-        owner=(UserPublicResponse.model_validate(user) if user else None),
-    )
+    return RunResponse.model_validate(run)
 
 
 @router.get("/", response_model=RunListResponse)
@@ -176,7 +131,7 @@ def list_runs(
 ) -> RunListResponse:
     """List runs visible to the current user."""
     query = db.query(Run).options(joinedload(Run.owner))
-    if settings.enable_auth and user is not None and user.role != UserRole.ADMIN:
+    if not has_permission(user, Permission.RUNS_MANAGE_ALL):
         query = query.filter((Run.user_id == user.id) | (Run.user_id.is_(None)))
 
     total = query.count()
@@ -200,7 +155,7 @@ def list_runs(
             pass
 
     return RunListResponse(
-        data=[_run_to_response(r) for r in runs],
+        data=[RunResponse.model_validate(r) for r in runs],
         meta={"total": total, "skip": skip, "limit": limit, "count": len(runs)},
     )
 
@@ -226,7 +181,7 @@ def get_run(
             # collected, fall back to local DB
             pass
 
-    return _run_to_response(run)
+    return RunResponse.model_validate(run)
 
 
 @router.get("/{run_id}/logs")
@@ -265,13 +220,14 @@ def download_run_output(
     smk_client: SmkExecutorClient = Depends(_get_smk_client),
 ) -> StreamingResponse:
     """Download an output file."""
+    if ".." in PurePosixPath(path).parts:
+        raise HTTPException(400, "Invalid path")
     _check_run_or_404(run_id, db, user)
+    filename = urllib.parse.quote(re.sub(r'[\x00-\x1f\x7f"\\;]', "_", path.rsplit("/", 1)[-1]))
     return StreamingResponse(
         smk_client.download_job_output(str(run_id), path),
         media_type="application/octet-stream",
-        headers={
-            "Content-Disposition": f'attachment; filename="{path.rsplit("/", 1)[-1]}"'
-        },
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{filename}"},
     )
 
 
@@ -284,7 +240,7 @@ def cancel_run(
 ) -> dict:
     """Cancel a running run. Keeps the record visible."""
     run = _check_run_or_404(run_id, db, user)
-    if not _can_modify(user, run):
+    if not can_modify_run(user, run):
         raise HTTPException(403, "You don't have permission to cancel this run")
 
     try:
@@ -303,7 +259,7 @@ def cancel_run(
         "Run cancelled",
         extra={
             "run_id": str(run_id),
-            "user": user.username if user else "anonymous",
+            "user": user.username,
         },
     )
 
@@ -319,7 +275,7 @@ def remove_run(
 ) -> dict:
     """Remove a run, cancel if still active, and delete the DB row."""
     run = _check_run_or_404(run_id, db, user)
-    if not _can_modify(user, run):
+    if not can_modify_run(user, run):
         raise HTTPException(403, "You don't have permission to remove this run")
 
     db.delete(run)
@@ -335,7 +291,7 @@ def remove_run(
         "Run removed",
         extra={
             "run_id": str(run_id),
-            "user": user.username if user else "anonymous",
+            "user": user.username,
         },
     )
 

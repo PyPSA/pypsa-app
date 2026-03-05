@@ -65,6 +65,7 @@ class UserRole(enum.StrEnum):
 
     ADMIN = "admin"
     USER = "user"
+    BOT = "bot"
     PENDING = "pending"
 
 
@@ -73,20 +74,17 @@ class Permission(enum.StrEnum):
 
     # Network permissions
     NETWORKS_VIEW = "networks:view"
-    NETWORKS_CREATE = "networks:create"  # Upload new networks
-    NETWORKS_SCAN = "networks:scan"  # Scan file system for networks
-    NETWORKS_UPDATE = "networks:update"
-    NETWORKS_DELETE = "networks:delete"
-    NETWORKS_VIEW_ALL = "networks:view_all"
+    NETWORKS_MODIFY = "networks:modify"
+    NETWORKS_MANAGE_ALL = "networks:manage_all"
 
     # Run permissions
     RUNS_VIEW = "runs:view"
-    RUNS_CREATE = "runs:create"
     RUNS_MODIFY = "runs:modify"
+    RUNS_MANAGE_ALL = "runs:manage_all"
 
-    # User management permissions
-    USERS_VIEW = "users:view"
+    # Admin permissions
     USERS_MANAGE = "users:manage"
+    SYSTEM_MANAGE = "system:manage"
 
 
 class NetworkVisibility(enum.StrEnum):
@@ -152,6 +150,27 @@ class UserOAuthProvider(Base):
     __table_args__ = (
         UniqueConstraint("provider", "provider_id", name="uq_provider_provider_id"),
     )
+
+
+class ApiKey(Base):
+    """API key linked to a user for programmatic access (e.g. CI/CD)."""
+
+    __tablename__ = "api_keys"
+
+    id = Column(UuidType(), primary_key=True, default=uuid.uuid4)
+    name = Column(String(255), nullable=False)
+    key_hash = Column(String(64), nullable=False, unique=True, index=True)
+    key_prefix = Column(String(8), nullable=False)
+    user_id = Column(
+        UuidType(),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    owner = relationship("User")
+    created_at = Column(TIMESTAMP, server_default=func.now())
+    last_used_at = Column(TIMESTAMP, nullable=True)
+    expires_at = Column(TIMESTAMP, nullable=True)
 
 
 class Network(Base):

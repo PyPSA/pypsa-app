@@ -1,11 +1,11 @@
 """Authentication response schemas"""
 
 from datetime import datetime
-from typing import Literal
 from uuid import UUID
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
+from pypsa_app.backend.models import UserRole
 from pypsa_app.backend.schemas.common import PaginationMeta
 
 
@@ -38,4 +38,11 @@ class UserListResponse(BaseModel):
 class UserRoleUpdate(BaseModel):
     """Request body for role update"""
 
-    role: Literal["admin", "user", "pending"]
+    role: UserRole
+
+
+class UserCreate(BaseModel):
+    """Request body for creating a user"""
+
+    username: str = Field(..., min_length=1, max_length=255)
+    role: UserRole

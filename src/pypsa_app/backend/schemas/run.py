@@ -1,9 +1,11 @@
 """Run response schemas"""
 
+import uuid
 from datetime import datetime
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict, Field
 
+from pypsa_app.backend.models import RunStatus
 from pypsa_app.backend.schemas.auth import UserPublicResponse
 from pypsa_app.backend.schemas.common import PaginationMeta
 
@@ -28,12 +30,14 @@ class RunCreate(BaseModel):
 class RunResponse(BaseModel):
     """Single run returned by the API."""
 
-    id: str
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
+
+    id: uuid.UUID = Field(validation_alias="job_id")
     workflow: str | None = None
     configfile: str | None = None
     git_ref: str | None = None
     git_sha: str | None = None
-    status: str
+    status: RunStatus
     exit_code: int | None = None
     created_at: datetime
     started_at: datetime | None = None

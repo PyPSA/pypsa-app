@@ -6,13 +6,17 @@ from fastapi import Path as PathParam
 from sqlalchemy import ColumnElement, or_
 from sqlalchemy.orm import Session, joinedload
 
-from pypsa_app.backend.api.deps import get_db, get_network_or_404, require_permission
+from pypsa_app.backend.api.deps import get_db, get_accessible_network, require_permission
 from pypsa_app.backend.api.utils.network_utils import (
     delete_network as delete_network_and_file,
 )
 from pypsa_app.backend.api.utils.task_utils import queue_task
 from pypsa_app.backend.models import Network, NetworkVisibility, Permission, User
-from pypsa_app.backend.permissions import can_access_network, can_modify_network
+from pypsa_app.backend.permissions import (
+    can_access_network,
+    can_modify_network,
+    has_permission,
+)
 from pypsa_app.backend.schemas.common import MessageResponse
 from pypsa_app.backend.schemas.network import (
     NetworkListResponse,
@@ -29,7 +33,7 @@ logger = logging.getLogger(__name__)
 
 @router.put("/", response_model=TaskQueuedResponse)
 def scan_networks(
-    user: User = Depends(require_permission(Permission.NETWORKS_SCAN)),
+    user: User = Depends(require_permission(Permission.SYSTEM_MANAGE)),
 ) -> dict:
     """Scan file system for network files and update database"""
     return queue_task(scan_networks_task, networks_path=str(settings.networks_path))
@@ -53,8 +57,8 @@ def list_networks(
     query = db.query(Network).options(joinedload(Network.owner))
 
     visibility_filter = None
-    if settings.enable_auth and user is not None:
-        # All users see: own networks + public + system (user_id=None)
+    if not has_permission(user, Permission.NETWORKS_MANAGE_ALL):
+        # Non-admin users see: own networks + public + system (user_id=None)
         visibility_filter = or_(
             Network.user_id == user.id,
             Network.visibility == NetworkVisibility.PUBLIC,
@@ -79,7 +83,7 @@ def list_networks(
 
     # Get all unique owners for filter dropdown
     all_owners = []
-    if settings.enable_auth and user is not None:
+    if not has_permission(user, Permission.NETWORKS_MANAGE_ALL):
         owners_query = db.query(Network.user_id).filter(Network.user_id != None)  # noqa: E711
         if visibility_filter is not None:
             owners_query = owners_query.filter(visibility_filter)
@@ -116,7 +120,7 @@ def get_network(
     if not network:
         raise HTTPException(404, "Network not found")
 
-    if settings.enable_auth and not can_access_network(user, network):
+    if not can_access_network(user, network):
         raise HTTPException(404, "Network not found")
 
     return network
@@ -127,7 +131,7 @@ def update_network(
     network_id: UUID = PathParam(..., description="Network UUID"),
     body: NetworkUpdate = ...,
     db: Session = Depends(get_db),
-    user: User = Depends(require_permission(Permission.NETWORKS_UPDATE)),
+    user: User = Depends(require_permission(Permission.NETWORKS_MODIFY)),
 ) -> Network:
     """Update network properties. Only owner or admin can update."""
     network = (
@@ -140,7 +144,7 @@ def update_network(
     if not network:
         raise HTTPException(404, "Network not found")
 
-    if settings.enable_auth and not can_modify_network(user, network):
+    if not can_modify_network(user, network):
         raise HTTPException(403, "You can only update your own networks")
 
     if body.visibility is not None:
@@ -155,7 +159,7 @@ def update_network(
         "Network updated",
         extra={
             "network_id": str(network.id),
-            "updated_by": user.username if user else "anonymous",
+            "updated_by": user.username,
         },
     )
 
@@ -164,12 +168,12 @@ def update_network(
 
 @router.delete("/{network_id}", response_model=MessageResponse)
 def delete_network(
-    network: Network = Depends(get_network_or_404),
+    network: Network = Depends(get_accessible_network),
     db: Session = Depends(get_db),
-    user: User = Depends(require_permission(Permission.NETWORKS_DELETE)),
+    user: User = Depends(require_permission(Permission.NETWORKS_MODIFY)),
 ) -> dict:
     """Delete network from database and file system"""
-    if settings.enable_auth and not can_modify_network(user, network):
+    if not can_modify_network(user, network):
         raise HTTPException(403, "You don't have permission to delete this network")
 
     message = delete_network_and_file(network, db)

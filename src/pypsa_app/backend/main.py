@@ -12,6 +12,7 @@ from starlette.middleware.sessions import SessionMiddleware
 from pypsa_app.backend.__version__ import __description__, __version__
 from pypsa_app.backend.api.routes import (
     admin,
+    api_keys,
     auth,
     cache,
     networks,
@@ -21,8 +22,10 @@ from pypsa_app.backend.api.routes import (
     tasks,
     version,
 )
+from pypsa_app.backend.api.deps import set_auth_disabled_user
 from pypsa_app.backend.cache import cache_service
 from pypsa_app.backend.database import Base, SessionLocal, engine
+from pypsa_app.backend.models import User, UserRole
 from pypsa_app.backend.settings import API_V1_PREFIX, settings
 
 logging.basicConfig(
@@ -30,6 +33,24 @@ logging.basicConfig(
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _ensure_system_user() -> None:
+    """Create a system admin user for auth-disabled mode."""
+    if settings.enable_auth:
+        msg = "Cannot create system user when authentication is enabled"
+        raise RuntimeError(msg)
+    db = SessionLocal()
+    try:
+        system_user = db.query(User).filter(User.username == "system").first()
+        if not system_user:
+            system_user = User(username="system", role=UserRole.ADMIN)
+            db.add(system_user)
+            db.commit()
+            db.refresh(system_user)
+        set_auth_disabled_user(system_user)
+    finally:
+        db.close()
 
 
 @asynccontextmanager
@@ -58,6 +79,10 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         logger.info("Database ready")
     finally:
         db.close()
+
+    # Create system user for auth-disabled mode
+    if not settings.enable_auth:
+        _ensure_system_user()
 
     # Initialize authentication if enabled
     if settings.enable_auth:
@@ -184,19 +209,18 @@ async def global_exception_handler(request: Request, exc: Exception) -> JSONResp
         exc_info=True,
     )
 
-    # Return error type and message without exposing stack traces or file paths
     return JSONResponse(
         status_code=500,
-        content={
-            "detail": "An internal server error occurred",
-            "error_type": exc.__class__.__name__,
-            "error_message": str(exc),
-        },
+        content={"detail": "An internal server error occurred"},
     )
 
 
 # Include routers
-app.include_router(auth.router, prefix=f"{API_V1_PREFIX}/auth", tags=["auth"])
+if settings.enable_auth:
+    app.include_router(auth.router, prefix=f"{API_V1_PREFIX}/auth", tags=["auth"])
+    app.include_router(
+        api_keys.router, prefix=f"{API_V1_PREFIX}/auth/api-keys", tags=["auth"]
+    )
 app.include_router(admin.router, prefix=f"{API_V1_PREFIX}/admin", tags=["admin"])
 app.include_router(
     networks.router, prefix=f"{API_V1_PREFIX}/networks", tags=["networks"]
