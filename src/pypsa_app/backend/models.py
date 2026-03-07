@@ -263,9 +263,11 @@ class Run(Base):
     created_at = Column(TIMESTAMP, server_default=func.now())
 
     # Job creation inputs (set once at creation, never synced)
-    workflow = Column(Text, nullable=True)
+    workflow = Column(Text, nullable=False)
     configfile = Column(String(512), nullable=True)
     snakemake_args = Column(JSON, nullable=True)
+    extra_files = Column(JSON, nullable=True)
+    cache = Column(JSON, nullable=True)
 
     # Job metadata (synced from smk-executor)
     git_ref = Column(String(255), nullable=True)

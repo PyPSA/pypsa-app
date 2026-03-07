@@ -15,7 +15,7 @@ function parseUTCDate(dateString: string): Date {
 export function formatDate(dateString: string | null | undefined): string {
 	if (!dateString) return '—';
 	const date = parseUTCDate(dateString);
-	return date.toLocaleDateString() + ' ' + date.toLocaleTimeString();
+	return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { hour12: false });
 }
 
 export function formatDuration(startedAt: string | null | undefined, completedAt?: string | null): string | null {

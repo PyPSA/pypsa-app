@@ -309,30 +309,30 @@ def import_network_file(
 
     file_hash = _calculate_file_hash(file_path)
 
+    # Check for duplicate file content
+    existing = (
+        db.query(Network)
+        .filter(Network.user_id == user_id, Network.file_hash == file_hash)
+        .first()
+    )
+    if existing:
+        file_path.unlink(missing_ok=True)
+        return existing
+
+    # Generate ID upfront so file is stored as {user_id}/{network_id}.nc
+    network_id = uuid.uuid4()
     user_dir = settings.networks_path / str(user_id)
     user_dir.mkdir(parents=True, exist_ok=True)
-    dest = user_dir / f"{file_hash}.nc"
+    dest = user_dir / f"{network_id}.nc"
 
-    if dest.exists():
-        # Check if DB record exists for this user
-        existing = (
-            db.query(Network)
-            .filter(Network.user_id == user_id, Network.file_hash == file_hash)
-            .first()
-        )
-        if existing:
-            return existing
-        # File on disk but no DB record, so reuse file and clean up source
-        file_path.unlink(missing_ok=True)
-    else:
-        # Move source file to final location
-        shutil.move(str(file_path), str(dest))
+    shutil.move(str(file_path), str(dest))
 
     # Reload from final path and extract metadata
     service = NetworkService(dest, use_cache=False)
     info = service.extract_database_info()
 
     network = Network(
+        id=network_id,
         user_id=user_id,
         source_run_id=source_run_id,
         filename=original_filename,

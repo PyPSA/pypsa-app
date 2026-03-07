@@ -3,7 +3,7 @@ import { formatDate, formatDuration } from '$lib/utils.js';
 import StatusCell from '../cells/status-cell.svelte';
 import TextWithTitleCell from '../cells/text-with-title-cell.svelte';
 import ActionsCell from '$lib/components/cells/ActionsCell.svelte';
-import { X, Trash2 } from 'lucide-svelte';
+import { X, Trash2, RotateCw } from 'lucide-svelte';
 import OwnerCell from '$lib/components/OwnerCell.svelte';
 import type { ColumnDef } from '@tanstack/table-core';
 import { RUN_SETTLED_STATUSES } from '$lib/types.js';
@@ -13,6 +13,7 @@ interface RunsColumnsHelpers {
 	formatRelativeTime: (dateString: string | null | undefined) => string;
 	handleCancel: (id: string) => void;
 	handleRemove: (id: string) => void;
+	handleRerun: (run: Run) => void;
 	authEnabled: boolean;
 	getCancellingId?: () => string | null;
 	getRemovingId?: () => string | null;
@@ -24,6 +25,7 @@ export const createColumns = (helpers: RunsColumnsHelpers): ColumnDef<Run, unkno
 		formatRelativeTime,
 		handleCancel,
 		handleRemove,
+		handleRerun,
 		authEnabled,
 		getCancellingId = () => null,
 		getRemovingId = () => null,
@@ -143,6 +145,13 @@ export const createColumns = (helpers: RunsColumnsHelpers): ColumnDef<Run, unkno
 						label: 'Cancel',
 						onclick: () => handleCancel(run.id),
 						loading: isCancelling
+					});
+				}
+				if (isSettled) {
+					actions.push({
+						icon: RotateCw,
+						label: 'Rerun',
+						onclick: () => handleRerun(run)
 					});
 				}
 				actions.push({

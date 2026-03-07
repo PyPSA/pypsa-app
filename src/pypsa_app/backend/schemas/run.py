@@ -34,8 +34,12 @@ class RunResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
     id: uuid.UUID = Field(validation_alias="job_id")
-    workflow: str | None = None
+    workflow: str
     configfile: str | None = None
+    snakemake_args: list[str] | None = None
+    extra_files: dict[str, str] | None = None
+    cache: RunCache | None = None
+    import_networks: list[str] | None = None
     git_ref: str | None = None
     git_sha: str | None = None
     status: RunStatus
@@ -43,7 +47,6 @@ class RunResponse(BaseModel):
     created_at: datetime
     started_at: datetime | None = None
     completed_at: datetime | None = None
-    import_networks: list[str] | None = None
     owner: UserPublicResponse
 
 

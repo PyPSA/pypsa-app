@@ -2,6 +2,7 @@
 	import { onMount } from 'svelte';
 	import { admin } from '$lib/api/client.js';
 	import { formatFileSize, formatDate } from '$lib/utils.js';
+	import { toast } from 'svelte-sonner';
 	import type { Network, User, NetworkFilters, NetworkUpdate } from '$lib/types.js';
 	import { Globe, Lock, Settings, Loader2 } from 'lucide-svelte';
 	import Button from '$lib/components/ui/button/button.svelte';
@@ -15,7 +16,6 @@
 	let networks = $state<Network[]>([]);
 	let users = $state<User[]>([]);
 	let loading = $state(true);
-	let error = $state<string | null>(null);
 	let filter = $state('all');
 	let selectedNetwork = $state<Network | null>(null);
 	let dialogOpen = $state(false);
@@ -36,7 +36,6 @@
 
 	async function loadNetworks() {
 		loading = true;
-		error = null;
 		try {
 			const filters: NetworkFilters = {};
 			if (filter === 'public') filters.visibility = 'public';
@@ -45,7 +44,7 @@
 			const response = await admin.listNetworks(0, 100, filters);
 			networks = response.data;
 		} catch (err) {
-			error = (err as Error).message;
+			toast.error((err as Error).message);
 		} finally {
 			loading = false;
 		}
@@ -57,9 +56,8 @@
 			users = response.data;
 			usersLoadFailed = false;
 		} catch (err) {
-			console.error('Failed to load users:', err);
+			toast.error(`Failed to load users: ${(err as Error).message}. Owner changes disabled.`);
 			usersLoadFailed = true;
-			error = `Failed to load users: ${(err as Error).message}. Owner changes disabled.`;
 		}
 	}
 
@@ -96,14 +94,13 @@
 		}
 
 		saving = true;
-		error = null;
 		try {
 			await admin.updateNetwork(selectedNetwork.id, updates);
 			await loadNetworks();
 			dialogOpen = false;
 		} catch (err) {
 			const changedFields = Object.keys(updates).join(', ');
-			error = `Failed to update "${selectedNetwork.filename}" (${changedFields}): ${(err as Error).message}`;
+			toast.error(`Failed to update "${selectedNetwork.filename}" (${changedFields}): ${(err as Error).message}`);
 		} finally {
 			saving = false;
 		}
@@ -117,14 +114,13 @@
 		if (!selectedNetwork || deleting) return;
 
 		deleting = true;
-		error = null;
 		try {
 			await admin.deleteNetwork(selectedNetwork.id);
 			await loadNetworks();
 			confirmDeleteOpen = false;
 			dialogOpen = false;
 		} catch (err) {
-			error = `Failed to delete "${selectedNetwork.filename}": ${(err as Error).message}`;
+			toast.error(`Failed to delete "${selectedNetwork.filename}": ${(err as Error).message}`);
 		} finally {
 			deleting = false;
 		}
@@ -146,12 +142,6 @@
 		<h1 class="text-2xl font-bold">Network Management</h1>
 		<p class="text-muted-foreground">Manage all networks, change ownership and visibility</p>
 	</div>
-
-	{#if error}
-		<div class="rounded-md bg-destructive/15 p-4 text-destructive">
-			{error}
-		</div>
-	{/if}
 
 	<div class="flex gap-2">
 		<Button

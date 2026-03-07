@@ -9,8 +9,8 @@
 	import type { Run, ApiError } from '$lib/types.js';
 	import type { SortingState } from '@tanstack/table-core';
 	import Pagination from '$lib/components/Pagination.svelte';
-	import { CircleAlert, Play } from 'lucide-svelte';
-	import * as Alert from '$lib/components/ui/alert';
+	import { Play } from 'lucide-svelte';
+	import { toast } from 'svelte-sonner';
 	import DataTable from '$lib/components/DataTable.svelte';
 	import { createColumns } from './components/columns.js';
 	import { authStore } from '$lib/stores/auth.svelte.js';
@@ -20,7 +20,6 @@
 	// Data state
 	let runsList = $state<Run[]>([]);
 	let loading = $state(true);
-	let error = $state<string | null>(null);
 	let totalRuns = $state(0);
 	let cancellingId = $state<string | null>(null);
 	let removingId = $state<string | null>(null);
@@ -59,6 +58,7 @@
 			formatRelativeTime,
 			handleCancel,
 			handleRemove,
+			handleRerun,
 			authEnabled,
 			getCancellingId: () => cancellingId,
 			getRemovingId: () => removingId,
@@ -89,7 +89,6 @@
 
 	async function loadRuns() {
 		loading = true;
-		error = null;
 		try {
 			const skip = (currentPage - 1) * pageSize;
 			const response = await runs.list(skip, pageSize);
@@ -105,7 +104,7 @@
 			}
 		} catch (err) {
 			if ((err as ApiError).cancelled) return;
-			error = (err as Error).message;
+			toast.error((err as Error).message);
 		} finally {
 			loading = false;
 		}
@@ -140,14 +139,22 @@
 			return;
 		}
 		cancellingId = runId;
-		error = null;
 		try {
 			await runs.cancel(runId);
 			await loadRuns();
 		} catch (err) {
-			if (!(err as ApiError).cancelled) error = (err as Error).message;
+			if (!(err as ApiError).cancelled) toast.error((err as Error).message);
 		} finally {
 			cancellingId = null;
+		}
+	}
+
+	async function handleRerun(run: Run) {
+		try {
+			const newRun = await runs.rerun(run);
+			goto(`/runs/${newRun.id}`);
+		} catch (err) {
+			if (!(err as ApiError).cancelled) toast.error((err as Error).message);
 		}
 	}
 
@@ -157,12 +164,11 @@
 			return;
 		}
 		removingId = runId;
-		error = null;
 		try {
 			await runs.remove(runId);
 			await loadRuns();
 		} catch (err) {
-			if (!(err as ApiError).cancelled) error = (err as Error).message;
+			if (!(err as ApiError).cancelled) toast.error((err as Error).message);
 		} finally {
 			removingId = null;
 		}
@@ -171,15 +177,6 @@
 
 <div class="min-h-screen">
 	<div class="max-w-[80rem] mx-auto py-8">
-		<!-- Error Alert -->
-		{#if error}
-			<Alert.Root variant="destructive" class="mb-4">
-				<CircleAlert class="size-4" />
-				<Alert.Title>Error</Alert.Title>
-				<Alert.Description>{error}</Alert.Description>
-			</Alert.Root>
-		{/if}
-
 		<!-- Content based on view state -->
 		{#if viewState === 'loading'}
 			<TableSkeleton rows={pageSize > 10 ? 10 : pageSize} />

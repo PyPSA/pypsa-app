@@ -110,6 +110,19 @@ class SmkExecutorClient:
         """Subscribe to live SSE log stream (open connection)."""
         return self._proxy_stream(f"/jobs/{job_id}/logs")
 
+    def get_job_logs_text(self, job_id: str) -> Iterator[bytes]:
+        """Get logs as plain text, stripping SSE framing."""
+        for chunk in self._proxy_stream(f"/jobs/{job_id}/logs"):
+            for line in chunk.decode("utf-8", errors="replace").splitlines(True):
+                if line.startswith("data: "):
+                    yield line[6:].encode()
+                elif line.startswith("data:"):
+                    yield line[5:].encode()
+                elif line.startswith("event:"):
+                    continue
+                elif line.strip() == "":
+                    continue
+
     def download_job_output(self, job_id: str, path: str) -> Iterator[bytes]:
         """Download an output file without buffering into memory."""
         return self._proxy_stream(f"/jobs/{job_id}/outputs/{path}")

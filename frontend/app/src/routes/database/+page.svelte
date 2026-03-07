@@ -6,8 +6,8 @@
 	import { networks } from '$lib/api/client.js';
 	import { formatFileSize, formatDate, getDirectoryPath, getTagType, getTagColor } from '$lib/utils.js';
 	import Pagination from '$lib/components/Pagination.svelte';
-	import { CircleAlert, Network, FolderOpen } from 'lucide-svelte';
-	import * as Alert from '$lib/components/ui/alert';
+	import { Network, FolderOpen } from 'lucide-svelte';
+	import { toast } from 'svelte-sonner';
 	import DataTable from '$lib/components/DataTable.svelte';
 	import { createColumns } from './components/columns.js';
 	import { authStore } from '$lib/stores/auth.svelte.js';
@@ -23,7 +23,6 @@
 	// Data state
 	let networksList = $state<NetworkType[]>([]);
 	let loading = $state(true);
-	let error = $state<string | null>(null);
 	let totalNetworks = $state(0);
 	let deletingId = $state<string | null>(null);  // Track which network is being deleted
 	let updatingVisibilityId = $state<string | null>(null);  // Track which network visibility is being updated
@@ -117,7 +116,6 @@
 
 	async function loadNetworks() {
 		loading = true;
-		error = null;
 		try {
 			const skip = (currentPage - 1) * pageSize;
 
@@ -142,7 +140,7 @@
 			}
 		} catch (err) {
 			if ((err as ApiError).cancelled) return;
-			error = (err as Error).message;
+			toast.error((err as Error).message);
 		} finally {
 			loading = false;
 		}
@@ -192,12 +190,11 @@
 			return;
 		}
 		deletingId = networkId;
-		error = null;
 		try {
 			await networks.delete(networkId);
 			await loadNetworks();
 		} catch (err) {
-			if (!(err as ApiError).cancelled) error = (err as Error).message;
+			if (!(err as ApiError).cancelled) toast.error((err as Error).message);
 		} finally {
 			deletingId = null;
 		}
@@ -206,12 +203,11 @@
 	async function handleVisibilityToggle(networkId: string, newVisibility: "public" | "private") {
 		if (updatingVisibilityId) return;  // Prevent double-click
 		updatingVisibilityId = networkId;
-		error = null;
 		try {
 			await networks.updateVisibility(networkId, newVisibility);
 			await loadNetworks();
 		} catch (err) {
-			if (!(err as ApiError).cancelled) error = (err as Error).message;
+			if (!(err as ApiError).cancelled) toast.error((err as Error).message);
 		} finally {
 			updatingVisibilityId = null;
 		}
@@ -241,7 +237,7 @@
 <div class="min-h-screen">
 	<div class="max-w-[80rem] mx-auto py-8">
 		<!-- Actions Bar (Scan + Upload) -->
-		<ActionsBar onUpload={handleUpload} onError={(msg) => error = msg} />
+		<ActionsBar onUpload={handleUpload} />
 
 		<!-- Filter Bar (always visible) -->
 		<FilterBar
@@ -252,15 +248,6 @@
 			onFilterChange={handleFilterChange}
 			onColumnVisibilityChange={handleColumnVisibilityChange}
 		/>
-
-		<!-- Error Alert -->
-		{#if error}
-			<Alert.Root variant="destructive" class="mb-4">
-				<CircleAlert class="size-4" />
-				<Alert.Title>Error</Alert.Title>
-				<Alert.Description>{error}</Alert.Description>
-			</Alert.Root>
-		{/if}
 
 		<!-- Content based on view state -->
 		{#if viewState === 'loading'}

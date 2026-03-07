@@ -6,7 +6,7 @@ import urllib.parse
 import uuid
 from pathlib import PurePosixPath
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi import Path as PathParam
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session, joinedload
@@ -127,6 +127,8 @@ def create_run(
         workflow=result.get("workflow", body.workflow),
         configfile=result.get("configfile", body.configfile),
         snakemake_args=body.snakemake_args,
+        extra_files=body.extra_files,
+        cache=body.cache.model_dump() if body.cache else None,
         import_networks=body.import_networks,
         status=RunStatus(result.get("status", "PENDING")),
     )
@@ -211,12 +213,18 @@ def get_run(
 @router.get("/{run_id}/logs")
 def stream_run_logs(
     run_id: uuid.UUID = PathParam(..., description="Run UUID"),
+    format: str | None = Query(None, description="'text' for plain text logs"),
     db: Session = Depends(get_db),
     user: User = Depends(require_permission(Permission.RUNS_VIEW)),
     smk_client: SmkExecutorClient = Depends(_get_smk_client),
 ) -> StreamingResponse:
-    """Stream live logs via SSE."""
+    """Stream live logs via SSE, or plain text with ?format=text."""
     _check_run_or_404(run_id, db, user)
+    if format == "text":
+        return StreamingResponse(
+            smk_client.get_job_logs_text(str(run_id)),
+            media_type="text/plain",
+        )
     return StreamingResponse(
         smk_client.subscribe_job_logs(str(run_id)),
         media_type="text/event-stream",

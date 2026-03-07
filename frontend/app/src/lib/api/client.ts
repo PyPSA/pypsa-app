@@ -243,6 +243,19 @@ export const runs = {
 	async cancel(id: string): Promise<void> {
 		return request<void>(`/runs/${id}/cancel`, { method: 'POST' });
 	},
+	async create(body: { workflow: string; configfile?: string; snakemake_args?: string[]; extra_files?: Record<string, string>; cache?: { key: string; dirs: string[] }; import_networks?: string[] }): Promise<Run> {
+		return request<Run>('/runs/', { method: 'POST', body: JSON.stringify(body) });
+	},
+	async rerun(run: Run): Promise<Run> {
+		return this.create({
+			workflow: run.workflow,
+			configfile: run.configfile ?? undefined,
+			snakemake_args: run.snakemake_args ?? undefined,
+			extra_files: run.extra_files ?? undefined,
+			cache: run.cache ?? undefined,
+			import_networks: run.import_networks ?? undefined
+		});
+	},
 	async remove(id: string): Promise<void> {
 		return request<void>(`/runs/${id}`, { method: 'DELETE' });
 	},

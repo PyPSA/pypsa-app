@@ -4,13 +4,13 @@
 	import { page } from '$app/stores';
 	import { runs } from '$lib/api/client.js';
 	import { formatRelativeTime, formatDuration } from '$lib/utils.js';
-	import { RUN_FINAL_STATUSES } from '$lib/types.js';
+	import { RUN_FINAL_STATUSES, RUN_SETTLED_STATUSES } from '$lib/types.js';
 	import type { Run, ApiError } from '$lib/types.js';
-	import { Badge } from '$lib/components/ui/badge';
 	import { Button } from '$lib/components/ui/button';
 	import { Skeleton } from '$lib/components/ui/skeleton';
-	import { CircleAlert, ArrowLeft, Terminal } from 'lucide-svelte';
-	import * as Alert from '$lib/components/ui/alert';
+	import { ArrowLeft, Terminal, RotateCw, X, Trash2, Loader2, MoreVertical, Settings2, ChevronRight, ExternalLink } from 'lucide-svelte';
+	import { toast } from 'svelte-sonner';
+	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
 	import StatusCell from '../cells/status-cell.svelte';
 
 	const runId = $derived($page.params.id as string);
@@ -18,22 +18,46 @@
 	let run = $state<Run | null>(null);
 	let logs = $state<string[]>([]);
 	let loading = $state(true);
-	let error = $state<string | null>(null);
 	let streaming = $state(false);
 	let streamDone = $state(false);
 
+	let rerunning = $state(false);
+	let cancelling = $state(false);
+	let removing = $state(false);
+	let configOpen = $state(false);
+
 	let eventSource: EventSource | null = null;
 	let pollInterval: ReturnType<typeof setInterval> | null = null;
+	let tickInterval: ReturnType<typeof setInterval> | null = null;
 	let logContainer: HTMLDivElement;
+
+	// Live duration ticker
+	let tick = $state(0);
 
 	const isTerminal = $derived(
 		run && RUN_FINAL_STATUSES.has(run.status)
 	);
 
-	const duration = $derived(formatDuration(run?.started_at, run?.completed_at));
+	$effect(() => {
+		if (!isTerminal && !tickInterval) {
+			tickInterval = setInterval(() => tick++, 1000);
+		} else if (isTerminal && tickInterval) {
+			clearInterval(tickInterval);
+			tickInterval = null;
+		}
+	});
+	const isSettled = $derived(
+		run !== null && RUN_SETTLED_STATUSES.has(run.status)
+	);
+	const actionBusy = $derived(cancelling || rerunning || removing);
+
+	const duration = $derived.by(() => {
+		if (!isTerminal) tick; // reference tick to force re-evaluation
+		return formatDuration(run?.started_at, run?.completed_at);
+	});
 
 	const workflowDisplay = $derived.by(() => {
-		if (!run?.workflow) return null;
+		if (!run) return null;
 		let source = run.workflow;
 		if (source.startsWith('https://github.com/')) {
 			source = source.replace('https://github.com/', '');
@@ -50,15 +74,15 @@
 	onDestroy(() => {
 		stopLogStream();
 		if (pollInterval) clearInterval(pollInterval);
+		if (tickInterval) clearInterval(tickInterval);
 	});
 
 	async function loadRun() {
 		loading = true;
-		error = null;
 		try {
 			run = await runs.get(runId);
 		} catch (err) {
-			if (!(err as ApiError).cancelled) error = (err as Error).message;
+			if (!(err as ApiError).cancelled) toast.error((err as Error).message);
 		} finally {
 			loading = false;
 		}
@@ -122,6 +146,33 @@
 		}, 5000);
 	}
 
+	async function runAction(setBusy: (v: boolean) => void, action: () => Promise<void>) {
+		if (!run) return;
+		setBusy(true);
+		try {
+			await action();
+		} catch (err) {
+			if (!(err as ApiError).cancelled) toast.error((err as Error).message);
+		} finally {
+			setBusy(false);
+		}
+	}
+
+	const handleCancel = () => runAction(v => cancelling = v, async () => {
+		await runs.cancel(run!.id);
+		run = await runs.get(runId);
+	});
+
+	const handleRerun = () => runAction(v => rerunning = v, async () => {
+		const newRun = await runs.rerun(run!);
+		goto(`/runs/${newRun.id}`);
+	});
+
+	const handleRemove = () => runAction(v => removing = v, async () => {
+		await runs.remove(run!.id);
+		goto('/runs');
+	});
+
 	function scrollToBottom() {
 		requestAnimationFrame(() => {
 			if (logContainer) {
@@ -138,14 +189,6 @@
 			<ArrowLeft class="h-4 w-4" />
 			Back to Runs
 		</Button>
-
-		{#if error}
-			<Alert.Root variant="destructive" class="mb-4">
-				<CircleAlert class="size-4" />
-				<Alert.Title>Error</Alert.Title>
-				<Alert.Description>{error}</Alert.Description>
-			</Alert.Root>
-		{/if}
 
 		{#if loading && !run}
 			<!-- Loading skeleton -->
@@ -174,15 +217,44 @@
 							Run {run.id.slice(0, 8)}
 						{/if}
 					</h1>
+					<div class="ml-auto">
+						<DropdownMenu.Root>
+							<DropdownMenu.Trigger>
+								{#snippet child({ props }: { props: Record<string, unknown> })}
+									<Button variant="ghost" size="sm" {...props} class="h-8 w-8 p-0" disabled={actionBusy}>
+										{#if actionBusy}
+											<Loader2 class="h-4 w-4 animate-spin" />
+										{:else}
+											<MoreVertical class="h-4 w-4" />
+										{/if}
+										<span class="sr-only">Actions</span>
+									</Button>
+								{/snippet}
+							</DropdownMenu.Trigger>
+							<DropdownMenu.Content align="end">
+								{#if !isSettled}
+									<DropdownMenu.Item onclick={handleCancel} disabled={actionBusy}>
+										<X class="h-4 w-4 mr-2" />
+										Cancel
+									</DropdownMenu.Item>
+								{/if}
+								{#if isSettled}
+									<DropdownMenu.Item onclick={handleRerun} disabled={actionBusy}>
+										<RotateCw class="h-4 w-4 mr-2" />
+										Rerun
+									</DropdownMenu.Item>
+								{/if}
+								<DropdownMenu.Separator />
+								<DropdownMenu.Item onclick={handleRemove} disabled={actionBusy} class="text-destructive focus:text-destructive">
+									<Trash2 class="h-4 w-4 mr-2" />
+									Remove
+								</DropdownMenu.Item>
+							</DropdownMenu.Content>
+						</DropdownMenu.Root>
+					</div>
 				</div>
 
 				<div class="grid grid-cols-2 md:grid-cols-4 gap-y-3 gap-x-6 text-sm text-muted-foreground">
-					{#if run.configfile}
-						<div>
-							<span class="font-medium text-foreground">Config:</span>
-							{run.configfile}
-						</div>
-					{/if}
 					{#if run.git_ref || run.git_sha}
 						<div>
 							<span class="font-medium text-foreground">Ref:</span>
@@ -213,12 +285,15 @@
 				<div class="flex items-center gap-2 px-4 py-3 border-b border-border">
 					<Terminal class="h-4 w-4 text-muted-foreground" />
 					<span class="text-sm font-medium">Logs</span>
-					{#if streaming}
-						<span class="ml-auto text-xs text-muted-foreground flex items-center gap-1.5">
-							<span class="h-2 w-2 rounded-full bg-green-500 animate-pulse"></span>
-							Streaming
-						</span>
-					{/if}
+					<a
+						href={`${runs.logsUrl(runId)}?format=text`}
+						target="_blank"
+						rel="noopener noreferrer"
+						class="ml-auto text-muted-foreground hover:text-foreground transition-colors"
+						title="Open logs in new window"
+					>
+						<ExternalLink class="h-4 w-4" />
+					</a>
 				</div>
 				<div
 					bind:this={logContainer}
@@ -241,6 +316,54 @@
 						{/each}
 					{/if}
 				</div>
+			</div>
+
+			<!-- Configuration -->
+			<div class="bg-card rounded-lg border border-border overflow-hidden mt-4">
+				<button
+					class="flex items-center gap-2 px-4 py-3 w-full text-left hover:bg-accent/50 transition-colors"
+					onclick={() => (configOpen = !configOpen)}
+				>
+					<Settings2 class="h-4 w-4 text-muted-foreground" />
+					<span class="text-sm font-medium">Configuration</span>
+					<ChevronRight
+						class="h-4 w-4 text-muted-foreground ml-auto transition-transform duration-200"
+						style={configOpen ? 'transform: rotate(90deg)' : ''}
+					/>
+				</button>
+				{#if configOpen}
+					<dl class="border-t border-border px-4 py-3 grid grid-cols-[8rem_1fr] gap-x-4 gap-y-2 text-sm">
+						<dt class="text-muted-foreground">Workflow</dt>
+						<dd class="font-mono text-xs break-all">{run.workflow}</dd>
+
+						{#if run.configfile}
+							<dt class="text-muted-foreground">Config</dt>
+							<dd class="font-mono text-xs">{run.configfile}</dd>
+						{/if}
+
+						{#if run.snakemake_args?.length}
+							<dt class="text-muted-foreground">Args</dt>
+							<dd class="font-mono text-xs">{run.snakemake_args.join(' ')}</dd>
+						{/if}
+
+						{#if run.cache}
+							<dt class="text-muted-foreground">Cache</dt>
+							<dd class="font-mono text-xs">
+								key: {run.cache.key}, dirs: {run.cache.dirs.join(', ')}
+							</dd>
+						{/if}
+
+						{#if run.import_networks?.length}
+							<dt class="text-muted-foreground">Import networks</dt>
+							<dd class="font-mono text-xs">{run.import_networks.join(', ')}</dd>
+						{/if}
+
+						{#if run.extra_files && Object.keys(run.extra_files).length}
+							<dt class="text-muted-foreground">Extra files</dt>
+							<dd class="font-mono text-xs">{Object.keys(run.extra_files).join(', ')}</dd>
+						{/if}
+					</dl>
+				{/if}
 			</div>
 		{/if}
 	</div>

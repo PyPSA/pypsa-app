@@ -38,6 +38,7 @@
 		"lucide-svelte": "^0.553.0",
 		"mode-watcher": "^1.1.0",
 		"plotly.js-dist": "^3.4.0",
+		"svelte-sonner": "^1.0.8",
 		"tailwindcss-animate": "^1.0.7"
 	}
 }

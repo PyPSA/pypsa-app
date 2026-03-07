@@ -1,4 +1,5 @@
 // API response types
+//  
 
 export interface User {
 	id: string;
@@ -62,12 +63,15 @@ export const RUN_SETTLED_STATUSES: ReadonlySet<RunStatus> = new Set(["UPLOADING"
 export interface Run {
 	id: string;
 	status: RunStatus;
-	workflow?: string;
+	workflow: string;
 	configfile?: string;
+	snakemake_args?: string[];
+	extra_files?: Record<string, string>;
+	cache?: { key: string; dirs: string[] };
+	import_networks?: string[];
 	git_ref?: string;
 	git_sha?: string;
 	exit_code?: number | null;
-	import_networks?: string[];
 	started_at?: string;
 	completed_at?: string;
 	created_at: string;

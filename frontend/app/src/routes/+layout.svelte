@@ -10,6 +10,7 @@
 	import DarkModeToggle from '$lib/components/DarkModeToggle.svelte';
 	import Button from '$lib/components/ui/button/button.svelte';
 	import { ModeWatcher } from 'mode-watcher';
+	import { Toaster } from 'svelte-sonner';
 	import * as Sidebar from '$lib/components/ui/sidebar';
 	import * as Breadcrumb from '$lib/components/ui/breadcrumb';
 	import { PanelRight } from 'lucide-svelte';
@@ -58,6 +59,7 @@
 </svelte:head>
 
 <ModeWatcher />
+<Toaster position="bottom-right" closeButton richColors duration={8000} />
 
 {#if showSidebar}
 	<Sidebar.Provider bind:open={sidebarOpen}>

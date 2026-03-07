@@ -11,11 +11,11 @@
 	import * as Tabs from '$lib/components/ui/tabs';
 	import { Badge } from '$lib/components/ui/badge';
 	import UsersSkeleton from './components/UsersSkeleton.svelte';
+	import { toast } from 'svelte-sonner';
 	import type { User, ApiKey } from '$lib/types.js';
 
 	let users = $state<User[]>([]);
 	let loading = $state(true);
-	let error = $state<string | null>(null);
 	let filter = $state('all');
 	let selectedUser = $state<User | null>(null);
 	let dialogOpen = $state(false);
@@ -51,19 +51,18 @@
 			allPermissions = response.permissions as string[];
 			rolePermissions = response.role_permissions as Record<string, string[]>;
 		} catch (err) {
-			console.error('Failed to load permissions:', err);
+			toast.error(`Failed to load permissions: ${(err as Error).message}`);
 		}
 	}
 
 	async function loadUsers() {
 		loading = true;
-		error = null;
 		try {
 			const role = filter === 'all' ? null : filter;
 			const response = await admin.listUsers(0, 100, role);
 			users = response.data;
 		} catch (err) {
-			error = (err as Error).message;
+			toast.error((err as Error).message);
 		} finally {
 			loading = false;
 		}
@@ -74,7 +73,7 @@
 		try {
 			keys = await apiKeys.list();
 		} catch (err) {
-			console.error('Failed to load API keys:', err);
+			toast.error(`Failed to load API keys: ${(err as Error).message}`);
 		} finally {
 			keysLoading = false;
 		}
@@ -85,7 +84,7 @@
 			await admin.approveUser(userId);
 			await loadUsers();
 		} catch (err) {
-			error = (err as Error).message;
+			toast.error((err as Error).message);
 		}
 	}
 
@@ -94,7 +93,7 @@
 			await admin.updateUserRole(userId, newRole);
 			await loadUsers();
 		} catch (err) {
-			error = (err as Error).message;
+			toast.error((err as Error).message);
 		}
 	}
 
@@ -106,7 +105,7 @@
 			await admin.deleteUser(userId);
 			await loadUsers();
 		} catch (err) {
-			error = (err as Error).message;
+			toast.error((err as Error).message);
 		}
 	}
 
@@ -142,7 +141,7 @@
 			createUserOpen = false;
 			await loadUsers();
 		} catch (err) {
-			error = (err as Error).message;
+			toast.error((err as Error).message);
 		} finally {
 			creatingUser = false;
 		}
@@ -162,7 +161,7 @@
 			}
 			await loadApiKeys();
 		} catch (err) {
-			error = (err as Error).message;
+			toast.error((err as Error).message);
 		} finally {
 			creatingKey = false;
 		}
@@ -174,7 +173,7 @@
 			await apiKeys.delete(keyId);
 			await loadApiKeys();
 		} catch (err) {
-			error = (err as Error).message;
+			toast.error((err as Error).message);
 		}
 	}
 
@@ -197,12 +196,6 @@
 		<h1 class="text-2xl font-bold">User Management</h1>
 		<p class="text-muted-foreground">Manage user accounts, permissions, and API keys</p>
 	</div>
-
-	{#if error}
-		<div class="rounded-md bg-destructive/15 p-4 text-destructive">
-			{error}
-		</div>
-	{/if}
 
 	<Tabs.Root value="users">
 		<Tabs.List>

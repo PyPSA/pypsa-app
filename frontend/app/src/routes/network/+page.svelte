@@ -7,6 +7,7 @@
 	import type { Network as NetworkType, PlotData, PlotResponse, ApiError } from '$lib/types.js';
 	import { formatFileSize, formatDate, formatRelativeTime, formatNumber, getDirectoryPath, getTagType, getTagColor } from '$lib/utils.js';
 	import { Network, AlertCircle, FolderOpen, Clock, CalendarRange, Waypoints, Map, ChevronLeft, ChevronRight, SlidersHorizontal, PanelRight } from 'lucide-svelte';
+	import { toast } from 'svelte-sonner';
 	import NavNetworkFilters from '$lib/components/sidebar/NavNetworkFilters.svelte';
 	import Button from '$lib/components/ui/button/button.svelte';
 	import * as Tabs from '$lib/components/ui/tabs';
@@ -690,7 +691,6 @@ async function loadPlot(statistic: string, plotType: string, parameters: Record<
 		const currentRequestId = ++plotRequestId;
 
 		loadingPlot = true;
-		error = null;
 		try {
 			// Use networkIds for compare mode, networkId for single mode
 			const ids = compareMode ? networkIds : networkId!;
@@ -756,7 +756,7 @@ async function loadPlot(statistic: string, plotType: string, parameters: Record<
 				// Validate plot data exists
 				if (!response.plot_data || !response.plot_data.data) {
 					console.error('Invalid plot data, aborting render');
-					error = 'Plot data is missing or invalid';
+					toast.error('Plot data is missing or invalid');
 					return;
 				}
 
@@ -799,7 +799,7 @@ async function loadPlot(statistic: string, plotType: string, parameters: Record<
 					}
 				} catch (plotlyErr: unknown) {
 					console.error('Plotly.newPlot error:', plotlyErr);
-					error = `Failed to render plot: ${(plotlyErr as Error).message}`;
+					toast.error(`Failed to render plot: ${(plotlyErr as Error).message}`);
 				}
 			} else {
 				console.error('Missing plot data or Plotly:', {
@@ -809,13 +809,13 @@ async function loadPlot(statistic: string, plotType: string, parameters: Record<
 				});
 			}
 		} catch (err: unknown) {
-			// Only set error if this is still the current request
+			// Only handle error if this is still the current request
 			if (currentRequestId === plotRequestId) {
 				if ((err as ApiError).cancelled) {
 					loadingPlot = false;
 					return;
 				}
-				error = (err as Error).message;
+				toast.error((err as Error).message);
 				loadingPlot = false;
 				plotData = null; // Clear old plot data when error occurs
 			}
@@ -895,7 +895,6 @@ async function loadPlot(statistic: string, plotType: string, parameters: Record<
 			if (individualPlots) {
 				// Create separate plots for each carrier (stacked)
 				loadingPlot = true;
-				error = null;
 
 				const carrierPlots: CarrierPlot[] = [];
 				for (const carrier of selectedCarriers) {
@@ -1038,13 +1037,13 @@ async function loadPlot(statistic: string, plotType: string, parameters: Record<
 			}
 		} catch (err: unknown) {
 			console.error('Error in loadPlotsForCarriers:', err);
-			// Only set error if this is still the current request
+			// Only handle error if this is still the current request
 			if (currentRequestId === plotRequestId) {
 				if ((err as ApiError).cancelled) {
 					loadingPlot = false;
 					return;
 				}
-				error = (err as Error).message;
+				toast.error((err as Error).message);
 				loadingPlot = false;
 				plotData = null; // Clear old plot data when error occurs
 			}
@@ -1165,11 +1164,6 @@ async function loadPlot(statistic: string, plotType: string, parameters: Record<
 						{:else}
 							<PlotSkeleton />
 						{/if}
-					{:else if error}
-						<div class="bg-red-50 border border-red-300 text-red-800 px-4 py-3 rounded-lg">
-							<div class="font-semibold mb-2">Error:</div>
-							<pre class="whitespace-pre-wrap text-sm font-mono overflow-x-auto">{error}</pre>
-						</div>
 					{:else if plotData?.plot_data || plotData?.multiplePlots}
 						<div class="w-full space-y-6">
 							{#if plotData.cache_hit}
@@ -1556,11 +1550,6 @@ async function loadPlot(statistic: string, plotType: string, parameters: Record<
 					{:else}
 						<PlotSkeleton />
 					{/if}
-				{:else if error}
-					<div class="bg-red-50 border border-red-300 text-red-800 px-4 py-3 rounded-lg">
-						<div class="font-semibold mb-2">Error:</div>
-						<pre class="whitespace-pre-wrap text-sm font-mono overflow-x-auto">{error}</pre>
-					</div>
 				{:else if plotData?.plot_data || plotData?.multiplePlots}
 					<div class="w-full space-y-6">
 						{#if plotData.cache_hit}
