@@ -114,6 +114,11 @@ class Settings(BaseSettings):
         description="Time-to-live in seconds for network cache entries",
         json_schema_extra={"category": "Redis", "depends_on": "redis_url"},
     )
+    run_outputs_cache_ttl: int = Field(
+        default=10800,
+        description="Time-to-live in seconds for run output file list cache entries",
+        json_schema_extra={"category": "Redis", "depends_on": "redis_url"},
+    )
     max_cache_size_mb: int = Field(
         default=50,
         description="Maximum cache size in megabytes",

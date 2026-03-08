@@ -17,6 +17,13 @@ class RunCache(BaseModel):
     dirs: list[str]
 
 
+class OutputFileResponse(BaseModel):
+    """Single output file entry."""
+
+    path: str
+    size: int
+
+
 class RunCreate(BaseModel):
     """POST /runs request body."""
 

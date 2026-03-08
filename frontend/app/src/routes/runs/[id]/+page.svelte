@@ -5,10 +5,11 @@
 	import { runs } from '$lib/api/client.js';
 	import { formatRelativeTime, formatDuration } from '$lib/utils.js';
 	import { RUN_FINAL_STATUSES, RUN_SETTLED_STATUSES } from '$lib/types.js';
-	import type { Run, ApiError } from '$lib/types.js';
+	import type { Run, ApiError, OutputFile } from '$lib/types.js';
 	import { Button } from '$lib/components/ui/button';
 	import { Skeleton } from '$lib/components/ui/skeleton';
-	import { ArrowLeft, Terminal, RotateCw, X, Trash2, Loader2, MoreVertical, Settings2, ChevronRight, ExternalLink } from 'lucide-svelte';
+	import { ArrowLeft, Terminal, RotateCw, X, Trash2, Loader2, MoreVertical, Settings2, ChevronRight, ExternalLink, FolderArchive } from 'lucide-svelte';
+	import OutputFilesTree from '../components/OutputFilesTree.svelte';
 	import { toast } from 'svelte-sonner';
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
 	import StatusCell from '../cells/status-cell.svelte';
@@ -25,6 +26,12 @@
 	let cancelling = $state(false);
 	let removing = $state(false);
 	let configOpen = $state(false);
+
+	let outputFiles = $state<OutputFile[] | null>(null);
+	let outputsOpen = $state(true);
+	let outputsLoading = $state(false);
+	let outputsError = $state<string | null>(null);
+	let outputsUnavailable = $state(false);
 
 	let eventSource: EventSource | null = null;
 	let pollInterval: ReturnType<typeof setInterval> | null = null;
@@ -49,6 +56,26 @@
 	const isSettled = $derived(
 		run !== null && RUN_SETTLED_STATUSES.has(run.status)
 	);
+
+	$effect(() => {
+		if (isTerminal && outputFiles === null && !outputsLoading) {
+			let cancelled = false;
+			outputsLoading = true;
+			runs.listOutputs(runId).then((files) => {
+				if (!cancelled) outputFiles = files;
+			}).catch((err: unknown) => {
+				if (cancelled) return;
+				if ((err as ApiError).status === 404) {
+					outputsUnavailable = true;
+				} else if (!(err as ApiError).cancelled) {
+					outputsError = (err as Error).message;
+				}
+			}).finally(() => {
+				if (!cancelled) outputsLoading = false;
+			});
+			return () => { cancelled = true; };
+		}
+	});
 	const actionBusy = $derived(cancelling || rerunning || removing);
 
 	const duration = $derived.by(() => {
@@ -317,6 +344,41 @@
 					{/if}
 				</div>
 			</div>
+
+			<!-- Files -->
+			{#if isTerminal}
+				<div class="bg-card rounded-lg border border-border overflow-hidden mt-4">
+					<button
+						class="flex items-center gap-2 px-4 py-3 w-full text-left hover:bg-accent/50 transition-colors"
+						onclick={() => (outputsOpen = !outputsOpen)}
+					>
+						<FolderArchive class="h-4 w-4 text-muted-foreground" />
+						<span class="text-sm font-medium">Files</span>
+						{#if outputsLoading}
+							<Loader2 class="h-3.5 w-3.5 animate-spin text-muted-foreground" />
+						{:else if outputsError}
+							<span class="text-xs text-destructive">{outputsError}</span>
+						{:else if outputsUnavailable}
+							<span class="text-xs text-muted-foreground">no longer available</span>
+						{:else if outputFiles && outputFiles.length > 0}
+							<span class="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded-full">
+								{outputFiles.length}
+							</span>
+						{/if}
+						{#if outputFiles && outputFiles.length > 0}
+							<ChevronRight
+								class="h-4 w-4 text-muted-foreground ml-auto transition-transform duration-200"
+								style={outputsOpen ? 'transform: rotate(90deg)' : ''}
+							/>
+						{/if}
+					</button>
+					{#if outputsOpen && outputFiles && outputFiles.length > 0}
+						<div class="border-t border-border px-4 py-3">
+							<OutputFilesTree files={outputFiles} {runId} />
+						</div>
+					{/if}
+				</div>
+			{/if}
 
 			<!-- Configuration -->
 			<div class="bg-card rounded-lg border border-border overflow-hidden mt-4">

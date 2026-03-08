@@ -11,6 +11,7 @@ import type {
 	ApiKey,
 	NetworkFilters,
 	NetworkUpdate,
+	OutputFile,
 	PaginatedResponse,
 } from "$lib/types.js";
 
@@ -261,6 +262,13 @@ export const runs = {
 	},
 	logsUrl(id: string): string {
 		return `${API_BASE}/runs/${id}/logs`;
+	},
+	async listOutputs(id: string): Promise<OutputFile[]> {
+		return request<OutputFile[]>(`/runs/${id}/outputs`);
+	},
+	outputDownloadUrl(id: string, path: string): string {
+		const encoded = path.split('/').map(encodeURIComponent).join('/');
+		return `${API_BASE}/runs/${id}/outputs/${encoded}`;
 	}
 };
 

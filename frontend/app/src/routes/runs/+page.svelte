@@ -31,7 +31,7 @@
 	// Table state
 	let sorting = $state<SortingState>([]);
 
-	// Live duration ticker 
+	// Live duration ticker
 	let tick = $state(0);
 	let tickInterval: ReturnType<typeof setInterval> | null = null;
 	const hasActiveRuns = $derived(runsList.some(r => !RUN_FINAL_STATUSES.has(r.status)));

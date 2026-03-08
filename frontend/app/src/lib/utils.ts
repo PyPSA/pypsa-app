@@ -3,9 +3,11 @@ import type { NetworkTag, TagType, TagColor } from "./types.js";
 export { cn } from "$lib/lib/utils.js";
 
 export function formatFileSize(bytes: number | null | undefined): string {
-	if (!bytes) return '—';
-	const mb = bytes / (1024 * 1024);
-	return `${mb.toFixed(2)} MB`;
+	if (bytes === null || bytes === undefined || bytes === 0) return '—';
+	if (bytes < 1024) return `${bytes} B`;
+	if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+	if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+	return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
 }
 
 function parseUTCDate(dateString: string): Date {

@@ -12,23 +12,25 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session, joinedload
 
 from pypsa_app.backend.api.deps import get_db, require_permission
+from pypsa_app.backend.cache import cache
 from pypsa_app.backend.models import Permission, Run, RunStatus, User
 from pypsa_app.backend.permissions import can_access_run, can_modify_run, has_permission
 from pypsa_app.backend.schemas.common import MessageResponse
 from pypsa_app.backend.schemas.run import (
+    OutputFileResponse,
     RunCreate,
     RunListResponse,
     RunResponse,
 )
-from pypsa_app.backend.services.run import SmkExecutorClient, SmkExecutorError
+from pypsa_app.backend.services.run import SnakedispatchClient, SnakedispatchError
 from pypsa_app.backend.settings import settings
 from pypsa_app.backend.tasks import import_run_outputs_task
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
-# Statuses where the remote executor is done — no need to sync from smk-executor.
-SMK_SYNCED_STATUSES = {
+# Statuses where the remote executor is done — no need to sync from Snakedispatch.
+SYNCED_STATUSES = {
     RunStatus.UPLOADING,
     RunStatus.COMPLETED,
     RunStatus.FAILED,
@@ -37,11 +39,11 @@ SMK_SYNCED_STATUSES = {
 }
 
 
-def _get_smk_client() -> SmkExecutorClient:
-    """Return SmkExecutorClient or raise 503 if not configured."""
-    if not settings.smk_executor_url:
+def _get_snakedispatch_client() -> SnakedispatchClient:
+    """Return SnakedispatchClient or raise 503 if not configured."""
+    if not settings.snakedispatch_url:
         raise HTTPException(503, "Run service is not configured")
-    return SmkExecutorClient(settings.smk_executor_url)
+    return SnakedispatchClient(settings.snakedispatch_url)
 
 
 def _check_run_or_404(run_id: uuid.UUID, db: Session, user: User) -> Run:
@@ -64,7 +66,7 @@ _IMPORT_DONE_STATUSES = {RunStatus.UPLOADING, RunStatus.COMPLETED, RunStatus.ERR
 
 
 def _sync_run_from_job(run: Run, job: dict, db: Session) -> None:
-    """Update a Run record from a smk-executor response dict."""
+    """Update a Run record from a Snakedispatch response dict."""
     changed = False
     field_map = {
         "workflow": "workflow",
@@ -115,11 +117,11 @@ def create_run(
     body: RunCreate,
     db: Session = Depends(get_db),
     user: User = Depends(require_permission(Permission.RUNS_MODIFY)),
-    smk_client: SmkExecutorClient = Depends(_get_smk_client),
+    sd_client: SnakedispatchClient = Depends(_get_snakedispatch_client),
 ) -> RunResponse:
     """Submit a new run."""
     payload = body.model_dump(exclude_none=True)
-    result = smk_client.submit_job(payload)
+    result = sd_client.submit_job(payload)
 
     run = Run(
         job_id=result["job_id"],
@@ -153,7 +155,7 @@ def list_runs(
     limit: int = 100,
     db: Session = Depends(get_db),
     user: User = Depends(require_permission(Permission.RUNS_VIEW)),
-    smk_client: SmkExecutorClient = Depends(_get_smk_client),
+    sd_client: SnakedispatchClient = Depends(_get_snakedispatch_client),
 ) -> RunListResponse:
     """List runs visible to the current user."""
     query = db.query(Run).options(joinedload(Run.owner))
@@ -163,11 +165,11 @@ def list_runs(
     total = query.count()
     runs = query.order_by(Run.created_at.desc()).offset(skip).limit(limit).all()
 
-    # Sync non-terminal runs in this page from smk-executor
-    non_terminal = [r for r in runs if r.status not in SMK_SYNCED_STATUSES]
+    # Sync non-terminal runs in this page from Snakedispatch
+    non_terminal = [r for r in runs if r.status not in SYNCED_STATUSES]
     if non_terminal:
         try:
-            all_jobs = smk_client.list_jobs()
+            all_jobs = sd_client.list_jobs()
             jobs_by_id = {j["job_id"]: j for j in all_jobs}
 
             for run in non_terminal:
@@ -176,8 +178,8 @@ def list_runs(
                     _sync_run_from_job(run, job, db)
 
             db.commit()
-        except SmkExecutorError:
-            # smk-executor unreachable, serve from DB only
+        except SnakedispatchError:
+            # Snakedispatch unreachable, serve from DB only
             pass
 
     return RunListResponse(
@@ -191,19 +193,19 @@ def get_run(
     run_id: uuid.UUID = PathParam(..., description="Run UUID"),
     db: Session = Depends(get_db),
     user: User = Depends(require_permission(Permission.RUNS_VIEW)),
-    smk_client: SmkExecutorClient = Depends(_get_smk_client),
+    sd_client: SnakedispatchClient = Depends(_get_snakedispatch_client),
 ) -> RunResponse:
     """Get run detail."""
     run = _check_run_or_404(run_id, db, user)
 
-    # Sync from smk-executor if not in terminal state
-    if run.status not in SMK_SYNCED_STATUSES:
+    # Sync from Snakedispatch if not in terminal state
+    if run.status not in SYNCED_STATUSES:
         try:
-            job = smk_client.get_job(str(run_id))
+            job = sd_client.get_job(str(run_id))
             _sync_run_from_job(run, job, db)
             db.commit()
-        except SmkExecutorError:
-            # smk-executor unreachable or job already garbage
+        except SnakedispatchError:
+            # Snakedispatch unreachable or job already garbage
             # collected, fall back to local DB
             pass
 
@@ -216,31 +218,37 @@ def stream_run_logs(
     format: str | None = Query(None, description="'text' for plain text logs"),
     db: Session = Depends(get_db),
     user: User = Depends(require_permission(Permission.RUNS_VIEW)),
-    smk_client: SmkExecutorClient = Depends(_get_smk_client),
+    sd_client: SnakedispatchClient = Depends(_get_snakedispatch_client),
 ) -> StreamingResponse:
     """Stream live logs via SSE, or plain text with ?format=text."""
     _check_run_or_404(run_id, db, user)
     if format == "text":
         return StreamingResponse(
-            smk_client.get_job_logs_text(str(run_id)),
+            sd_client.get_job_logs_text(str(run_id)),
             media_type="text/plain",
         )
     return StreamingResponse(
-        smk_client.subscribe_job_logs(str(run_id)),
+        sd_client.subscribe_job_logs(str(run_id)),
         media_type="text/event-stream",
     )
 
 
-@router.get("/{run_id}/outputs")
+@cache("run_outputs", ttl=settings.run_outputs_cache_ttl)
+def _get_job_outputs_cached(job_id: str) -> list[dict]:
+    """Fetch job outputs via Snakedispatch (cached at module level)."""
+    client = _get_snakedispatch_client()
+    return client.get_job_outputs(job_id)
+
+
+@router.get("/{run_id}/outputs", response_model=list[OutputFileResponse])
 def list_run_outputs(
     run_id: uuid.UUID = PathParam(..., description="Run UUID"),
     db: Session = Depends(get_db),
     user: User = Depends(require_permission(Permission.RUNS_VIEW)),
-    smk_client: SmkExecutorClient = Depends(_get_smk_client),
 ) -> list[dict]:
     """List output files for a completed run."""
     _check_run_or_404(run_id, db, user)
-    return smk_client.get_job_outputs(str(run_id))
+    return _get_job_outputs_cached(str(run_id))
 
 
 @router.get("/{run_id}/outputs/{path:path}")
@@ -249,7 +257,7 @@ def download_run_output(
     path: str = PathParam(..., description="File path relative to work directory"),
     db: Session = Depends(get_db),
     user: User = Depends(require_permission(Permission.RUNS_VIEW)),
-    smk_client: SmkExecutorClient = Depends(_get_smk_client),
+    sd_client: SnakedispatchClient = Depends(_get_snakedispatch_client),
 ) -> StreamingResponse:
     """Download an output file."""
     if ".." in PurePosixPath(path).parts:
@@ -259,7 +267,7 @@ def download_run_output(
         re.sub(r'[\x00-\x1f\x7f"\\;]', "_", path.rsplit("/", 1)[-1])
     )
     return StreamingResponse(
-        smk_client.download_job_output(str(run_id), path),
+        sd_client.download_job_output(str(run_id), path),
         media_type="application/octet-stream",
         headers={"Content-Disposition": f"attachment; filename*=UTF-8''{filename}"},
     )
@@ -270,7 +278,7 @@ def cancel_run(
     run_id: uuid.UUID = PathParam(..., description="Run UUID"),
     db: Session = Depends(get_db),
     user: User = Depends(require_permission(Permission.RUNS_MODIFY)),
-    smk_client: SmkExecutorClient = Depends(_get_smk_client),
+    sd_client: SnakedispatchClient = Depends(_get_snakedispatch_client),
 ) -> dict:
     """Cancel a running run. Keeps the record visible."""
     run = _check_run_or_404(run_id, db, user)
@@ -278,12 +286,12 @@ def cancel_run(
         raise HTTPException(403, "You don't have permission to cancel this run")
 
     try:
-        result = smk_client.cancel_job(str(run_id))
+        result = sd_client.cancel_job(str(run_id))
         _sync_run_from_job(run, result, db)
         db.commit()
-    except SmkExecutorError as e:
+    except SnakedispatchError as e:
         if e.status_code in (404, 409):
-            if run.status not in SMK_SYNCED_STATUSES:
+            if run.status not in SYNCED_STATUSES:
                 run.status = RunStatus.CANCELLED
                 db.commit()
         else:
@@ -305,7 +313,7 @@ def remove_run(
     run_id: uuid.UUID = PathParam(..., description="Run UUID"),
     db: Session = Depends(get_db),
     user: User = Depends(require_permission(Permission.RUNS_MODIFY)),
-    smk_client: SmkExecutorClient = Depends(_get_smk_client),
+    sd_client: SnakedispatchClient = Depends(_get_snakedispatch_client),
 ) -> dict:
     """Remove a run, cancel if still active, and delete the DB row."""
     run = _check_run_or_404(run_id, db, user)
@@ -317,7 +325,7 @@ def remove_run(
 
     # Try to clean up remotely but don't fail the request if it errors
     try:
-        smk_client.delete_job(str(run_id))
+        sd_client.delete_job(str(run_id))
     except Exception:
         logger.warning("Remote cleanup failed for run %s", run_id, exc_info=True)
 

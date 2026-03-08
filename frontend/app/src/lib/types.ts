@@ -1,5 +1,5 @@
 // API response types
-//  
+//
 
 export interface User {
 	id: string;
@@ -98,6 +98,11 @@ export interface TaskResult {
 		statistic?: string;
 		plot_type?: string;
 	};
+}
+
+export interface OutputFile {
+	path: string;
+	size: number;
 }
 
 export type PlotData = Record<string, unknown>;

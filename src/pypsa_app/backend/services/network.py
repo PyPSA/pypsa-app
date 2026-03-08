@@ -6,6 +6,7 @@ import math
 import shutil
 import threading
 import time
+import uuid
 from collections import OrderedDict
 from datetime import UTC, datetime
 from pathlib import Path
@@ -20,8 +21,6 @@ from pypsa_app.backend.utils.path_validation import validate_path
 from pypsa_app.backend.utils.serializers import sanitize_metadata
 
 if TYPE_CHECKING:
-    import uuid
-
     from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
@@ -299,7 +298,7 @@ def import_network_file(
     source_run_id: uuid.UUID | None = None,
 ) -> Network:
     """Import a network file.
-    
+
     Hash, move to storage, extract metadata and create DB record.
     """
     user = db.query(User).filter(User.id == user_id).first()
