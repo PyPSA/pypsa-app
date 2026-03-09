@@ -82,7 +82,9 @@ def _check_run(run_id: uuid.UUID, db: Session, user: User) -> Run:
     """Load run record with access check."""
     run = (
         db.query(Run)
-        .options(joinedload(Run.owner), joinedload(Run.backend), joinedload(Run.networks))
+        .options(
+            joinedload(Run.owner), joinedload(Run.backend), joinedload(Run.networks)
+        )
         .filter(Run.job_id == run_id)
         .first()
     )
@@ -307,6 +309,18 @@ def _get_job_outputs_cached(job_id: str, backend_id: str) -> list[dict]:
     return client.get_job_outputs(job_id)
 
 
+@router.get("/{run_id}/workflow")
+def get_run_workflow(
+    run_id: uuid.UUID = PathParam(..., description="Run UUID"),
+    db: Session = Depends(get_db),
+    user: User = Depends(require_permission(Permission.RUNS_VIEW)),
+) -> dict:
+    """Get workflow metadata (DAG, rules, jobs, errors) for a run."""
+    run = _check_run(run_id, db, user)
+    client = _get_client_for_run(run)
+    return client.get_job_workflow(str(run_id))
+
+
 @router.get("/{run_id}/outputs", response_model=list[OutputFileResponse])
 def list_run_outputs(
     run_id: uuid.UUID = PathParam(..., description="Run UUID"),
@@ -392,9 +406,7 @@ def remove_run(
         try:
             client.delete_job(str(run_id))
         except Exception:
-            logger.warning(
-                "Remote cleanup failed for run %s", run_id, exc_info=True
-            )
+            logger.warning("Remote cleanup failed for run %s", run_id, exc_info=True)
 
     db.delete(run)
     db.commit()

@@ -71,6 +71,21 @@ class SnakedispatchClient:
         result = self._request("GET", f"/jobs/{job_id}/outputs")
         return result.get("files", [])
 
+    def get_job_workflow(self, job_id: str) -> dict:
+        result = self._request("GET", f"/jobs/{job_id}/workflow")
+        # Merge jobs from dedicated endpoint when rules lack job details
+        if result.get("rules") and not any(r.get("jobs") for r in result["rules"]):
+            try:
+                jobs = self._request("GET", f"/jobs/{job_id}/workflow/jobs")
+                jobs_by_rule: dict[str, list[dict]] = {}
+                for j in jobs:
+                    jobs_by_rule.setdefault(j.get("rule", ""), []).append(j)
+                for rule in result["rules"]:
+                    rule["jobs"] = jobs_by_rule.get(rule["name"], [])
+            except Exception:  # noqa: BLE001
+                pass  # Gracefully degrade if endpoint unavailable
+        return result
+
     def cancel_job(self, job_id: str) -> dict:
         return self._request("POST", f"/jobs/{job_id}/cancel")
 

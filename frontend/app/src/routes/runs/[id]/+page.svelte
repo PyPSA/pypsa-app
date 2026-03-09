@@ -3,13 +3,15 @@
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
 	import { runs } from '$lib/api/client.js';
-	import { formatRelativeTime, formatDuration } from '$lib/utils.js';
+	import { formatRelativeTime, formatDuration, formatDate } from '$lib/utils.js';
 	import { RUN_FINAL_STATUSES, RUN_SETTLED_STATUSES } from '$lib/types.js';
-	import type { Run, ApiError, OutputFile, RunNetwork } from '$lib/types.js';
+	import type { Run, ApiError, OutputFile, RunNetwork, Workflow } from '$lib/types.js';
 	import { Button } from '$lib/components/ui/button';
 	import { Skeleton } from '$lib/components/ui/skeleton';
-	import { ArrowLeft, Terminal, RotateCw, X, Trash2, Loader2, MoreVertical, Settings2, ChevronRight, ExternalLink, FolderArchive } from 'lucide-svelte';
+	import { Terminal, RotateCw, X, Trash2, Loader2, MoreVertical, Settings2, ChevronRight, ExternalLink, FolderArchive, GitBranch, Clock, Calendar, Server } from 'lucide-svelte';
+	import { breadcrumbStore } from '$lib/stores/breadcrumb.svelte.js';
 	import OutputFilesTree from '../components/OutputFilesTree.svelte';
+	import WorkflowSection from '../components/WorkflowSection.svelte';
 	import { toast } from 'svelte-sonner';
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
 	import StatusCell from '../cells/status-cell.svelte';
@@ -26,12 +28,14 @@
 	let cancelling = $state(false);
 	let removing = $state(false);
 	let configOpen = $state(false);
+	let logsOpen = $state(true);
 
 	let outputFiles = $state<OutputFile[] | null>(null);
 	let outputsOpen = $state(false);
 	let outputsLoading = $state(false);
 	let outputsError = $state<string | null>(null);
 	let outputsUnavailable = $state(false);
+	let workflow = $state<Workflow | null>(null);
 
 	let eventSource: EventSource | null = null;
 	let pollInterval: ReturnType<typeof setInterval> | null = null;
@@ -62,23 +66,41 @@
 	$effect(() => {
 		if (isTerminal && !outputsFetched) {
 			outputsFetched = true;
-			let cancelled = false;
 			outputsLoading = true;
 			runs.listOutputs(runId).then((files) => {
-				if (!cancelled) outputFiles = files;
+				outputFiles = files;
 			}).catch((err: unknown) => {
-				if (cancelled) return;
 				if ((err as ApiError).status === 404) {
 					outputsUnavailable = true;
 				} else if (!(err as ApiError).cancelled) {
 					outputsError = (err as Error).message;
 				}
 			}).finally(() => {
-				if (!cancelled) outputsLoading = false;
+				outputsLoading = false;
 			});
-			return () => { cancelled = true; };
+			fetch(`/api/v1/runs/${runId}/workflow`, { credentials: 'include' })
+				.then((r) => r.ok ? r.json() as Promise<Workflow> : null)
+				.then((w) => { workflow = w; })
+				.catch(() => {
+					// Workflow data is optional for file badges
+				});
 		}
 	});
+	// Poll workflow data for running runs (progress bar)
+	$effect(() => {
+		if (run && !isTerminal && run.status !== 'PENDING') {
+			const fetchWorkflow = () => {
+				fetch(`/api/v1/runs/${runId}/workflow`, { credentials: 'include' })
+					.then((r) => r.ok ? r.json() as Promise<Workflow> : null)
+					.then((w) => { if (w) workflow = w; })
+					.catch(() => {});
+			};
+			fetchWorkflow();
+			const interval = setInterval(fetchWorkflow, 5000);
+			return () => clearInterval(interval);
+		}
+	});
+
 	const actionBusy = $derived(cancelling || rerunning || removing);
 
 	const duration = $derived.by(() => {
@@ -96,12 +118,50 @@
 		return source;
 	});
 
-	onMount(async () => {
-		await loadRun();
-		startLogStream();
+	const configDisplay = $derived(
+		run?.configfile?.split('/').pop() ?? null
+	);
+
+	$effect(() => {
+		// React to runId changes (e.g. rerun navigating to new run)
+		void runId;
+		// Reset state
+		run = null;
+		logs = [];
+		loading = true;
+		streaming = false;
+		streamDone = false;
+		outputFiles = null;
+		outputsOpen = false;
+		outputsLoading = false;
+		outputsError = null;
+		outputsUnavailable = false;
+		outputsFetched = false;
+		workflow = null;
+		configOpen = false;
+		logsOpen = true;
+		stopLogStream();
+		if (pollInterval) { clearInterval(pollInterval); pollInterval = null; }
+		// Load new run
+		loadRun().then(() => startLogStream());
+	});
+
+	const breadcrumbLabel = $derived.by(() => {
+		if (!run) return '...';
+		if (configDisplay) return configDisplay;
+		const repo = workflowDisplay?.split('/').pop() || '';
+		let label = repo;
+		const ref = run.git_ref || run.git_sha?.slice(0, 8) || '';
+		if (ref) label += `@${ref}`;
+		return label || run.id.slice(0, 8);
+	});
+
+	$effect(() => {
+		breadcrumbStore.set([{ label: breadcrumbLabel }]);
 	});
 
 	onDestroy(() => {
+		breadcrumbStore.clear();
 		stopLogStream();
 		if (pollInterval) clearInterval(pollInterval);
 		if (tickInterval) clearInterval(tickInterval);
@@ -229,12 +289,6 @@
 
 <div class="min-h-screen">
 	<div class="max-w-[80rem] mx-auto py-8">
-		<!-- Back button -->
-		<Button variant="ghost" class="mb-4 gap-2" onclick={() => goto('/runs')}>
-			<ArrowLeft class="h-4 w-4" />
-			Back to Runs
-		</Button>
-
 		{#if loading && !run}
 			<!-- Loading skeleton -->
 			<div class="bg-card rounded-lg border border-border p-6 mb-4">
@@ -252,16 +306,29 @@
 			<Skeleton class="h-96 w-full rounded-lg" />
 		{:else if run}
 			<!-- Run header -->
-			<div class="bg-card rounded-lg border border-border p-6 mb-4">
-				<div class="flex items-center gap-4 mb-4">
+			<div class="bg-card rounded-lg border border-border {run.status === 'FAILED' || run.status === 'ERROR' ? 'border-b-2 border-b-destructive' : ''} p-6 mb-4">
+				<!-- Row 1: Identity & Actions -->
+				<div class="flex items-center gap-3 mb-3">
 					<StatusCell {run} />
-					<h1 class="text-lg font-semibold">
-						{#if workflowDisplay}
-							{workflowDisplay}
-						{:else}
-							Run {run.id.slice(0, 8)}
+					{#if run.exit_code !== null && run.exit_code !== undefined && run.exit_code !== 0}
+						<span class="inline-flex items-center rounded-md bg-destructive/10 px-2 py-0.5 text-xs font-medium text-destructive ring-1 ring-inset ring-destructive/20">
+							exit {run.exit_code}
+						</span>
+					{/if}
+					<div class="min-w-0">
+						{#if configDisplay && workflowDisplay}
+							<p class="text-xs text-muted-foreground truncate">{workflowDisplay}</p>
 						{/if}
-					</h1>
+						<h1 class="text-lg font-semibold font-mono truncate">
+							{#if configDisplay}
+								{configDisplay}
+							{:else if workflowDisplay}
+								{workflowDisplay}
+							{:else}
+								Run {run.id.slice(0, 8)}
+							{/if}
+						</h1>
+					</div>
 					<div class="ml-auto">
 						<DropdownMenu.Root>
 							<DropdownMenu.Trigger>
@@ -299,88 +366,77 @@
 					</div>
 				</div>
 
-				<div class="grid grid-cols-2 md:grid-cols-4 gap-y-3 gap-x-6 text-sm text-muted-foreground">
-					<div>
-						<span class="font-medium text-foreground">Backend:</span>
-						{run.backend.name}
-					</div>
+				<!-- Row 2: Metrics chips -->
+				<div class="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-muted-foreground">
 					{#if run.git_ref || run.git_sha}
-						<div>
-							<span class="font-medium text-foreground">Ref:</span>
-							{run.git_ref || ''}{run.git_sha ? `@${run.git_sha.slice(0, 8)}` : ''}
+						<div class="flex items-center gap-1.5">
+							<GitBranch class="h-3.5 w-3.5" />
+							<span>{run.git_ref || ''}{run.git_sha ? `@${run.git_sha.slice(0, 8)}` : ''}</span>
 						</div>
+						<div class="h-4 w-px bg-border"></div>
 					{/if}
 					{#if duration}
-						<div>
-							<span class="font-medium text-foreground">Duration:</span>
-							{duration}
+						<div class="flex items-center gap-1.5">
+							<Clock class="h-3.5 w-3.5" />
+							<span>{duration}</span>
 						</div>
+						<div class="h-4 w-px bg-border"></div>
 					{/if}
-					<div>
-						<span class="font-medium text-foreground">Created:</span>
-						{formatRelativeTime(run.created_at)}
+					<div class="flex items-center gap-1.5">
+						<Calendar class="h-3.5 w-3.5" />
+						<span title={formatDate(run.created_at)}>{formatRelativeTime(run.created_at)}</span>
 					</div>
-					{#if run.exit_code !== null && run.exit_code !== undefined}
-						<div>
-							<span class="font-medium text-foreground">Exit code:</span>
-							{run.exit_code}
-						</div>
-					{/if}
+					<div class="h-4 w-px bg-border"></div>
+					<div class="flex items-center gap-1.5">
+						<Server class="h-3.5 w-3.5" />
+						<span>{run.backend.name}</span>
+					</div>
 					{#if run.networks.length > 0}
-						<div>
-							<span class="font-medium text-foreground">Networks:</span>
+						<div class="h-4 w-px bg-border"></div>
+						<div class="flex items-center gap-1.5">
 							{#each run.networks as network, i}
-								{#if i > 0}, {/if}
+								{#if i > 0}<span>,</span>{/if}
 								<a href="/network?id={network.id}" class="underline hover:text-foreground">
 									{network.filename}
 								</a>
 							{/each}
 						</div>
 					{/if}
-				</div>
-			</div>
-
-			<!-- Logs -->
-			<div class="bg-card rounded-lg border border-border overflow-hidden">
-				<div class="flex items-center gap-2 px-4 py-3 border-b border-border">
-					<Terminal class="h-4 w-4 text-muted-foreground" />
-					<span class="text-sm font-medium">Logs</span>
-					<a
-						href={`${runs.logsUrl(runId)}?format=text`}
-						target="_blank"
-						rel="noopener noreferrer"
-						class="ml-auto text-muted-foreground hover:text-foreground transition-colors"
-						title="Open logs in new window"
-					>
-						<ExternalLink class="h-4 w-4" />
-					</a>
-				</div>
-				<div
-					bind:this={logContainer}
-					class="bg-zinc-950 text-zinc-200 p-4 font-mono text-xs leading-5 overflow-y-auto"
-					style="max-height: 70vh; min-height: 20rem;"
-				>
-					{#if logs.length === 0}
-						<span class="text-zinc-500">
-							{#if streaming}
-								Waiting for logs...
-							{:else if isTerminal}
-								No logs available.
-							{:else}
-								Connecting...
+					{#if run.owner}
+						<div class="flex items-center gap-1.5 ml-auto">
+							{#if run.owner.avatar_url}
+								<img src={run.owner.avatar_url} alt={run.owner.username} class="h-4 w-4 rounded-full" />
 							{/if}
-						</span>
-					{:else}
-						{#each logs as line, i}
-							<div class="whitespace-pre-wrap hover:bg-zinc-900/50">{line}</div>
-						{/each}
+							<span>{run.owner.username}</span>
+						</div>
 					{/if}
 				</div>
+
+				<!-- Row 4: Progress bar (running runs only) -->
+				{#if !isTerminal && run.status !== 'PENDING' && workflow}
+					{@const total = workflow.total_job_count}
+					{@const done = workflow.jobs_finished}
+					{@const pct = total > 0 ? Math.round((done / total) * 100) : 0}
+					<div class="mt-4">
+						<div class="flex justify-between mb-1">
+							<span class="text-xs text-muted-foreground">{done}/{total}</span>
+							<span class="text-xs text-muted-foreground">{pct}%</span>
+						</div>
+						<div class="h-1.5 w-full rounded-full bg-muted overflow-hidden">
+							<div class="h-full rounded-full bg-primary transition-all duration-500" style="width: {pct}%"></div>
+						</div>
+					</div>
+				{/if}
 			</div>
+
+			<!-- Workflow -->
+			{#if run.status !== 'PENDING'}
+				<WorkflowSection {runId} isTerminal={!!isTerminal} />
+			{/if}
 
 			<!-- Files -->
 			{#if isTerminal}
-				<div class="bg-card rounded-lg border border-border overflow-hidden mt-4">
+				<div class="bg-card rounded-lg border border-border overflow-hidden">
 					<button
 						class="flex items-center gap-2 px-4 py-3 w-full text-left hover:bg-accent/50 transition-colors"
 						onclick={() => (outputsOpen = !outputsOpen)}
@@ -407,11 +463,59 @@
 					</button>
 					{#if outputsOpen && outputFiles && outputFiles.length > 0}
 						<div class="border-t border-border px-4 py-3">
-							<OutputFilesTree files={outputFiles} {runId} />
+							<OutputFilesTree files={outputFiles} {runId} {workflow} />
 						</div>
 					{/if}
 				</div>
 			{/if}
+
+			<!-- Logs -->
+			<div class="bg-card rounded-lg border border-border overflow-hidden mt-4">
+				<button
+					class="flex items-center gap-2 px-4 py-3 w-full text-left hover:bg-accent/50 transition-colors"
+					onclick={() => (logsOpen = !logsOpen)}
+				>
+					<Terminal class="h-4 w-4 text-muted-foreground" />
+					<span class="text-sm font-medium">Logs</span>
+					<a
+						href={`${runs.logsUrl(runId)}?format=text`}
+						target="_blank"
+						rel="noopener noreferrer"
+						class="ml-auto inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground hover:underline transition-colors"
+						onclick={(e) => e.stopPropagation()}
+					>
+						<ExternalLink class="h-3.5 w-3.5" />
+						Raw logs
+					</a>
+					<ChevronRight
+						class="h-4 w-4 text-muted-foreground transition-transform duration-200"
+						style={logsOpen ? 'transform: rotate(90deg)' : ''}
+					/>
+				</button>
+				{#if logsOpen}
+					<div
+						bind:this={logContainer}
+						class="border-t border-border bg-zinc-950 text-zinc-200 p-4 font-mono text-xs leading-5 overflow-y-auto"
+						style="max-height: 70vh; min-height: 20rem;"
+					>
+						{#if logs.length === 0}
+							<span class="text-zinc-500">
+								{#if streaming}
+									Waiting for logs...
+								{:else if isTerminal}
+									No logs available.
+								{:else}
+									Connecting...
+								{/if}
+							</span>
+						{:else}
+							{#each logs as line, i}
+								<div class="whitespace-pre-wrap hover:bg-zinc-900/50">{line}</div>
+							{/each}
+						{/if}
+					</div>
+				{/if}
+			</div>
 
 			<!-- Configuration -->
 			<div class="bg-card rounded-lg border border-border overflow-hidden mt-4">

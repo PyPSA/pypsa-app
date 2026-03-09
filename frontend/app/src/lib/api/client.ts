@@ -16,6 +16,7 @@ import type {
 	NetworkUpdate,
 	OutputFile,
 	PaginatedResponse,
+	Workflow,
 } from "$lib/types.js";
 
 const API_BASE = '/api/v1';
@@ -276,6 +277,9 @@ export const runs = {
 	outputDownloadUrl(id: string, path: string): string {
 		const encoded = path.split('/').map(encodeURIComponent).join('/');
 		return `${API_BASE}/runs/${id}/outputs/${encoded}`;
+	},
+	async workflow(id: string): Promise<Workflow> {
+		return request<Workflow>(`/runs/${id}/workflow`, {}, `run-workflow-${id}`);
 	}
 };
 

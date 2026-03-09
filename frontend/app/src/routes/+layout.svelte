@@ -6,6 +6,8 @@
 	import favicon from '$lib/assets/favicon.svg';
 	import { authStore } from '$lib/stores/auth.svelte.js';
 	import { filtersPanelCollapsed } from '$lib/stores/networkPageStore';
+	import { breadcrumbStore } from '$lib/stores/breadcrumb.svelte.js';
+	import { sidebarStore } from '$lib/stores/sidebar.svelte.js';
 	import AppSidebar from '$lib/components/AppSidebar.svelte';
 	import DarkModeToggle from '$lib/components/DarkModeToggle.svelte';
 	import Button from '$lib/components/ui/button/button.svelte';
@@ -29,8 +31,7 @@
 		return 'Page';
 	});
 
-	// Sidebar open state - initialize from cookie if available
-	let sidebarOpen = $state(true);
+	// Sidebar open state - uses shared store so pages can control it
 
 	// Determine if we should show the sidebar
 	const showSidebar = $derived(
@@ -46,7 +47,7 @@
 		const sidebarCookie = cookies.find(c => c.trim().startsWith('sidebar:state='));
 		if (sidebarCookie) {
 			const value = sidebarCookie.split('=')[1];
-			sidebarOpen = value === 'true';
+			sidebarStore.open = value === 'true';
 		}
 
 		// Initialize auth state for better client-side UI
@@ -62,7 +63,7 @@
 <Toaster position="bottom-right" closeButton richColors duration={8000} />
 
 {#if showSidebar}
-	<Sidebar.Provider bind:open={sidebarOpen}>
+	<Sidebar.Provider bind:open={sidebarStore.open}>
 		<AppSidebar />
 		<Sidebar.Inset>
 			<header class="flex h-16 shrink-0 items-center gap-2 border-b border-border bg-background px-4 transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12">
@@ -72,8 +73,24 @@
 					<Breadcrumb.Root>
 						<Breadcrumb.List>
 							<Breadcrumb.Item>
-								<Breadcrumb.Page>{pageName}</Breadcrumb.Page>
+								{#if breadcrumbStore.items.length > 0}
+									<Breadcrumb.Link href={'/' + pageName.toLowerCase()}>
+										{pageName}
+									</Breadcrumb.Link>
+								{:else}
+									<Breadcrumb.Page>{pageName}</Breadcrumb.Page>
+								{/if}
 							</Breadcrumb.Item>
+							{#each breadcrumbStore.items as item}
+								<Breadcrumb.Separator />
+								<Breadcrumb.Item>
+									{#if item.href}
+										<Breadcrumb.Link href={item.href}>{item.label}</Breadcrumb.Link>
+									{:else}
+										<Breadcrumb.Page>{item.label}</Breadcrumb.Page>
+									{/if}
+								</Breadcrumb.Item>
+							{/each}
 						</Breadcrumb.List>
 					</Breadcrumb.Root>
 				</div>

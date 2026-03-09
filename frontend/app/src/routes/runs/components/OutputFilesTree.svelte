@@ -1,9 +1,25 @@
 <script lang="ts">
-	import type { OutputFile } from '$lib/types.js';
+	import type { OutputFile, Workflow } from '$lib/types.js';
 	import { runs } from '$lib/api/client.js';
 	import { formatFileSize } from '$lib/utils.js';
-	import { File, Folder, FolderOpen, ChevronRight, Loader2 } from 'lucide-svelte';
+	import { File, FileCode, FileTerminal, FileCog, FileBraces, FileSpreadsheet, FileBox, FileText, FileImage, FileArchive, Folder, FolderOpen, ChevronRight, Loader2 } from 'lucide-svelte';
 	import { toast } from 'svelte-sonner';
+
+	const EXT_ICONS: Record<string, typeof File> = {
+		py: FileCode, sh: FileTerminal, bash: FileTerminal,
+		yaml: FileCog, yml: FileCog,
+		json: FileBraces, geojson: FileBraces,
+		csv: FileSpreadsheet, tsv: FileSpreadsheet,
+		nc: FileBox, h5: FileBox, hdf5: FileBox,
+		log: FileText, txt: FileText,
+		png: FileImage, jpg: FileImage, jpeg: FileImage, svg: FileImage, gif: FileImage,
+		zip: FileArchive, tar: FileArchive, gz: FileArchive, tgz: FileArchive, bz2: FileArchive,
+	};
+
+	function fileIcon(name: string): typeof File {
+		const ext = name.split('.').pop()?.toLowerCase() ?? '';
+		return EXT_ICONS[ext] ?? File;
+	}
 
 	interface TreeNode {
 		name: string;
@@ -13,7 +29,29 @@
 		children: TreeNode[];
 	}
 
-	let { files, runId }: { files: OutputFile[]; runId: string } = $props();
+	let { files, runId, workflow = null }: { files: OutputFile[]; runId: string; workflow?: Workflow | null } = $props();
+
+	const SNAKEDISPATCH_PREFIX = /^\/app\/\.snakedispatch\/jobs\/[^/]+\//;
+
+	const ruleMap = $derived.by(() => {
+		const map = new Map<string, { rule: string; type: 'INPUT' | 'OUTPUT' }>();
+		if (!workflow) return map;
+		for (const rule of workflow.rules) {
+			for (const job of rule.jobs ?? []) {
+				for (const file of job.files ?? []) {
+					if (file.file_type === 'INPUT' || file.file_type === 'OUTPUT') {
+						const stripped = file.path.replace(SNAKEDISPATCH_PREFIX, '');
+						const existing = map.get(stripped);
+						// Prefer OUTPUT over INPUT (producing rule is more informative)
+						if (!existing || (existing.type === 'INPUT' && file.file_type === 'OUTPUT')) {
+							map.set(stripped, { rule: rule.name, type: file.file_type as 'INPUT' | 'OUTPUT' });
+						}
+					}
+				}
+			}
+		}
+		return map;
+	});
 
 	let expanded = $state(new Set<string>());
 	let downloading = $state<string | null>(null);
@@ -80,6 +118,29 @@
 		return root;
 	});
 
+	// For each directory, if every file underneath shares the same tag, store it
+	const dirTagMap = $derived.by(() => {
+		const map = new Map<string, { rule: string; type: 'INPUT' | 'OUTPUT' } | 'mixed'>();
+		// Group files by all ancestor directories
+		for (const file of files) {
+			const tag = ruleMap.get(file.path);
+			const parts = file.path.split('/');
+			for (let i = 1; i < parts.length; i++) {
+				const dirPath = parts.slice(0, i).join('/');
+				const existing = map.get(dirPath);
+				if (existing === 'mixed') continue;
+				if (!tag) continue;
+				if (!existing) { map.set(dirPath, { rule: tag.rule, type: tag.type }); continue; }
+				if (existing.rule !== tag.rule || existing.type !== tag.type) { map.set(dirPath, 'mixed'); }
+			}
+		}
+		// Remove mixed entries
+		for (const [key, val] of map) {
+			if (val === 'mixed') map.delete(key);
+		}
+		return map as Map<string, { rule: string; type: 'INPUT' | 'OUTPUT' }>;
+	});
+
 	function toggle(path: string) {
 		const next = new Set(expanded);
 		if (next.has(path)) next.delete(path);
@@ -130,6 +191,12 @@
 				<Folder class="h-4 w-4 text-muted-foreground shrink-0" />
 			{/if}
 			<span class="truncate">{node.name}</span>
+			{#if !expanded.has(node.path) && dirTagMap.get(node.path)}
+				{@const info = dirTagMap.get(node.path)!}
+				<span class="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded-full shrink-0 ml-1.5">
+					{info.type === 'INPUT' ? '→ ' : ''}{info.rule}{info.type === 'OUTPUT' ? ' →' : ''}
+				</span>
+			{/if}
 			<span class="ml-auto text-xs text-muted-foreground shrink-0">{formatFileSize(node.size)}</span>
 		</button>
 		{#if expanded.has(node.path)}
@@ -147,9 +214,16 @@
 			{#if downloading === node.path}
 				<Loader2 class="h-4 w-4 text-muted-foreground shrink-0 animate-spin" />
 			{:else}
-				<File class="h-4 w-4 text-muted-foreground shrink-0" />
+				{@const Icon = fileIcon(node.name)}
+				<Icon class="h-4 w-4 text-muted-foreground shrink-0" />
 			{/if}
 			<span class="truncate hover:underline">{node.name}</span>
+			{#if ruleMap.get(node.path)}
+				{@const info = ruleMap.get(node.path)!}
+				<span class="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded-full shrink-0 ml-1.5">
+					{info.type === 'INPUT' ? '→ ' : ''}{info.rule}{info.type === 'OUTPUT' ? ' →' : ''}
+				</span>
+			{/if}
 			<span class="ml-auto text-xs text-muted-foreground shrink-0">{formatFileSize(node.size)}</span>
 		</button>
 	{/if}

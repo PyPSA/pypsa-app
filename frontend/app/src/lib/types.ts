@@ -198,6 +198,64 @@ export type TagType = "default" | "config" | "version" | "model";
 export type TagColor = "tag-model" | "tag-version" | "tag-config" | "tag-default";
 export type Permission = string;
 
+// Workflow types
+
+export interface WorkflowFile {
+	path: string;
+	file_type: string;
+}
+
+export interface WorkflowJob {
+	snakemake_id: number;
+	rule: string;
+	status: string;
+	wildcards: Record<string, string> | null;
+	threads: number;
+	started_at?: string;
+	end_time?: string;
+	files: WorkflowFile[];
+}
+
+export interface WorkflowRule {
+	name: string;
+	total_job_count: number;
+	jobs_finished: number;
+	jobs: WorkflowJob[];
+}
+
+export interface WorkflowError {
+	timestamp: string;
+	exception: string;
+	rule: string | null;
+	traceback: string | null;
+}
+
+export interface RulegraphNode {
+	rule: string;
+}
+
+export interface RulegraphLink {
+	source: number;
+	target: number;
+	sourcerule: string;
+	targetrule: string;
+}
+
+export interface Rulegraph {
+	nodes: RulegraphNode[];
+	links: RulegraphLink[];
+}
+
+export interface Workflow {
+	workflow_id: string;
+	status: string;
+	total_job_count: number;
+	jobs_finished: number;
+	rulegraph: Rulegraph | null;
+	rules: WorkflowRule[];
+	errors: WorkflowError[];
+}
+
 // API error type
 
 export interface ApiError extends Error {
