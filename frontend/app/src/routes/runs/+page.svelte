@@ -4,10 +4,13 @@
 	import { browser } from '$app/environment';
 	import { page } from '$app/stores';
 	import { runs } from '$lib/api/client.js';
-	import { formatRelativeTime } from '$lib/utils.js';
+	import { formatRelativeTime, saveTablePref, buildOwnerOptions } from '$lib/utils.js';
+	import { restoreTableState, buildTableURL, filtersToAPI, clampPage } from '$lib/table-url-state.js';
 	import { RUN_FINAL_STATUSES } from '$lib/types.js';
-	import type { Run, RunSummary, ApiError } from '$lib/types.js';
-	import type { SortingState } from '@tanstack/table-core';
+	import type { RunSummary, User, BackendPublic, ApiError } from '$lib/types.js';
+	import type { FilterState, FilterCategory } from '$lib/components/ui/filter-dialog';
+	import type { SortingState, VisibilityState } from '@tanstack/table-core';
+	import FilterBar from '$lib/components/FilterBar.svelte';
 	import Pagination from '$lib/components/Pagination.svelte';
 	import { Play } from 'lucide-svelte';
 	import { toast } from 'svelte-sonner';
@@ -24,12 +27,28 @@
 	let cancellingId = $state<string | null>(null);
 	let removingId = $state<string | null>(null);
 
+	const FILTER_KEYS = ['statuses', 'workflows', 'owners', 'git_refs', 'configfiles', 'backends'] as const;
+	let filters = $state({ statuses: new Set<string>(), workflows: new Set<string>(), owners: new Set<string>(), git_refs: new Set<string>(), configfiles: new Set<string>(), backends: new Set<string>() });
+	let availableStatuses = $state<string[]>([]);
+	let availableWorkflows = $state<string[]>([]);
+	let availableOwners = $state<User[]>([]);
+	let availableGitRefs = $state<string[]>([]);
+	let availableConfigfiles = $state<string[]>([]);
+	let availableBackends = $state<BackendPublic[]>([]);
+
 	// Pagination state
 	let currentPage = $state(1);
 	let pageSize = $state(25);
 
 	// Table state
 	let sorting = $state<SortingState>([]);
+	const defaultColumnVisibility: VisibilityState = { jobs: false, backend: false };
+	let columnVisibility = $state<VisibilityState>({ ...defaultColumnVisibility });
+
+	function handleColumnVisibilityChange(v: VisibilityState) {
+		columnVisibility = v;
+		saveTablePref('runs', 'columnVisibility', v);
+	}
 
 	// Live duration ticker
 	let tick = $state(0);
@@ -46,11 +65,26 @@
 	onDestroy(() => { if (tickInterval) clearInterval(tickInterval); });
 
 	// View state for conditional rendering
+	const hasActiveFilters = $derived(
+		Object.values(filters).some(s => s.size > 0)
+	);
 	const viewState = $derived.by(() => {
 		if (loading) return 'loading';
+		if (runsList.length === 0 && hasActiveFilters) return 'no-matches';
 		if (runsList.length === 0) return 'empty';
 		return 'data';
 	});
+
+	const ownerOptions = $derived(buildOwnerOptions(availableOwners, authStore.user?.id));
+
+	const filterCategories = $derived<FilterCategory[]>([
+		{ key: 'statuses', label: 'Status', options: availableStatuses.map(s => ({ id: s, label: s })) },
+		{ key: 'workflows', label: 'Workflow', options: availableWorkflows.map(w => ({ id: w, label: w })) },
+		{ key: 'owners', label: 'Owner', options: ownerOptions, condition: authStore.authEnabled && !!authStore.user },
+		{ key: 'git_refs', label: 'Branch', options: availableGitRefs.map(r => ({ id: r, label: r })) },
+		{ key: 'configfiles', label: 'Config', options: availableConfigfiles.map(c => ({ id: c, label: c })) },
+		{ key: 'backends', label: 'Backend', options: availableBackends.map(b => ({ id: b.id, label: b.name })) },
+	]);
 
 	const columns = $derived.by(() => {
 		const authEnabled = authStore.authEnabled ?? false;
@@ -67,21 +101,12 @@
 	});
 
 	onMount(async () => {
-		if (browser) {
-			const savedPageSize = localStorage.getItem('runsPageSize');
-			if (savedPageSize) pageSize = parseInt(savedPageSize);
-		}
-
-		const urlPage = $page.url.searchParams.get('page');
-		const urlSize = $page.url.searchParams.get('size');
-
-		if (urlPage) {
-			const parsed = parseInt(urlPage);
-			if (!isNaN(parsed) && parsed > 0) currentPage = parsed;
-		}
-		if (urlSize) {
-			const parsed = parseInt(urlSize);
-			if (!isNaN(parsed) && [10, 25, 50, 100].includes(parsed)) pageSize = parsed;
+		const state = restoreTableState($page.url.searchParams, 'runs', FILTER_KEYS);
+		currentPage = state.page;
+		pageSize = state.pageSize;
+		if (state.columnVisibility) columnVisibility = state.columnVisibility;
+		for (const key of FILTER_KEYS) {
+			filters[key] = state.filters[key] ?? new Set();
 		}
 
 		await loadRuns();
@@ -91,14 +116,24 @@
 		loading = true;
 		try {
 			const skip = (currentPage - 1) * pageSize;
-			const response = await runs.list(skip, pageSize);
+			const apiFilters = filtersToAPI<{ statuses: string[]; workflows: string[]; owners: string[]; git_refs: string[]; configfiles: string[]; backends: string[] }>(filters, FILTER_KEYS);
+
+			const response = await runs.list(skip, pageSize,
+				Object.keys(apiFilters).length > 0 ? apiFilters : undefined
+			);
 
 			runsList = response.data;
 			totalRuns = response.meta.total;
+			if (response.meta.statuses) availableStatuses = response.meta.statuses;
+			if (response.meta.workflows) availableWorkflows = response.meta.workflows;
+			if (response.meta.owners) availableOwners = response.meta.owners;
+			if (response.meta.git_refs) availableGitRefs = response.meta.git_refs;
+			if (response.meta.configfiles) availableConfigfiles = response.meta.configfiles;
+			if (response.meta.backends) availableBackends = response.meta.backends;
 
-			const totalPages = Math.ceil(totalRuns / pageSize);
-			if (currentPage > totalPages && totalPages > 0) {
-				currentPage = totalPages;
+			const clamped = clampPage(currentPage, pageSize, totalRuns);
+			if (clamped !== null) {
+				currentPage = clamped;
 				await updateURL();
 				return loadRuns();
 			}
@@ -112,9 +147,7 @@
 
 	async function updateURL() {
 		if (!browser) return;
-		const url = new URL(window.location.href);
-		url.searchParams.set('page', currentPage.toString());
-		url.searchParams.set('size', pageSize.toString());
+		const url = buildTableURL(new URL(window.location.href), currentPage, pageSize, filters, FILTER_KEYS);
 		await goto(url.toString(), { replaceState: true, keepFocus: true, noScroll: true });
 	}
 
@@ -128,7 +161,16 @@
 	async function handlePageSizeChange(size: number) {
 		pageSize = size;
 		currentPage = 1;
-		if (browser) localStorage.setItem('runsPageSize', size.toString());
+		saveTablePref('runs', 'pageSize', size);
+		await updateURL();
+		await loadRuns();
+	}
+
+	async function handleFilterChange(newFilters: FilterState) {
+		for (const key of FILTER_KEYS) {
+			filters[key] = newFilters[key] ?? new Set();
+		}
+		currentPage = 1;
 		await updateURL();
 		await loadRuns();
 	}
@@ -178,11 +220,25 @@
 
 <div class="min-h-screen">
 	<div class="max-w-[80rem] mx-auto py-8">
+		<!-- Filter bar always visible (except during initial load) -->
+		{#if viewState !== 'loading' && viewState !== 'empty'}
+			<FilterBar
+				{filterCategories}
+				{filters}
+				{columns}
+				{columnVisibility}
+				onFilterChange={handleFilterChange}
+				onColumnVisibilityChange={handleColumnVisibilityChange}
+			/>
+		{/if}
+
 		<!-- Content based on view state -->
 		{#if viewState === 'loading'}
 			<TableSkeleton rows={pageSize > 10 ? 10 : pageSize} />
 		{:else if viewState === 'empty'}
 			<EmptyState icon={Play} title="No Runs" description="No workflow runs yet." />
+		{:else if viewState === 'no-matches'}
+			<EmptyState icon={Play} title="No Matching Runs" description="No runs match the current filters." />
 		{:else}
 			<DataTable
 				data={runsList}
@@ -190,6 +246,7 @@
 				totalItems={totalRuns}
 				{pageSize}
 				bind:sorting
+				bind:columnVisibility
 				onRowClick={(run: RunSummary) => goto(`/runs/${run.id}`)}
 			/>
 

@@ -1,20 +1,21 @@
 <script lang="ts">
 	import { page } from '$app/stores';
 	import { onMount, onDestroy, tick } from 'svelte';
-	import { browser, dev } from '$app/environment';
+	import { browser } from '$app/environment';
 	import { goto } from '$app/navigation';
 	import { networks, plots } from '$lib/api/client.js';
 	import type { Network as NetworkType, PlotData, PlotResponse, ApiError } from '$lib/types.js';
 	import { formatFileSize, formatDate, formatRelativeTime, formatNumber, getDirectoryPath, getTagType, getTagColor } from '$lib/utils.js';
-	import { Network, AlertCircle, FolderOpen, Clock, CalendarRange, Waypoints, Map, ChevronLeft, ChevronRight, SlidersHorizontal, PanelRight } from 'lucide-svelte';
+	import { Network, AlertCircle, FolderOpen, Clock, CalendarRange, Waypoints, ChevronLeft, ChevronRight, SlidersHorizontal, PanelRight } from 'lucide-svelte';
 	import { toast } from 'svelte-sonner';
+	import { breadcrumbStore } from '$lib/stores/breadcrumb.svelte.js';
 	import NavNetworkFilters from '$lib/components/sidebar/NavNetworkFilters.svelte';
 	import Button from '$lib/components/ui/button/button.svelte';
 	import * as Tabs from '$lib/components/ui/tabs';
 	import Badge from '$lib/components/ui/badge/badge.svelte';
 	import NetworkDetailSkeleton from './components/NetworkDetailSkeleton.svelte';
 	import PlotSkeleton from './components/PlotSkeleton.svelte';
-	import { Skeleton } from '$lib/components/ui/skeleton';
+
 	import {
 		networksList as networksListStore,
 		loadingNetworks as loadingNetworksStore,
@@ -87,10 +88,7 @@
 	let updateHistoryExpanded = $state<boolean>(false);
 	let resizeHandler: (() => void) | undefined;
 
-	// Map thumbnail state
-	let thumbnailUrl = $state<string | null>(null);
-	let thumbnailLoading = $state<boolean>(false);
-	let thumbnailError = $state<boolean>(false);
+
 
 	// Compare mode state - derived from URL and synced with store
 	let compareMode = $state<boolean>(false);
@@ -117,10 +115,12 @@
 	let networkId = $derived($page.url.searchParams.get('id'));
 	let networkIds = $derived($page.url.searchParams.get('ids')?.split(',').filter(Boolean) || []);
 
-	// Map URL based on environment
-	let mapUrl = $derived(networkId
-		? (dev ? `http://localhost:5174/?id=${networkId}` : `/map/?id=${networkId}`)
-		: '#');
+	// Set breadcrumb to show network name
+	const breadcrumbLabel = $derived(network?.filename || (compareMode ? 'Compare' : 'Network'));
+	$effect(() => {
+		breadcrumbStore.set([{ label: breadcrumbLabel }]);
+	});
+
 
 	// Determine if we're in compare mode based on URL - check for 'ids' param existence
 	$effect(() => {
@@ -154,12 +154,12 @@
 			if (storeCompareMode && !compareMode && networkId && currentIds.length > 0) {
 				// Convert from ?id=xxx to ?ids=xxx
 				const idsParam = currentIds.join(',');
-				goto(`/network?ids=${idsParam}`, { replaceState: false });
+				goto(`/database/network?ids=${idsParam}`, { replaceState: false });
 			}
 			// If compare mode is toggled off and we're in compare mode
 			else if (!storeCompareMode && compareMode && currentIds.length > 0) {
 				// Convert from ?ids=xxx to ?id=xxx (use first network)
-				goto(`/network?id=${currentIds[0]}`, { replaceState: false });
+				goto(`/database/network?id=${currentIds[0]}`, { replaceState: false });
 			}
 		}
 	});
@@ -300,7 +300,7 @@
 			const hasUrlParams = $page.url.searchParams.has('id') || $page.url.searchParams.has('ids');
 			if (browser && !hasUrlParams && response.data.length > 0) {
 				const firstNetworkId = response.data[0].id;
-				goto(`/network?id=${firstNetworkId}`);
+				goto(`/database/network?id=${firstNetworkId}`);
 			}
 		} catch (err: unknown) {
 			if ((err as ApiError).cancelled) {
@@ -329,44 +329,10 @@
 			// Set active tab (reactive statement will trigger plot load)
 			activeTab = tabs[0].id;
 
-			// Load thumbnail for map preview
-			loadThumbnail();
 		} catch (err: unknown) {
 			console.error('Error loading network:', err);
 			error = (err as Error).message;
 			loading = false;
-		}
-	}
-
-	async function loadThumbnail() {
-		if (!networkId) return;
-
-		thumbnailLoading = true;
-		thumbnailError = false;
-		thumbnailUrl = null;
-
-		try {
-			const response = await fetch(`/api/v1/map/${networkId}/topology.svg`);
-
-			if (response.status === 202) {
-				// Data still being generated, retry after a delay
-				setTimeout(() => loadThumbnail(), 3000);
-				return;
-			}
-
-			if (!response.ok) {
-				throw new Error(`Failed to load topology SVG: ${response.statusText}`);
-			}
-
-			// Get the SVG as text and create blob URL
-			const svgText = await response.text();
-			const blob = new Blob([svgText], { type: 'image/svg+xml' });
-			thumbnailUrl = URL.createObjectURL(blob);
-			thumbnailLoading = false;
-		} catch (err: unknown) {
-			console.error('Error loading topology SVG:', err);
-			thumbnailError = true;
-			thumbnailLoading = false;
 		}
 	}
 
@@ -615,7 +581,7 @@
 			toggleNetworkSelection(newNetworkId);
 		} else {
 			// In single mode, switch to that network
-			goto(`/network?id=${newNetworkId}`);
+			goto(`/database/network?id=${newNetworkId}`);
 		}
 	}
 
@@ -637,19 +603,19 @@
 			// Switching to compare mode
 			if (networkId) {
 				// Convert current single network to multi-select
-				goto(`/network?ids=${networkId}`);
+				goto(`/database/network?ids=${networkId}`);
 			} else {
 				// No network selected, just enable compare mode with empty selection
-				goto('/network?ids=');
+				goto('/database/network?ids=');
 			}
 		} else {
 			// Switching to single mode
 			if (networkIds.length > 0) {
 				// Keep only first network
-				goto(`/network?id=${networkIds[0]}`);
+				goto(`/database/network?id=${networkIds[0]}`);
 			} else {
 				// No networks selected, just disable compare mode
-				goto('/network');
+				goto('/database/network');
 			}
 		}
 	}
@@ -663,21 +629,22 @@
 	function updateURL(ids: string[]) {
 		if (ids.length === 0 && compareMode) {
 			// Keep compare mode active even with no selection
-			goto('/network?ids=');
+			goto('/database/network?ids=');
 		} else if (ids.length === 0) {
 			// Single mode with no selection
-			goto('/network');
+			goto('/database/network');
 		} else if (ids.length === 1 && !compareMode) {
 			// Single mode with one network
-			goto(`/network?id=${ids[0]}`);
+			goto(`/database/network?id=${ids[0]}`);
 		} else {
 			// Compare mode with one or more networks
-			goto(`/network?ids=${ids.join(',')}`);
+			goto(`/database/network?ids=${ids.join(',')}`);
 		}
 	}
 
 	onDestroy(() => {
 		componentMounted = false;
+		breadcrumbStore.clear();
 		if (browser && resizeHandler) {
 			window.removeEventListener('resize', resizeHandler);
 		}
@@ -1488,40 +1455,6 @@ async function loadPlot(statistic: string, plotType: string, parameters: Record<
 				</div>
 				</div>
 
-				<!-- Network Map Card - Compact -->
-				<a
-					href={mapUrl}
-					class="col-span-1 block bg-card rounded-lg border border-border p-3 cursor-pointer hover:shadow-md hover:border-primary/50 transition-all duration-200 group"
-				>
-					<div class="flex items-center gap-2 mb-2">
-						<Map size={16} class="text-foreground" strokeWidth={2} />
-						<h3 class="text-sm font-semibold text-foreground">Map</h3>
-					</div>
-
-					<div class="flex items-center justify-center bg-muted/20 rounded-md border border-border aspect-4/3 overflow-hidden">
-						{#if thumbnailLoading}
-							<Skeleton class="w-full h-full" />
-						{:else if thumbnailError}
-							<div class="text-center">
-								<Map size={24} class="mx-auto text-muted-foreground" />
-							</div>
-						{:else if thumbnailUrl}
-							<img src={thumbnailUrl} alt="Network topology" class="w-full h-full object-fill" />
-						{:else}
-							<div class="text-center">
-								<Map size={24} class="mx-auto text-muted-foreground" />
-							</div>
-						{/if}
-					</div>
-
-					<div class="mt-2 flex items-center justify-center">
-						<span class="text-xs text-muted-foreground group-hover:text-primary transition-colors">View map</span>
-						<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="ml-1 transition-transform group-hover:translate-x-0.5 text-muted-foreground group-hover:text-primary">
-							<line x1="5" y1="12" x2="19" y2="12"></line>
-							<polyline points="12 5 19 12 12 19"></polyline>
-						</svg>
-					</div>
-				</a>
 			</div>
 
 			<!-- Plots Section with Tabs -->

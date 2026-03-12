@@ -90,6 +90,8 @@ export interface RunSummary {
 	created_at: string;
 	owner: User;
 	backend: BackendPublic;
+	total_job_count?: number;
+	jobs_finished?: number;
 }
 
 export interface Run extends RunSummary {
@@ -180,6 +182,11 @@ export interface PaginatedResponse<T> {
 		skip: number;
 		limit: number;
 		owners?: User[];
+		statuses?: string[];
+		workflows?: string[];
+		git_refs?: string[];
+		configfiles?: string[];
+		backends?: BackendPublic[];
 	};
 }
 

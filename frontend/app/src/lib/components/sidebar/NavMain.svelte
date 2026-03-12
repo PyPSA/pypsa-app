@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { page } from '$app/stores';
-	import { Home, Database, Network, Play } from 'lucide-svelte';
+	import { Home, Database, Play } from 'lucide-svelte';
 	import * as Sidebar from '$lib/components/ui/sidebar';
 
 	const navItems = [
@@ -10,14 +10,9 @@
 			icon: Home
 		},
 		{
-			title: 'Database',
+			title: 'Networks',
 			url: '/database',
 			icon: Database
-		},
-		{
-			title: 'Network',
-			url: '/network',
-			icon: Network
 		},
 		{
 			title: 'Runs',
@@ -36,7 +31,7 @@
 		<Sidebar.Menu>
 			{#each navItems as item}
 				<Sidebar.MenuItem>
-					<Sidebar.MenuButton tooltipContent={item.title} isActive={currentPath === item.url}>
+					<Sidebar.MenuButton tooltipContent={item.title} isActive={currentPath === item.url || (item.url !== '/' && currentPath.startsWith(item.url + '/'))}>
 						{#snippet child({ props }: { props: Record<string, unknown> })}
 							<a href={item.url} {...props}>
 								<item.icon />

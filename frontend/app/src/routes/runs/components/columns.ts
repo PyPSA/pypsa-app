@@ -2,6 +2,8 @@ import { renderComponent } from '$lib/components/ui/data-table/render-helpers.js
 import { formatDate, formatDuration } from '$lib/utils.js';
 import StatusCell from '../cells/status-cell.svelte';
 import TextWithTitleCell from '../cells/text-with-title-cell.svelte';
+import WorkflowCell from '../cells/workflow-cell.svelte';
+import JobsCell from '../cells/jobs-cell.svelte';
 import ActionsCell from '$lib/components/cells/ActionsCell.svelte';
 import { X, Trash2, RotateCw } from 'lucide-svelte';
 import OwnerCell from '$lib/components/OwnerCell.svelte';
@@ -49,31 +51,7 @@ export const createColumns = (helpers: RunsColumnsHelpers): ColumnDef<RunSummary
 			sortingFn: 'alphanumeric',
 			cell: (info) => {
 				const run = info.row.original;
-				let source = run.workflow || '';
-
-				// Strip URL prefixes
-				if (source.startsWith('https://github.com/')) {
-					source = source.replace('https://github.com/', '');
-				} else if (source.startsWith('https://')) {
-					source = source.replace('https://', '');
-				} else if (source.startsWith('http://')) {
-					source = source.replace('http://', '');
-				}
-				// Strip trailing .git
-				source = source.replace(/\.git$/, '');
-
-				// Append git ref/sha
-				const ref = run.git_ref;
-				const sha = run.git_sha ? run.git_sha.slice(0, 8) : null;
-				if (ref && sha) {
-					source += ` ${ref}@${sha}`;
-				} else if (sha) {
-					source += ` @${sha}`;
-				} else if (ref) {
-					source += ` ${ref}`;
-				}
-
-				return source;
+				return renderComponent(WorkflowCell, { run });
 			}
 		},
 		{
@@ -91,11 +69,20 @@ export const createColumns = (helpers: RunsColumnsHelpers): ColumnDef<RunSummary
 			enableSorting: false,
 			cell: (info) => {
 				const run = info.row.original;
-				// Reference tick to force re-render for running jobs
+				// Read tick to force re-render every second while run is active
 				if (!run.completed_at) getTick();
 				const text = formatDuration(run.started_at, run.completed_at) ?? '\u2014';
 				const title = run.completed_at ? formatDate(run.completed_at) : '';
 				return renderComponent(TextWithTitleCell, { text, title });
+			}
+		},
+		{
+			id: 'jobs',
+			header: 'Jobs',
+			enableSorting: false,
+			cell: (info) => {
+				const run = info.row.original;
+				return renderComponent(JobsCell, { run });
 			}
 		},
 		{
@@ -109,10 +96,21 @@ export const createColumns = (helpers: RunsColumnsHelpers): ColumnDef<RunSummary
 			},
 			cell: (info) => {
 				const val = info.getValue() as string;
+				// Read tick to force re-render every second while run is active
+				if (!info.row.original.completed_at) getTick();
 				return renderComponent(TextWithTitleCell, {
 					text: formatRelativeTime(val),
 					title: formatDate(val)
 				});
+			}
+		},
+		{
+			id: 'backend',
+			header: 'Backend',
+			enableSorting: false,
+			cell: (info) => {
+				const run = info.row.original;
+				return run.backend.name || '\u2014';
 			}
 		},
 		// Only shown when auth is enabled

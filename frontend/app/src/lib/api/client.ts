@@ -238,8 +238,17 @@ export const plots = {
 
 // Runs API
 export const runs = {
-	async list(skip = 0, limit = 100): Promise<PaginatedResponse<RunSummary>> {
+	async list(
+		skip = 0,
+		limit = 100,
+		filters?: { statuses?: string[]; workflows?: string[]; owners?: string[]; git_refs?: string[]; configfiles?: string[]; backends?: string[] }
+	): Promise<PaginatedResponse<RunSummary>> {
 		const params = new URLSearchParams({ skip: String(skip), limit: String(limit) });
+		if (filters) {
+			for (const [key, values] of Object.entries(filters)) {
+				values?.forEach((v: string) => params.append(key, v));
+			}
+		}
 		return request<PaginatedResponse<RunSummary>>(`/runs/?${params}`);
 	},
 	async get(id: string): Promise<Run> {

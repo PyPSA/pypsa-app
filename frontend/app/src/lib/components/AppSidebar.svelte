@@ -12,7 +12,7 @@
 	import Badge from '$lib/components/ui/badge/badge.svelte';
 
 	// Check if we're on the network detail page
-	const isNetworkPage = $derived($page.url.pathname === '/network');
+	const isNetworkPage = $derived($page.url.pathname === '/database/network');
 
 	// Version info
 	interface VersionData {

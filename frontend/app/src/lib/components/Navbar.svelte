@@ -103,10 +103,6 @@
 		if (path === '/' || path === '/networks') {
 			return currentPath === path;
 		}
-		// For /network path, check exact match or with query params
-		if (path === '/network') {
-			return currentPath === '/network' || currentPath.startsWith('/network?');
-		}
 		// For other paths, check if current path starts with the link path
 		return currentPath.startsWith(path);
 	}
@@ -141,13 +137,7 @@
 			href="/database"
 			class="px-4 py-2 rounded-lg transition-colors duration-200 nav-link {isActive('/database') ? 'nav-link-active' : ''}"
 		>
-			Database
-		</a>
-		<a
-			href="/network"
-			class="px-4 py-2 rounded-lg transition-colors duration-200 nav-link {isActive('/network') ? 'nav-link-active' : ''}"
-		>
-			Network
+			Networks
 		</a>
 	</div>
 

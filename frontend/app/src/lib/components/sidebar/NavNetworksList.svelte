@@ -28,14 +28,14 @@
 			// Update URL with all selected network IDs
 			const ids = Array.from($selectedNetworkIds);
 			if (ids.length > 0) {
-				goto(`/network?ids=${ids.join(',')}`);
+				goto(`/database/network?ids=${ids.join(',')}`);
 			} else {
-				goto('/network');
+				goto('/database/network');
 			}
 		} else {
 			// Select single network
 			selectNetwork(networkId);
-			goto(`/network?id=${networkId}`);
+			goto(`/database/network?id=${networkId}`);
 		}
 	}
 
@@ -44,15 +44,15 @@
 		// Update URL with all selected network IDs
 		const ids = Array.from($selectedNetworkIds);
 		if (ids.length > 0) {
-			goto(`/network?ids=${ids.join(',')}`);
+			goto(`/database/network?ids=${ids.join(',')}`);
 		} else {
-			goto('/network');
+			goto('/database/network');
 		}
 	}
 
 	function handleClearSelection() {
 		clearSelection();
-		goto('/network');
+		goto('/database/network');
 	}
 </script>
 
@@ -99,7 +99,7 @@
 									{#snippet child({ props }: { props: Record<string, unknown> })}
 										<a
 											{...props}
-											href="/network?id={network.id}"
+											href="/database/network?id={network.id}"
 											onclick={(e) => {
 												e.preventDefault();
 												handleNetworkClick(network.id, e);

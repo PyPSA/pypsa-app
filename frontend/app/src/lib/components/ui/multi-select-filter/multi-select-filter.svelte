@@ -28,7 +28,8 @@
 		onChange,
 		align = 'start' as 'start' | 'center' | 'end',
 		width = 'w-48',
-		emptyMeansAll = true
+		emptyMeansAll = true,
+		showNone = true
 	}: {
 		label?: string;
 		options?: FilterOption[];
@@ -37,6 +38,7 @@
 		align?: 'start' | 'center' | 'end';
 		width?: string;
 		emptyMeansAll?: boolean;
+		showNone?: boolean;
 	} = $props();
 
 	let open = $state(false);
@@ -87,8 +89,8 @@
 			if (emptyMeansAll && newSelected.size === options.length) {
 				onChange?.(new Set());
 			} else if (newSelected.size === 0) {
-				// User manually deselected all - go to "none"
-				onChange?.(new Set([NONE_MARKER]));
+				// User manually deselected all
+				onChange?.(showNone ? new Set([NONE_MARKER]) : new Set());
 			} else {
 				onChange?.(newSelected);
 			}
@@ -152,14 +154,16 @@
 			>
 				All
 			</Button>
-			<Button
-				variant={isExplicitNone ? 'secondary' : 'ghost'}
-				size="sm"
-				class="h-7 text-xs flex-1"
-				onclick={selectNone}
-			>
-				None
-			</Button>
+			{#if showNone}
+				<Button
+					variant={isExplicitNone ? 'secondary' : 'ghost'}
+					size="sm"
+					class="h-7 text-xs flex-1"
+					onclick={selectNone}
+				>
+					None
+				</Button>
+			{/if}
 		</div>
 
 		<!-- Option checkboxes -->

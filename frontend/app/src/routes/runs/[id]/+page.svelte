@@ -108,6 +108,11 @@
 		return formatDuration(run?.started_at, run?.completed_at);
 	});
 
+	const createdDisplay = $derived.by(() => {
+		if (!isTerminal) tick; // force re-evaluation for active runs
+		return formatRelativeTime(run?.created_at);
+	});
+
 	const workflowDisplay = $derived.by(() => {
 		if (!run) return null;
 		let source = run.workflow;
@@ -384,7 +389,7 @@
 					{/if}
 					<div class="flex items-center gap-1.5">
 						<Calendar class="h-3.5 w-3.5" />
-						<span title={formatDate(run.created_at)}>{formatRelativeTime(run.created_at)}</span>
+						<span title={formatDate(run.created_at)}>{createdDisplay}</span>
 					</div>
 					<div class="h-4 w-px bg-border"></div>
 					<div class="flex items-center gap-1.5">
@@ -396,7 +401,7 @@
 						<div class="flex items-center gap-1.5">
 							{#each run.networks as network, i}
 								{#if i > 0}<span>,</span>{/if}
-								<a href="/network?id={network.id}" class="underline hover:text-foreground">
+								<a href="/database/network?id={network.id}" class="underline hover:text-foreground">
 									{network.filename}
 								</a>
 							{/each}

@@ -21,6 +21,21 @@
 	let pollTimer: ReturnType<typeof setInterval> | null = null;
 	let isTerminal = $state(false);
 
+	const layerOptions = [
+		{ id: 'wildcards', label: 'Wildcards' },
+		{ id: 'files', label: 'Files' },
+		{ id: 'duration', label: 'Duration' },
+	] as const;
+
+	let activeLayers = $state<Set<string>>(new Set());
+
+	function toggleLayer(id: string) {
+		const next = new Set(activeLayers);
+		if (next.has(id)) next.delete(id);
+		else next.add(id);
+		activeLayers = next;
+	}
+
 	const selectedRule = $derived(
 		workflow && selectedRuleName
 			? workflow.rules.find(r => r.name === selectedRuleName) ?? null
@@ -103,10 +118,20 @@
 </script>
 
 <div class="flex flex-col flex-1 -mx-4 -mb-4 overflow-hidden">
-	<!-- Job count badge -->
+	<!-- Job count badge + layer toggles -->
 	{#if workflow}
-		<div class="px-4 py-2 text-xs text-muted-foreground shrink-0">
-			{workflow.jobs_finished}/{workflow.total_job_count} jobs
+		<div class="flex items-center gap-4 px-4 py-2 text-xs text-muted-foreground shrink-0">
+			<span>{workflow.jobs_finished}/{workflow.total_job_count} jobs</span>
+			<div class="flex items-center gap-1.5">
+				{#each layerOptions as layer}
+					<button
+						class="px-2 py-0.5 rounded-md border transition-colors {activeLayers.has(layer.id) ? 'bg-primary/10 border-primary text-primary' : 'border-border text-muted-foreground hover:text-foreground'}"
+						onclick={() => toggleLayer(layer.id)}
+					>
+						{layer.label}
+					</button>
+				{/each}
+			</div>
 		</div>
 	{/if}
 
@@ -126,6 +151,7 @@
 				<WorkflowDag
 					rulegraph={workflow.rulegraph}
 					rules={workflow.rules}
+					{activeLayers}
 					onSelectRule={(name) => { selectedRuleName = name; }}
 				/>
 			{:else}

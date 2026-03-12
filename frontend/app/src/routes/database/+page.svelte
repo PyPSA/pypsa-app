@@ -4,7 +4,8 @@
 	import { browser } from '$app/environment';
 	import { page } from '$app/stores';
 	import { networks } from '$lib/api/client.js';
-	import { formatFileSize, formatDate, getDirectoryPath, getTagType, getTagColor } from '$lib/utils.js';
+	import { formatFileSize, formatDate, getDirectoryPath, getTagType, getTagColor, saveTablePref, buildOwnerOptions } from '$lib/utils.js';
+	import { restoreTableState, buildTableURL, clampPage } from '$lib/table-url-state.js';
 	import Pagination from '$lib/components/Pagination.svelte';
 	import { Network, FolderOpen } from 'lucide-svelte';
 	import { toast } from 'svelte-sonner';
@@ -14,11 +15,12 @@
 	import EmptyState from '$lib/components/EmptyState.svelte';
 	import TableSkeleton from '$lib/components/TableSkeleton.svelte';
 	import type { Network as NetworkType, User, ApiError } from '$lib/types.js';
+	import type { FilterState, FilterCategory } from '$lib/components/ui/filter-dialog';
 	import type { ColumnDef, SortingState, VisibilityState, Row } from '@tanstack/table-core';
 
 	// Components
 	import ActionsBar from './components/ActionsBar.svelte';
-	import FilterBar from './components/FilterBar.svelte';
+	import FilterBar from '$lib/components/FilterBar.svelte';
 
 	// Data state
 	let networksList = $state<NetworkType[]>([]);
@@ -54,6 +56,12 @@
 		if (networksList.length === 0) return 'no-matches';
 		return 'data';
 	});
+
+	const ownerOptions = $derived(buildOwnerOptions(availableOwners, authStore.user?.id));
+
+	const filterCategories = $derived<FilterCategory[]>([
+		{ key: 'owners', label: 'Owner', options: ownerOptions, condition: authStore.authEnabled && !!authStore.user },
+	]);
 
 	// Columns config - only recreate when authEnabled changes
 	// Use getters for dynamic values to avoid recreating columns on every state change
@@ -93,23 +101,14 @@
 		return false;
 	}
 
+	const URL_FILTER_KEYS = ['owners'] as const;
+
 	onMount(async () => {
-		if (browser) {
-			const savedPageSize = localStorage.getItem('networksPageSize');
-			if (savedPageSize) pageSize = parseInt(savedPageSize);
-		}
-
-		const urlPage = $page.url.searchParams.get('page');
-		const urlSize = $page.url.searchParams.get('size');
-
-		if (urlPage) {
-			const parsed = parseInt(urlPage);
-			if (!isNaN(parsed) && parsed > 0) currentPage = parsed;
-		}
-		if (urlSize) {
-			const parsed = parseInt(urlSize);
-			if (!isNaN(parsed) && [10, 25, 50, 100].includes(parsed)) pageSize = parsed;
-		}
+		const state = restoreTableState($page.url.searchParams, 'networks', URL_FILTER_KEYS);
+		currentPage = state.page;
+		pageSize = state.pageSize;
+		if (state.columnVisibility) columnVisibility = state.columnVisibility;
+		if (state.filters.owners) filters.owners = state.filters.owners;
 
 		await loadNetworks();
 	});
@@ -132,9 +131,9 @@
 				availableOwners = response.meta.owners;
 			}
 
-			const totalPages = Math.ceil(totalNetworks / pageSize);
-			if (currentPage > totalPages && totalPages > 0) {
-				currentPage = totalPages;
+			const clamped = clampPage(currentPage, pageSize, totalNetworks);
+			if (clamped !== null) {
+				currentPage = clamped;
 				await updateURL();
 				return loadNetworks();
 			}
@@ -148,14 +147,16 @@
 
 	async function updateURL() {
 		if (!browser) return;
-		const url = new URL(window.location.href);
-		url.searchParams.set('page', currentPage.toString());
-		url.searchParams.set('size', pageSize.toString());
+		const url = buildTableURL(new URL(window.location.href), currentPage, pageSize, { owners: filters.owners }, URL_FILTER_KEYS);
 		await goto(url.toString(), { replaceState: true, keepFocus: true, noScroll: true });
 	}
 
-	async function handleFilterChange(newFilters: { search: string; owners: Set<string> }) {
-		filters = newFilters;
+	function handleSearchChange(search: string) {
+		filters.search = search;
+	}
+
+	async function handleSetFilterChange(newFilters: FilterState) {
+		filters.owners = newFilters.owners ?? new Set();
 		currentPage = 1;
 		await updateURL();
 		await loadNetworks();
@@ -163,6 +164,7 @@
 
 	function handleColumnVisibilityChange(visibility: VisibilityState) {
 		columnVisibility = visibility;
+		saveTablePref('networks', 'columnVisibility', visibility);
 	}
 
 	async function handlePageChange(page: number) {
@@ -175,7 +177,7 @@
 	async function handlePageSizeChange(size: number) {
 		pageSize = size;
 		currentPage = 1;
-		if (browser) localStorage.setItem('networksPageSize', size.toString());
+		saveTablePref('networks', 'pageSize', size);
 		await updateURL();
 		await loadNetworks();
 	}
@@ -214,7 +216,7 @@
 	}
 
 	function viewNetwork(networkId: string) {
-		goto(`/network?id=${networkId}`);
+		goto(`/database/network?id=${networkId}`);
 	}
 
 	function toggleComponentsExpanded(networkId: string) {
@@ -241,11 +243,13 @@
 
 		<!-- Filter Bar (always visible) -->
 		<FilterBar
-			{filters}
-			{availableOwners}
+			{filterCategories}
+			filters={{ owners: filters.owners }}
+			search={filters.search}
+			onSearchChange={handleSearchChange}
+			onFilterChange={handleSetFilterChange}
 			{columns}
 			{columnVisibility}
-			onFilterChange={handleFilterChange}
 			onColumnVisibilityChange={handleColumnVisibilityChange}
 		/>
 

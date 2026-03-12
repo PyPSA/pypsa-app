@@ -19,17 +19,16 @@
 
 	let { children, toolbar }: { children?: Snippet; toolbar?: Snippet } = $props();
 
-	// Get current page name for breadcrumb
-	const pageName = $derived.by(() => {
+	const pageInfo = $derived.by(() => {
 		const path = $page.url.pathname;
-		if (path === '/') return 'Home';
-		if (path === '/database') return 'Database';
-		if (path === '/network' || path.startsWith('/network/')) return 'Network';
-		if (path === '/runs' || path.startsWith('/runs/')) return 'Runs';
-		if (path.startsWith('/admin')) return 'Admin';
-		if (path === '/login') return 'Login';
-		return 'Page';
+		if (path === '/') return { name: 'Home', url: '/' };
+		if (path === '/database' || path.startsWith('/database/')) return { name: 'Networks', url: '/database' };
+		if (path === '/runs' || path.startsWith('/runs/')) return { name: 'Runs', url: '/runs' };
+		if (path.startsWith('/admin')) return { name: 'Admin', url: '/admin' };
+		if (path === '/login') return { name: 'Login', url: '/login' };
+		return { name: 'Page', url: '/' };
 	});
+	const pageName = $derived(pageInfo.name);
 
 	// Sidebar open state - uses shared store so pages can control it
 
@@ -39,7 +38,7 @@
 	);
 
 	// Determine if we should show the filters toggle button (only on network page)
-	const showFiltersToggle = $derived($page.url.pathname.startsWith('/network'));
+	const showFiltersToggle = $derived($page.url.pathname.startsWith('/database/network'));
 
 	onMount(async () => {
 		// Check if there's a saved sidebar state in cookie
@@ -74,7 +73,7 @@
 						<Breadcrumb.List>
 							<Breadcrumb.Item>
 								{#if breadcrumbStore.items.length > 0}
-									<Breadcrumb.Link href={'/' + pageName.toLowerCase()}>
+									<Breadcrumb.Link href={pageInfo.url}>
 										{pageName}
 									</Breadcrumb.Link>
 								{:else}
