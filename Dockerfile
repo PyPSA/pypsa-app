@@ -1,3 +1,5 @@
+# syntax=docker/dockerfile:1
+
 # Stage 1: Builder stage
 FROM python:3.13-slim AS builder
 
@@ -35,19 +37,18 @@ RUN apt-get update && apt-get install -y \
     libnetcdf22 \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy from builder stage
-COPY --from=builder /root/.local/bin/uv /usr/local/bin/uv
-COPY --from=builder /app/.venv /app/.venv
-COPY --from=builder /app/src /app/src
-
-COPY pyproject.toml uv.lock MANIFEST.in ./
-
 # Create non-root user for running the application
 RUN groupadd -r appuser -g 1000 && \
-    useradd -r -u 1000 -g appuser -m -s /bin/bash appuser
+    useradd -r -u 1000 -g appuser -m -s /bin/bash appuser && \
+    mkdir -p /data/networks && \
+    chown -R appuser:appuser /data
 
-RUN mkdir -p /data/networks && \
-    chown -R appuser:appuser /app /data
+# Copy from builder stage with correct ownership
+COPY --from=builder --chown=appuser:appuser /root/.local/bin/uv /usr/local/bin/uv
+COPY --from=builder --chown=appuser:appuser /app/.venv /app/.venv
+COPY --from=builder --chown=appuser:appuser /app/src /app/src
+
+COPY --chown=appuser:appuser pyproject.toml uv.lock MANIFEST.in ./
 
 USER appuser
 
@@ -77,7 +78,7 @@ RUN npm ci && \
 # Stage 4: Full stack (adds built frontend to backend base)
 FROM backend AS full
 
-COPY --from=app-builder /frontend/build/ src/pypsa_app/backend/static/app/
+COPY --from=app-builder --chown=appuser:appuser /frontend/build/ src/pypsa_app/backend/static/app/
 
 # Copy package.json for version detection
-COPY --from=app-builder /frontend/package.json frontend/app/package.json
+COPY --from=app-builder --chown=appuser:appuser /frontend/package.json frontend/app/package.json

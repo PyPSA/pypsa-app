@@ -60,29 +60,15 @@ def serve(
         click.echo(f"   Application: http://{host}:{port}")
         click.echo(f"   API docs: http://{host}:{port}/api/docs")
 
-    # Check if frontends are built (prod mode)
+    # Check if frontend is built (prod mode)
     if not dev:
         static_dir = Path(__file__).parent / "backend" / "static"
         app_dir = static_dir / "app"
-        map_dir = static_dir / "map"
 
-        missing = []
         if not app_dir.exists() or not (app_dir / "index.html").exists():
-            missing.append(
-                ("App frontend", "cd frontend/app && npm ci && npm run build")
-            )
-        if not map_dir.exists() or not (map_dir / "index.html").exists():
-            missing.append(
-                ("Map frontend", "cd frontend/map && npm ci && npm run build")
-            )
-
-        if missing:
-            click.echo(
-                f"Warning: {', '.join(m[0] for m in missing)} not built!", err=True
-            )
+            click.echo("Error: App frontend not built!", err=True)
             click.echo("   Build with:", err=True)
-            for _, cmd in missing:
-                click.echo(f"     {cmd}", err=True)
+            click.echo("     cd frontend/app && npm ci && npm run build", err=True)
             click.echo("   Or use --dev flag for API-only mode", err=True)
             sys.exit(1)
 
@@ -106,30 +92,16 @@ def info() -> None:
     click.echo(f"Python: {sys.version.split()[0]}")
     click.echo(f"Python executable: {sys.executable}")
 
-    # Check frontends
+    # Check frontend
     static_dir = Path(__file__).parent / "backend" / "static"
-    frontends = [
-        ("App", static_dir / "app"),
-        ("Map", static_dir / "map"),
-    ]
+    app_dir = static_dir / "app"
+    app_built = app_dir.exists() and (app_dir / "index.html").exists()
 
-    built = [
-        (name, d.exists() and (d / "index.html").exists()) for name, d in frontends
-    ]
-
-    if all(status for _, status in built):
-        click.echo("\nFrontends: Both built and ready")
+    if app_built:
+        click.echo("\nFrontend: Built and ready")
     else:
-        click.echo("\nFrontends:")
-        for (name, _), is_built in zip(frontends, built, strict=True):
-            if is_built:
-                click.echo(f"   {name}: Built")
-            else:
-                click.echo(
-                    f"   {name}: Not built"
-                    f" (run: cd frontend/{name.lower()}"
-                    " && npm ci && npm run build)"
-                )
+        click.echo("\nFrontend: Not built")
+        click.echo("   Run: cd frontend/app && npm ci && npm run build")
 
     click.echo("\nEnvironment variables:")
     for key in [
