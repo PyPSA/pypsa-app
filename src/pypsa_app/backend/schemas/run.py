@@ -63,6 +63,8 @@ class RunSummary(BaseModel):
     configfile: str | None = None
     git_ref: str | None = None
     git_sha: str | None = None
+    total_job_count: int | None = None
+    jobs_finished: int | None = None
 
 
 class RunResponse(RunSummary):
@@ -76,6 +78,17 @@ class RunResponse(RunSummary):
     networks: list[RunNetworkSummary] = []
 
 
+class RunListMeta(PaginationMeta):
+    """Extended pagination meta with run-specific filter options."""
+
+    statuses: list[str] | None = None
+    workflows: list[str] | None = None
+    owners: list[UserPublicResponse] | None = None
+    git_refs: list[str] | None = None
+    configfiles: list[str] | None = None
+    backends: list[BackendPublicResponse] | None = None
+
+
 class RunListResponse(BaseModel):
     data: list[RunSummary]
-    meta: PaginationMeta
+    meta: RunListMeta

@@ -1,3 +1,5 @@
+import asyncio
+import contextlib
 import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -28,6 +30,7 @@ from pypsa_app.backend.database import Base, SessionLocal, engine
 from pypsa_app.backend.models import SnakedispatchBackend, User, UserRole
 from pypsa_app.backend.services.backend_registry import backend_registry
 from pypsa_app.backend.services.run import SnakedispatchError
+from pypsa_app.backend.services.sync import run_sync_loop
 from pypsa_app.backend.settings import API_V1_PREFIX, settings
 
 logging.basicConfig(
@@ -183,10 +186,25 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             "No Snakedispatch backends configured (SNAKEDISPATCH_BACKENDS not set)"
         )
 
+    sync_task = None
+    if settings.resolved_backends:
+        sync_task = asyncio.create_task(
+            run_sync_loop(interval=settings.snakedispatch_sync_interval)
+        )
+        logger.info(
+            "Background run sync started",
+            extra={"interval": settings.snakedispatch_sync_interval},
+        )
+
     yield
 
     # Shutdown
     logger.info("Shutting down PyPSA Web App API")
+    if sync_task is not None:
+        sync_task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await sync_task
+        logger.info("Background run sync stopped")
     engine.dispose()
     logger.info("Shutdown complete")
 

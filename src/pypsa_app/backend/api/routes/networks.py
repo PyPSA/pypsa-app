@@ -5,6 +5,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile
 from fastapi import Path as PathParam
+from pydantic import BaseModel
 from sqlalchemy import ColumnElement, or_
 from sqlalchemy.orm import Session, joinedload
 
@@ -87,14 +88,20 @@ def upload_network(
         tmp.unlink(missing_ok=True)
 
 
-@router.get("/", response_model=NetworkListResponse)
-def list_networks(
-    skip: int = 0,
-    limit: int = 100,
+class NetworkListFilters(BaseModel):
+    """Query parameters for filtering the networks list."""
+
+    skip: int = 0
+    limit: int = 100
     owners: list[str] | None = Query(
         None,
         description="Filter by owner IDs. Use 'me' for current user.",
-    ),
+    )
+
+
+@router.get("/", response_model=NetworkListResponse)
+def list_networks(
+    filters: NetworkListFilters = Depends(),
     db: Session = Depends(get_db),
     user: User = Depends(require_permission(Permission.NETWORKS_VIEW)),
 ) -> NetworkListResponse:
@@ -110,35 +117,43 @@ def list_networks(
         )
         query = query.filter(visibility_filter)
 
-        # Apply owner filter if specified
-        if owners:
+    # Apply owner filter if specified
+    if filters.owners:
 
-            def owner_to_condition(owner_id: str) -> ColumnElement[bool]:
-                if owner_id == "me":
-                    return Network.user_id == user.id
-                return Network.user_id == owner_id
+        def owner_to_condition(owner_id: str) -> ColumnElement[bool]:
+            if owner_id == "me":
+                return Network.user_id == user.id
+            return Network.user_id == owner_id
 
-            query = query.filter(or_(*[owner_to_condition(oid) for oid in owners]))
+        conditions = [owner_to_condition(oid) for oid in filters.owners]
+        query = query.filter(or_(*conditions))
 
     total = query.count()
-    networks = query.order_by(Network.created_at.desc()).offset(skip).limit(limit).all()
+    networks = (
+        query.order_by(Network.created_at.desc())
+        .offset(filters.skip)
+        .limit(filters.limit)
+        .all()
+    )
 
     # Get all unique owners for filter dropdown
     all_owners = []
+    owners_query = db.query(Network.user_id)
     if not has_permission(user, Permission.NETWORKS_MANAGE_ALL):
-        owners_query = db.query(Network.user_id)
         if visibility_filter is not None:
             owners_query = owners_query.filter(visibility_filter)
-        owner_ids = [oid[0] for oid in owners_query.distinct().all()]
-        if owner_ids:
-            all_owners = db.query(User).filter(User.id.in_(owner_ids)).all()
+        else:
+            owners_query = owners_query.filter(Network.user_id == user.id)
+    owner_ids = [oid[0] for oid in owners_query.distinct().all()]
+    if owner_ids:
+        all_owners = db.query(User).filter(User.id.in_(owner_ids)).all()
 
     return NetworkListResponse(
         data=networks,
         meta={
             "total": total,
-            "skip": skip,
-            "limit": limit,
+            "skip": filters.skip,
+            "limit": filters.limit,
             "count": len(networks),
             "owners": all_owners,
         },

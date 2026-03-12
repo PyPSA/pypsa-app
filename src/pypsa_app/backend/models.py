@@ -327,6 +327,8 @@ class Run(Base):
     started_at = Column(TIMESTAMP, nullable=True)
     completed_at = Column(TIMESTAMP, nullable=True)
     import_networks = Column(JSON, nullable=True)
+    total_job_count = Column(Integer, nullable=True)
+    jobs_finished = Column(Integer, nullable=True)
 
     networks = relationship(
         "Network", foreign_keys="Network.source_run_id", viewonly=True

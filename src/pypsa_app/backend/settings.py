@@ -92,6 +92,11 @@ class Settings(BaseSettings):
     )
 
     # Runs
+    snakedispatch_sync_interval: float = Field(
+        default=10.0,
+        description="Interval in seconds between background Snakedispatch sync cycles",
+        json_schema_extra={"category": "Runs"},
+    )
     snakedispatch_backends: str | None = Field(
         default=None,
         description=(

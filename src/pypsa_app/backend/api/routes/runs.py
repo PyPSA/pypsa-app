@@ -4,12 +4,13 @@ import logging
 import re
 import urllib.parse
 import uuid
-from collections import defaultdict
 from pathlib import PurePosixPath
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi import Path as PathParam
 from fastapi.responses import StreamingResponse
+from pydantic import BaseModel
 from sqlalchemy.orm import Session, joinedload
 
 from pypsa_app.backend.api.deps import get_db, require_permission
@@ -33,20 +34,11 @@ from pypsa_app.backend.schemas.run import (
 )
 from pypsa_app.backend.services.backend_registry import backend_registry
 from pypsa_app.backend.services.run import SnakedispatchClient, SnakedispatchError
+from pypsa_app.backend.services.sync import SYNCED_STATUSES, sync_run_from_job
 from pypsa_app.backend.settings import settings
-from pypsa_app.backend.tasks import import_run_outputs_task
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
-
-# Statuses where the remote executor is done — no need to sync from Snakedispatch.
-SYNCED_STATUSES = {
-    RunStatus.UPLOADING,
-    RunStatus.COMPLETED,
-    RunStatus.FAILED,
-    RunStatus.ERROR,
-    RunStatus.CANCELLED,
-}
 
 
 def _get_client_for_run(run: Run) -> SnakedispatchClient:
@@ -93,57 +85,6 @@ def _check_run(run_id: uuid.UUID, db: Session, user: User) -> Run:
     if not can_access_run(user, run):
         raise HTTPException(404, "Run not found")
     return run
-
-
-# Statuses that should not be resynced or trigger import again
-_IMPORT_DONE_STATUSES = {RunStatus.UPLOADING, RunStatus.COMPLETED, RunStatus.ERROR}
-
-
-def _sync_run_from_job(run: Run, job: dict, db: Session) -> None:
-    """Update a Run record from a Snakedispatch response dict."""
-    changed = False
-    field_map = {
-        "workflow": "workflow",
-        "configfile": "configfile",
-        "git_ref": "git_ref",
-        "git_sha": "git_sha",
-        "exit_code": "exit_code",
-        "started_at": "started_at",
-        "completed_at": "completed_at",
-    }
-    for db_field, job_key in field_map.items():
-        new_val = job.get(job_key)
-        if new_val is not None and getattr(run, db_field) != new_val:
-            setattr(run, db_field, new_val)
-            changed = True
-
-    # Status needs enum conversion
-    raw_status = job.get("status")
-    if raw_status:
-        try:
-            new_status = RunStatus(raw_status)
-        except ValueError:
-            new_status = None
-
-        completed_with_import_pending = (
-            new_status == RunStatus.COMPLETED
-            and run.status not in _IMPORT_DONE_STATUSES
-        )
-        if completed_with_import_pending and run.import_networks:
-            run.status = RunStatus.UPLOADING
-            changed = True
-            db.flush()
-            import_run_outputs_task.apply_async(args=(str(run.job_id),))
-        elif completed_with_import_pending:
-            # Nothing to import
-            run.status = RunStatus.COMPLETED
-            changed = True
-        elif new_status and run.status != new_status:
-            run.status = new_status
-            changed = True
-
-    if changed:
-        db.flush()
 
 
 @router.get("/backends", response_model=list[BackendPublicResponse])
@@ -213,46 +154,109 @@ def create_run(
     return RunResponse.model_validate(run)
 
 
+class RunListFilters(BaseModel):
+    """Query parameters for filtering the runs list."""
+
+    skip: int = 0
+    limit: int = 100
+    statuses: list[str] | None = Query(None, description="Filter by status values")
+    workflows: list[str] | None = Query(None, description="Filter by workflow names")
+    owners: list[str] | None = Query(
+        None, description="Filter by owner IDs. Use 'me' for current user."
+    )
+    git_refs: list[str] | None = Query(None, description="Filter by git ref")
+    configfiles: list[str] | None = Query(None, description="Filter by configfile")
+    backends: list[str] | None = Query(
+        None, description="Filter by backend IDs (UUIDs)"
+    )
+
+
 @router.get("/", response_model=RunListResponse)
 def list_runs(
-    skip: int = 0,
-    limit: int = 100,
+    filters: RunListFilters = Depends(),
     db: Session = Depends(get_db),
     user: User = Depends(require_permission(Permission.RUNS_VIEW)),
 ) -> RunListResponse:
     """List runs visible to the current user."""
+    is_admin = has_permission(user, Permission.RUNS_MANAGE_ALL)
+    user_filter = Run.user_id == user.id if not is_admin else None
+
+    # Collect distinct values per column for filter dropdowns
+    def _distinct_vals(col: Any) -> list:
+        q = db.query(col).filter(col.isnot(None))
+        if user_filter is not None:
+            q = q.filter(user_filter)
+        return sorted(r[0] for r in q.distinct().all())
+
+    all_statuses = list(RunStatus)
+    present_statuses = set(_distinct_vals(Run.status))
+    filter_options: dict[str, Any] = {
+        "statuses": [s for s in all_statuses if s in present_statuses],
+        "workflows": _distinct_vals(Run.workflow),
+        "git_refs": _distinct_vals(Run.git_ref),
+        "configfiles": _distinct_vals(Run.configfile),
+    }
+
+    backend_ids = _distinct_vals(Run.backend_id)
+    filter_options["backends"] = (
+        db.query(SnakedispatchBackend)
+        .filter(SnakedispatchBackend.id.in_(backend_ids))
+        .order_by(SnakedispatchBackend.name)
+        .all()
+        if backend_ids
+        else None
+    )
+
+    if is_admin:
+        owner_ids = _distinct_vals(Run.user_id)
+        filter_options["owners"] = (
+            db.query(User).filter(User.id.in_(owner_ids)).all() if owner_ids else None
+        )
+    else:
+        filter_options["owners"] = None
+
     query = db.query(Run).options(joinedload(Run.owner), joinedload(Run.backend))
-    if not has_permission(user, Permission.RUNS_MANAGE_ALL):
-        query = query.filter(Run.user_id == user.id)
+    if user_filter is not None:
+        query = query.filter(user_filter)
+    if filters.statuses:
+        try:
+            parsed_statuses = [RunStatus(s) for s in filters.statuses]
+        except ValueError as e:
+            raise HTTPException(422, f"Invalid status filter: {e}") from None
+        query = query.filter(Run.status.in_(parsed_statuses))
+    if filters.workflows:
+        query = query.filter(Run.workflow.in_(filters.workflows))
+    if filters.owners:
+        resolved_ids = [user.id if o == "me" else o for o in filters.owners]
+        query = query.filter(Run.user_id.in_(resolved_ids))
+    if filters.git_refs:
+        query = query.filter(Run.git_ref.in_(filters.git_refs))
+    if filters.configfiles:
+        query = query.filter(Run.configfile.in_(filters.configfiles))
+    if filters.backends:
+        try:
+            parsed_backends = [uuid.UUID(b) for b in filters.backends]
+        except ValueError as e:
+            raise HTTPException(422, f"Invalid backend ID: {e}") from None
+        query = query.filter(Run.backend_id.in_(parsed_backends))
 
     total = query.count()
-    runs = query.order_by(Run.created_at.desc()).offset(skip).limit(limit).all()
-
-    # One sync call per backend to avoid redundant API requests
-    non_terminal = [r for r in runs if r.status not in SYNCED_STATUSES]
-    if non_terminal:
-        by_backend: dict[uuid.UUID, list[Run]] = defaultdict(list)
-        for r in non_terminal:
-            by_backend[r.backend_id].append(r)
-
-        for backend_id, backend_runs in by_backend.items():
-            client = backend_registry.get_client(backend_id)
-            if client is None:
-                continue
-            try:
-                all_jobs = client.list_jobs()
-                jobs_by_id = {j["job_id"]: j for j in all_jobs}
-                for run in backend_runs:
-                    job = jobs_by_id.get(str(run.job_id))
-                    if job:
-                        _sync_run_from_job(run, job, db)
-                db.commit()
-            except SnakedispatchError:
-                pass
+    runs = (
+        query.order_by(Run.created_at.desc())
+        .offset(filters.skip)
+        .limit(filters.limit)
+        .all()
+    )
 
     return RunListResponse(
         data=[RunSummary.model_validate(r) for r in runs],
-        meta={"total": total, "skip": skip, "limit": limit, "count": len(runs)},
+        meta={
+            "total": total,
+            "skip": filters.skip,
+            "limit": filters.limit,
+            "count": len(runs),
+            **filter_options,
+        },
     )
 
 
@@ -271,7 +275,7 @@ def get_run(
         if client:
             try:
                 job = client.get_job(str(run_id))
-                _sync_run_from_job(run, job, db)
+                sync_run_from_job(run, job, db)
                 db.commit()
             except SnakedispatchError:
                 pass
@@ -368,7 +372,7 @@ def cancel_run(
     sd_client = _get_client_for_run(run)
     try:
         result = sd_client.cancel_job(str(run_id))
-        _sync_run_from_job(run, result, db)
+        sync_run_from_job(run, result, db)
         db.commit()
     except SnakedispatchError as e:
         if e.status_code in (404, 409):
