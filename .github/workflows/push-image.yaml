@@ -8,6 +8,8 @@ on:
     - "v*"
   workflow_dispatch:
 
+permissions: {}
+
 env:
   REGISTRY: ghcr.io
   FULL_IMAGE_NAME: ghcr.io/pypsa/pypsa-app
