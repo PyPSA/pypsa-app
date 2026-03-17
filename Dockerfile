@@ -33,6 +33,7 @@ WORKDIR /app
 
 # Install minimal runtime libraries
 RUN apt-get update && apt-get install -y \
+    curl \
     libhdf5-310 \
     libnetcdf22 \
     && rm -rf /var/lib/apt/lists/*
