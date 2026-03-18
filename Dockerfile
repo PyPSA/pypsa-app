@@ -34,6 +34,7 @@ WORKDIR /app
 # Install minimal runtime libraries
 RUN apt-get update && apt-get install -y \
     curl \
+    gosu \
     libhdf5-310 \
     libnetcdf22 \
     && rm -rf /var/lib/apt/lists/*
@@ -50,13 +51,14 @@ COPY --from=builder --chown=appuser:appuser /app/.venv /app/.venv
 COPY --from=builder --chown=appuser:appuser /app/src /app/src
 
 COPY --chown=appuser:appuser pyproject.toml uv.lock MANIFEST.in ./
-
-USER appuser
+COPY entrypoint.sh /app/entrypoint.sh
+RUN chmod +x /app/entrypoint.sh
 
 ENV PATH="/app/.venv/bin:$PATH"
 
 EXPOSE 8000
 
+ENTRYPOINT ["/app/entrypoint.sh"]
 CMD ["pypsa-app", "serve"]
 
 
