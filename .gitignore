@@ -41,6 +41,9 @@ ENV/
 env/
 .venv
 
+# Infrastructure (VPS deployment, not tracked)
+infra/
+
 # Agents
 .claude
 AGENTS.md
