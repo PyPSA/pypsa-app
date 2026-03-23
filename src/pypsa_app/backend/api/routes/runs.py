@@ -6,7 +6,7 @@ import threading
 import urllib.parse
 import uuid
 from pathlib import PurePosixPath
-from typing import Any
+from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi import Path as PathParam
@@ -311,7 +311,9 @@ def get_run(
 @router.get("/{run_id}/logs")
 def stream_run_logs(
     run_id: uuid.UUID = PathParam(..., description="Run UUID"),
-    format: str | None = Query(None, description="'text' for plain text logs"),
+    format: Literal["text"] | None = Query(
+        None, description="'text' for plain text logs"
+    ),
     db: Session = Depends(get_db),
     user: User = Depends(require_permission(Permission.RUNS_VIEW)),
 ) -> StreamingResponse:
@@ -365,14 +367,23 @@ def list_run_outputs(
 def download_run_output(
     run_id: uuid.UUID = PathParam(..., description="Run UUID"),
     path: str = PathParam(..., description="File path relative to work directory"),
+    format: Literal["text"] | None = Query(
+        None, description="'text' for inline plain text"
+    ),
     db: Session = Depends(get_db),
     user: User = Depends(require_permission(Permission.RUNS_VIEW)),
 ) -> StreamingResponse:
-    """Download an output file."""
+    """Download an output file, or display inline with ?format=text."""
     if ".." in PurePosixPath(path).parts:
         raise HTTPException(400, "Invalid path")
     run = _check_run(run_id, db, user)
     sd_client = _get_client_for_run(run)
+    if format == "text":
+        return StreamingResponse(
+            sd_client.download_job_output(str(run_id), path),
+            media_type="text/plain",
+            headers={"Content-Disposition": "inline"},
+        )
     filename = urllib.parse.quote(
         re.sub(r'[\x00-\x1f\x7f"\\;]', "_", path.rsplit("/", 1)[-1])
     )

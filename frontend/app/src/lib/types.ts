@@ -221,6 +221,7 @@ export interface WorkflowJob {
 	started_at?: string;
 	completed_at?: string;
 	files: WorkflowFile[];
+	log?: string;
 }
 
 export interface WorkflowRule {

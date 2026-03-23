@@ -2,8 +2,9 @@
 	import { onMount, onDestroy } from 'svelte';
 	import { runs } from '$lib/api/client.js';
 	import type { Workflow, WorkflowRule, ApiError } from '$lib/types.js';
+	import { getJobLogPath } from '$lib/utils.js';
 	import RulePanel from './RulePanel.svelte';
-	import { ChevronRight, GitBranch, Network } from 'lucide-svelte';
+	import { ChevronRight, GitBranch, Layers, Network, Terminal } from 'lucide-svelte';
 	import * as Table from '$lib/components/ui/table';
 
 	let { runId, isTerminal, isFailedRun = false }: { runId: string; isTerminal: boolean; isFailedRun?: boolean } = $props();
@@ -41,6 +42,14 @@
 		return (rule.jobs?.length ?? 0) > 0;
 	}
 
+	function getRuleLogPath(rule: WorkflowRule): string | null {
+		for (const job of rule.jobs ?? []) {
+			const logPath = getJobLogPath(job);
+			if (logPath) return logPath;
+		}
+		return null;
+	}
+
 	function ruleDuration(rule: WorkflowRule): number {
 		let total = 0;
 		let count = 0;
@@ -73,6 +82,9 @@
 		}
 		return max;
 	});
+
+	const anyWildcards = $derived(workflow ? workflow.rules.some(r => r.total_job_count > 1) : false);
+	const anyLogs = $derived(workflow ? workflow.rules.some(r => !!getRuleLogPath(r)) : false);
 
 	const sortedRules = $derived.by(() => {
 		if (!workflow) return [];
@@ -190,8 +202,13 @@
 					<Table.Header>
 						<Table.Row class="hover:[&,&>svelte-css-wrapper]:[&>th,td]:bg-transparent">
 							<Table.Head class="h-7 pr-3 w-0">Rule</Table.Head>
+							{#if anyWildcards}
+								<Table.Head class="h-7 w-4 p-0"></Table.Head>
+							{/if}
+							{#if anyLogs}
+								<Table.Head class="h-7 w-4 p-0"></Table.Head>
+							{/if}
 							<Table.Head class="h-7 pr-3 text-right">Duration</Table.Head>
-							<Table.Head class="h-7 text-right w-0">Jobs</Table.Head>
 							<Table.Head class="h-7 w-4 p-0"></Table.Head>
 						</Table.Row>
 					</Table.Header>
@@ -200,6 +217,8 @@
 							{@const status = ruleStatus(rule)}
 							{@const hasJobs = ruleHasJobs(rule)}
 							{@const duration = ruleDuration(rule)}
+							{@const ruleLogPath = getRuleLogPath(rule)}
+							{@const hasNonEmptyLog = !!ruleLogPath}
 							<Table.Row
 								class="{hasJobs ? 'cursor-pointer' : 'hover:[&,&>svelte-css-wrapper]:[&>th,td]:bg-transparent'} {hasJobs && expandedRuleName === rule.name ? 'border-0' : ''}"
 								onclick={() => { if (hasJobs) expandedRuleName = expandedRuleName === rule.name ? null : rule.name; }}
@@ -212,6 +231,29 @@
 										{rule.name}
 									</div>
 								</Table.Cell>
+								{#if anyWildcards}
+									<Table.Cell class="py-1.5 w-4 text-center">
+										{#if rule.total_job_count > 1}
+											<span class="text-muted-foreground text-xs inline-flex items-center gap-0.5">
+												<Layers class="h-3 w-3" />
+												{#if rule.jobs_finished < rule.total_job_count}
+													{rule.jobs_finished}/{rule.total_job_count}
+												{:else}
+													×{rule.total_job_count}
+												{/if}
+											</span>
+										{:else if rule.total_job_count === 1 && rule.jobs_finished < rule.total_job_count}
+											<span class="text-muted-foreground text-xs">{rule.jobs_finished}/{rule.total_job_count}</span>
+										{/if}
+									</Table.Cell>
+								{/if}
+								{#if anyLogs}
+									<Table.Cell class="py-1.5 w-4 text-center">
+										{#if hasNonEmptyLog}
+											<span class="text-muted-foreground"><Terminal class="h-3 w-3 inline-block" /></span>
+										{/if}
+									</Table.Cell>
+								{/if}
 								<Table.Cell class="py-1.5 pr-3">
 									{#if duration > 0}
 										<div class="flex items-center gap-2">
@@ -227,9 +269,6 @@
 										<span class="text-muted-foreground text-right block">&mdash;</span>
 									{/if}
 								</Table.Cell>
-								<Table.Cell class="py-1.5 text-right text-muted-foreground tabular-nums w-0">
-									{rule.jobs_finished}/{rule.total_job_count}
-								</Table.Cell>
 								<Table.Cell class="py-1.5 pl-2 w-4">
 									{#if hasJobs}
 										<ChevronRight
@@ -241,8 +280,9 @@
 							</Table.Row>
 							{#if hasJobs && expandedRuleName === rule.name}
 								<Table.Row class="hover:[&,&>svelte-css-wrapper]:[&>th,td]:bg-transparent">
-									<Table.Cell colspan={4} class="pt-1 pb-2 pl-6 pr-2">
-										<RulePanel {rule} />
+									<!-- colspan: Rule + Duration + Chevron = 3, plus optional wildcards + logs columns -->
+									<Table.Cell colspan={3 + (anyWildcards ? 1 : 0) + (anyLogs ? 1 : 0)} class="pt-1 pb-2 pl-6 pr-2">
+										<RulePanel {rule} {runId} />
 									</Table.Cell>
 								</Table.Row>
 							{/if}

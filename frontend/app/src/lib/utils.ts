@@ -120,6 +120,11 @@ export function getDirectoryPath(fullPath: string | null | undefined): string {
 	return relativePath.substring(0, lastSlashIndex + 1);
 }
 
+export function getJobLogPath(job: { log?: string; files?: { file_type: string; path: string }[] }): string | null {
+	if (job.log) return job.log;
+	return job.files?.find(f => f.file_type === 'LOG')?.path ?? null;
+}
+
 export function getTagType(tag: string | NetworkTag): TagType {
 	if (typeof tag === 'string') return 'default';
 	const name = tag.name?.toLowerCase() || '';

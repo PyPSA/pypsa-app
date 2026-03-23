@@ -173,7 +173,7 @@
 						Close
 					</button>
 				</div>
-				<RulePanel rule={selectedRule} />
+				<RulePanel rule={selectedRule} {runId} />
 			</div>
 		{/if}
 	</div>
