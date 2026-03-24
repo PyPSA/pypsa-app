@@ -236,14 +236,10 @@
 										{#if rule.total_job_count > 1}
 											<span class="text-muted-foreground text-xs inline-flex items-center gap-0.5">
 												<Layers class="h-3 w-3" />
-												{#if rule.jobs_finished < rule.total_job_count}
-													{rule.jobs_finished}/{rule.total_job_count}
-												{:else}
-													×{rule.total_job_count}
-												{/if}
+												{rule.jobs_finished < rule.total_job_count
+													? `${rule.jobs_finished}/${rule.total_job_count}`
+													: `×${rule.total_job_count}`}
 											</span>
-										{:else if rule.total_job_count === 1 && rule.jobs_finished < rule.total_job_count}
-											<span class="text-muted-foreground text-xs">{rule.jobs_finished}/{rule.total_job_count}</span>
 										{/if}
 									</Table.Cell>
 								{/if}
