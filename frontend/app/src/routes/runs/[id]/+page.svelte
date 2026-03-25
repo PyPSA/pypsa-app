@@ -35,7 +35,6 @@
 	let outputFiles = $state<OutputFile[] | null>(null);
 	let outputsOpen = $state(false);
 	let outputsLoading = $state(false);
-	let outputsError = $state<string | null>(null);
 	let outputsUnavailable = $state(false);
 	let workflow = $state<Workflow | null>(null);
 
@@ -72,10 +71,8 @@
 			runs.listOutputs(runId).then((files) => {
 				outputFiles = files;
 			}).catch((err: unknown) => {
-				if ((err as ApiError).status === 404) {
+				if (!(err as ApiError).cancelled) {
 					outputsUnavailable = true;
-				} else if (!(err as ApiError).cancelled) {
-					outputsError = (err as Error).message;
 				}
 			}).finally(() => {
 				outputsLoading = false;
@@ -141,7 +138,6 @@
 		outputFiles = null;
 		outputsOpen = false;
 		outputsLoading = false;
-		outputsError = null;
 		outputsUnavailable = false;
 		outputsFetched = false;
 		workflow = null;
@@ -483,8 +479,6 @@
 						<span class="text-sm font-medium">Files</span>
 						{#if outputsLoading}
 							<Loader2 class="h-3.5 w-3.5 animate-spin text-muted-foreground" />
-						{:else if outputsError}
-							<span class="text-xs text-destructive">{outputsError}</span>
 						{:else if outputsUnavailable}
 							<span class="text-xs text-muted-foreground">no longer available</span>
 						{:else if outputFiles && outputFiles.length > 0}
