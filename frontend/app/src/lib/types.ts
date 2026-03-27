@@ -80,6 +80,12 @@ export interface RunNetwork {
 	filename: string;
 }
 
+export interface UserPublic {
+	id: string;
+	username: string;
+	avatar_url?: string;
+}
+
 export interface RunSummary {
 	id: string;
 	status: RunStatus;
@@ -90,7 +96,7 @@ export interface RunSummary {
 	started_at?: string;
 	completed_at?: string;
 	created_at: string;
-	owner: User;
+	owner: UserPublic;
 	visibility: Visibility;
 	backend: BackendPublic;
 	total_job_count?: number;
@@ -102,7 +108,7 @@ export interface Run extends RunSummary {
 	extra_files?: Record<string, string>;
 	cache?: { key: string; dirs: string[] };
 	import_networks?: string[];
-	exit_code?: number | null;
+
 	networks: RunNetwork[];
 }
 
@@ -272,4 +278,25 @@ export interface Workflow {
 export interface ApiError extends Error {
 	status?: number;
 	cancelled?: boolean;
+}
+
+// Public (unauthenticated) response types
+
+export interface PublicRunResponse {
+	id: string;
+	status: RunStatus;
+	workflow: string;
+	configfile?: string;
+	git_ref?: string;
+	git_sha?: string;
+	created_at: string;
+	started_at?: string;
+	completed_at?: string;
+
+	total_job_count?: number;
+	jobs_finished?: number;
+	visibility: Visibility;
+	owner: UserPublic;
+	backend: BackendPublic;
+	networks: RunNetwork[];
 }

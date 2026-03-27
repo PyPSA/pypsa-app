@@ -19,6 +19,7 @@ from pypsa_app.backend.api.routes import (
     cache,
     networks,
     plots,
+    public,
     runs,
     statistics,
     tasks,
@@ -286,6 +287,7 @@ if settings.enable_auth:
     app.include_router(
         api_keys.router, prefix=f"{API_V1_PREFIX}/auth/api-keys", tags=["auth"]
     )
+    app.include_router(public.router, prefix=f"{API_V1_PREFIX}/public", tags=["public"])
 app.include_router(admin.router, prefix=f"{API_V1_PREFIX}/admin", tags=["admin"])
 app.include_router(
     networks.router, prefix=f"{API_V1_PREFIX}/networks", tags=["networks"]

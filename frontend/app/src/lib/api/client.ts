@@ -18,6 +18,7 @@ import type {
 	Visibility,
 	PaginatedResponse,
 	Workflow,
+	PublicRunResponse,
 } from "$lib/types.js";
 
 const API_BASE = '/api/v1';
@@ -416,6 +417,20 @@ export const admin = {
 
 	async unassignUserFromBackend(backendId: string, userId: string): Promise<void> {
 		return request<void>(`/admin/backends/${backendId}/users/${userId}`, { method: 'DELETE' });
+	}
+};
+
+// Public API (no credentials, no 401 redirect)
+export const publicApi = {
+	async getRun(id: string): Promise<PublicRunResponse> {
+		const resp = await fetch(`${API_BASE}/public/runs/${id}`);
+		if (!resp.ok) {
+			const error = await resp.json().catch(() => ({ detail: resp.statusText }));
+			const err: ApiError = new Error(error.detail || `HTTP ${resp.status}`);
+			err.status = resp.status;
+			throw err;
+		}
+		return resp.json();
 	}
 };
 

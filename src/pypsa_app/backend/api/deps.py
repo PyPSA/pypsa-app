@@ -18,6 +18,7 @@ from pypsa_app.backend.models import (
     SnakedispatchBackend,
     User,
     UserRole,
+    Visibility,
 )
 from pypsa_app.backend.permissions import (
     RESOURCE_PERMS,
@@ -162,6 +163,29 @@ def require_network(
     return _dep
 
 
+async def require_public_run(
+    run_id: UUID = Path(..., description="Run UUID"),
+    db: Session = Depends(get_db),
+) -> Run:
+    """Fetch a public run by UUID. No auth required.
+
+    Returns 404 for missing or private runs.
+    """
+    run = (
+        db.query(Run)
+        .options(
+            joinedload(Run.owner),
+            joinedload(Run.backend),
+            joinedload(Run.networks),
+        )
+        .filter(Run.job_id == run_id, Run.visibility == Visibility.PUBLIC)
+        .first()
+    )
+    if not run:
+        raise HTTPException(404, "Run not found")
+    return run
+
+
 def get_networks(
     db: Session,
     network_ids: list[str],
@@ -206,5 +230,6 @@ __all__ = [
     "get_networks",
     "require_network",
     "require_permission",
+    "require_public_run",
     "require_run",
 ]

@@ -18,8 +18,13 @@
 	import * as Sidebar from '$lib/components/ui/sidebar';
 	import * as Breadcrumb from '$lib/components/ui/breadcrumb';
 	import { ExternalLink, PanelRight, X } from 'lucide-svelte';
+	import { version } from '$lib/api/client.js';
+	import Badge from '$lib/components/ui/badge/badge.svelte';
 
 	let { children, toolbar }: { children?: Snippet; toolbar?: Snippet } = $props();
+
+	// Check if current path is an individual run detail page
+	const isRunDetailPage = $derived(/^\/runs\/[^/]+$/.test($page.url.pathname));
 
 	// Client-side auth guard
 	$effect(() => {
@@ -37,6 +42,12 @@
 				goto('/login', { replaceState: true });
 			} else if (authStore.isApproved) {
 				goto('/', { replaceState: true });
+			}
+		} else if (/^\/runs\/[^/]+$/.test(path)) {
+			// Individual run pages allow anonymous access for public runs
+			// The page component handles auth-conditional rendering
+			if (authStore.isAuthenticated && authStore.isPending) {
+				goto('/pending-approval', { replaceState: true });
 			}
 		} else {
 			if (!authStore.isAuthenticated) {
@@ -63,12 +74,23 @@
 	// Sidebar open state - uses shared store so pages can control it
 
 	// Determine if we should show the sidebar
+	const isPublicView = $derived(
+		!authStore.loading && authStore.authEnabled !== false && !authStore.isAuthenticated && isRunDetailPage
+	);
 	const showSidebar = $derived(
-		$page.url.pathname !== '/login' && $page.url.pathname !== '/pending-approval'
+		$page.url.pathname !== '/login' && $page.url.pathname !== '/pending-approval' && !isPublicView
 	);
 
 	// Determine if we should show the filters toggle button (only on network page)
 	const showFiltersToggle = $derived($page.url.pathname.startsWith('/database/network'));
+
+	// Version info for public header
+	let publicVersion = $state<string | null>(null);
+
+	function formatVersion(v: string | undefined) {
+		if (!v) return v;
+		return v.replace(/\.post\d+\./, '.').split('+')[0];
+	}
 
 	let bannerDismissed = $state(false);
 	let bannerHeight = $state(0);
@@ -91,6 +113,20 @@
 
 		// Initialize auth state and feature flags
 		await Promise.all([authStore.init(), initFeatures()]);
+
+		// Fetch version for public header
+		try {
+			const cached = localStorage.getItem('pypsa-version');
+			if (cached) {
+				const parsed = JSON.parse(cached);
+				const cachedVersion = parsed.backend ?? parsed.pypsa;
+				if (cachedVersion) publicVersion = formatVersion(cachedVersion) ?? null;
+			}
+			const data = await version.get();
+			publicVersion = formatVersion(data.backend_version as string) ?? null;
+		} catch {
+			// Version display is optional
+		}
 	});
 </script>
 
@@ -175,6 +211,28 @@
 				</div>
 			</Sidebar.Inset>
 		</Sidebar.Provider>
+	{:else if isPublicView}
+		<!-- Minimal public layout for unauthenticated run pages -->
+		<div class="flex flex-col h-full">
+			<header class="flex h-14 shrink-0 items-center gap-2 border-b border-border bg-background px-4">
+				<a href="/login" class="flex items-center gap-2 hover:opacity-80 transition-opacity">
+					<img src="/pypsa-logo.svg" alt="PyPSA App" class="h-6 w-6" />
+					<span class="text-sm font-semibold">PyPSA App</span>
+					{#if publicVersion}
+						<Badge variant="default">v{publicVersion}</Badge>
+					{/if}
+				</a>
+				<div class="ml-auto flex items-center gap-2">
+					<DarkModeToggle />
+					<Button variant="outline" size="sm" onclick={() => goto('/login')}>
+						Sign in
+					</Button>
+				</div>
+			</header>
+			<div class="flex flex-1 flex-col gap-4 p-4 pt-0 overflow-auto">
+				{@render children?.()}
+			</div>
+		</div>
 	{:else}
 		{@render children?.()}
 	{/if}

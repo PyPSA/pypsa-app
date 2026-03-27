@@ -96,7 +96,6 @@ class RunResponse(RunSummary):
     cache: RunCache | None = None
     import_networks: list[str] | None = None
     callback_url: str | None = None
-    exit_code: int | None = None
     networks: list[RunNetworkSummary] = []
 
     @field_validator("callback_url", mode="before")
