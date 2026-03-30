@@ -5,7 +5,6 @@ services:
   postgres:
     image: postgres:18-alpine
     container_name: pypsa-postgres
-    restart: unless-stopped
     env_file: .env.dev
     environment:
       POSTGRES_DB: ${POSTGRES_DB}
@@ -25,7 +24,6 @@ services:
   redis:
     image: redis:8-alpine
     container_name: pypsa-redis
-    restart: unless-stopped
     env_file: .env.dev
     # Uncomment to access Redis from host machine
     # ports:
@@ -43,7 +41,6 @@ services:
       dockerfile: Dockerfile
       target: backend
     container_name: pypsa-app
-    restart: unless-stopped
     ports:
     - "${APP_PORT:-8000}:8000"
     env_file: .env.dev
@@ -70,7 +67,6 @@ services:
       dockerfile: Dockerfile
       target: backend
     container_name: pypsa-celery-worker
-    restart: unless-stopped
     env_file: .env.dev
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
