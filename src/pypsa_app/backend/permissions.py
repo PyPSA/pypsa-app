@@ -72,13 +72,20 @@ RESOURCE_PERMS: dict[type, ResourcePerms] = {
 
 
 def can_access(user: User, resource: Network | Run) -> bool:
-    """Can user view this resource? True if public, owner, or admin."""
+    """Can user view this resource? True if public, owner, shared, or admin."""
     perms = RESOURCE_PERMS[type(resource)]
-    return (
+    if (
         resource.visibility == Visibility.PUBLIC
         or resource.user_id == user.id
         or has_permission(user, perms.manage_all)
-    )
+    ):
+        return True
+
+    # Check if the network is shared with this user
+    if isinstance(resource, Network) and hasattr(resource, "shared_user_ids"):
+        return user.id in resource.shared_user_ids
+
+    return False
 
 
 def can_modify(user: User, resource: Network | Run) -> bool:

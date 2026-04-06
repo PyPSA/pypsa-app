@@ -41,6 +41,7 @@ export interface Network {
 	file_size?: number;
 	visibility: Visibility;
 	owner: User;
+	shared_with?: User[];
 	source_run_id?: string;
 	dimensions?: Record<string, number>;
 	dimensions_count?: number;
@@ -50,6 +51,11 @@ export interface Network {
 	update_history?: string[];
 	created_at?: string;
 	updated_at?: string;
+}
+
+export interface NetworkShareResponse {
+	network_id: string;
+	shared_with: User[];
 }
 
 export type Visibility = "public" | "private";

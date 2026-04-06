@@ -9,6 +9,7 @@
 	import ComponentBrowser from './components/ComponentBrowser.svelte';
 	import NetworkMap from './components/NetworkMap.svelte';
 	import SaveViewDialog from './components/SaveViewDialog.svelte';
+	import ShareDialog from './components/ShareDialog.svelte';
 	import ViewSelector from './components/ViewSelector.svelte';
 	import { formatFileSize, formatDate, formatRelativeTime, formatNumber, getDirectoryPath, getTagType, getTagColor } from '$lib/utils.js';
 	import { Network, AlertCircle, FolderOpen, Clock, CalendarRange, Waypoints, ChevronLeft, ChevronRight, SlidersHorizontal, PanelRight } from 'lucide-svelte';
@@ -1276,6 +1277,7 @@ async function loadPlot(statistic: string, plotType: string, parameters: Record<
 					{/if}
 				</div>
 				<div class="flex items-center gap-2 shrink-0">
+					<ShareDialog networkId={networkId} isOwner={true} />
 					<ViewSelector networkId={networkId} onLoadView={handleLoadView} />
 					<SaveViewDialog networkId={networkId} currentConfig={buildCurrentViewConfig()} />
 				</div>

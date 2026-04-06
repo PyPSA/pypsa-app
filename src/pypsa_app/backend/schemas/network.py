@@ -32,6 +32,7 @@ class NetworkResponse(BaseModel):
     # Ownership, visibility and provenance
     visibility: Visibility = Visibility.PRIVATE
     owner: UserPublicResponse
+    shared_with: list[UserPublicResponse] = []
     source_run_id: UUID | None = None
 
     # Model properties
@@ -62,3 +63,16 @@ class NetworkAdminUpdate(NetworkUpdate):
     """Admin-only fields"""
 
     user_id: UUID | None = None
+
+
+class NetworkShareRequest(BaseModel):
+    """Request to share a network with a user"""
+
+    user_id: UUID
+
+
+class NetworkShareResponse(BaseModel):
+    """Response for network share status"""
+
+    network_id: UUID
+    shared_with: list[UserPublicResponse]

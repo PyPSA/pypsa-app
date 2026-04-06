@@ -1,6 +1,7 @@
 import type {
 	User,
 	Network,
+	NetworkShareResponse,
 	Run,
 	RunSummary,
 	Backend,
@@ -133,6 +134,18 @@ export const networks = {
 	},
 	async delete(id: string): Promise<void> {
 		return request<void>(`/networks/${id}`, { method: 'DELETE' });
+	},
+	async getShares(id: string): Promise<NetworkShareResponse> {
+		return request<NetworkShareResponse>(`/networks/${id}/shares`);
+	},
+	async shareWith(id: string, userId: string): Promise<NetworkShareResponse> {
+		return request<NetworkShareResponse>(`/networks/${id}/shares`, {
+			method: 'POST',
+			body: JSON.stringify({ user_id: userId })
+		});
+	},
+	async unshare(id: string, userId: string): Promise<NetworkShareResponse> {
+		return request<NetworkShareResponse>(`/networks/${id}/shares/${userId}`, { method: 'DELETE' });
 	},
 	async updateVisibility(id: string, visibility: Visibility): Promise<Network> {
 		return request<Network>(`/networks/${id}`, {

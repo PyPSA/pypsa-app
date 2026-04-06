@@ -53,6 +53,25 @@ user_backends = Table(
 )
 
 
+network_shares = Table(
+    "network_shares",
+    Base.metadata,
+    Column(
+        "network_id",
+        Uuid,
+        ForeignKey("networks.id", ondelete="CASCADE"),
+        primary_key=True,
+    ),
+    Column(
+        "user_id",
+        Uuid,
+        ForeignKey("users.id", ondelete="CASCADE"),
+        primary_key=True,
+    ),
+    Column("created_at", TIMESTAMP, server_default=func.now()),
+)
+
+
 class SnakedispatchBackend(Base):
     """A registered Snakedispatch execution backend."""
 
@@ -241,6 +260,14 @@ class Network(Base):
     meta: Mapped[Any | None] = mapped_column(JSON)
     facets: Mapped[Any | None] = mapped_column(JSON)
     topology_svg: Mapped[str | None] = mapped_column(Text)
+
+    shared_with: Mapped[list["User"]] = relationship(
+        secondary=network_shares, backref="shared_networks"
+    )
+
+    @property
+    def shared_user_ids(self) -> list[uuid.UUID]:
+        return [u.id for u in self.shared_with]
 
     @property
     def tags(self) -> list | None:
