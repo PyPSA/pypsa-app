@@ -16,7 +16,13 @@ from pypsa_app.backend.api.deps import (
 from pypsa_app.backend.api.utils.network_utils import (
     delete_network as delete_network_and_file,
 )
-from pypsa_app.backend.models import Network, Permission, User, Visibility, network_shares
+from pypsa_app.backend.models import (
+    Network,
+    Permission,
+    User,
+    Visibility,
+    network_shares,
+)
 from pypsa_app.backend.permissions import has_permission
 from pypsa_app.backend.schemas.common import MessageResponse
 from pypsa_app.backend.schemas.network import (

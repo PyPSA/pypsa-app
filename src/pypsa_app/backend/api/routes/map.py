@@ -173,9 +173,7 @@ def get_map_data(
 
     # Collect unique carriers and countries for legend
     bus_carriers = {
-        f["properties"]["carrier"]
-        for f in bus_features
-        if "carrier" in f["properties"]
+        f["properties"]["carrier"] for f in bus_features if "carrier" in f["properties"]
     }
     carrier_colors = {c: CARRIER_COLORS.get(c, "#94a3b8") for c in bus_carriers}
     country_colors = {
