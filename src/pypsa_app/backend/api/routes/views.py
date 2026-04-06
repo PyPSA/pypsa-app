@@ -80,12 +80,7 @@ def list_views(
         )
 
     total = query.count()
-    views = (
-        query.order_by(SavedView.updated_at.desc())
-        .offset(skip)
-        .limit(limit)
-        .all()
-    )
+    views = query.order_by(SavedView.updated_at.desc()).offset(skip).limit(limit).all()
 
     return SavedViewListResponse(data=views, total=total)
 

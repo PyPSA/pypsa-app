@@ -37,7 +37,9 @@ def _extract_bus_features(n, carriers: list[str] | None = None) -> list[dict]:
             if col in row.index:
                 val = row[col]
                 if pd.notna(val):
-                    props[col] = float(val) if isinstance(val, (int, float)) else str(val)
+                    props[col] = (
+                        float(val) if isinstance(val, (int, float)) else str(val)
+                    )
         features.append(
             {
                 "type": "Feature",
@@ -48,9 +50,7 @@ def _extract_bus_features(n, carriers: list[str] | None = None) -> list[dict]:
     return features
 
 
-def _extract_branch_features(
-    n, component: str, buses_df: pd.DataFrame
-) -> list[dict]:
+def _extract_branch_features(n, component: str, buses_df: pd.DataFrame) -> list[dict]:
     """Extract branch (Line/Link) data as GeoJSON LineString features."""
     df = getattr(n, component, None)
     if df is None or len(df) == 0:
