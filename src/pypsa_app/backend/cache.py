@@ -2,13 +2,13 @@
 
 import hashlib
 import inspect
-import json
 import logging
 from collections.abc import Callable
 from functools import wraps
 from typing import Any
 
 from pypsa_app.backend.settings import settings
+from pypsa_app.backend.utils.serializers import fast_json_dumps, fast_json_loads
 
 try:
     import redis
@@ -50,7 +50,7 @@ def cache(key_template: str, ttl: int) -> Callable:
 
             # Generate cache key by hashing all parameters
             cache_hash = hashlib.md5(  # noqa: S324
-                json.dumps(serializable, sort_keys=True).encode()
+                fast_json_dumps(serializable).encode()
             ).hexdigest()[:12]
             cache_key = f"{key_template.split(':', maxsplit=1)[0]}:{cache_hash}"
 
@@ -90,12 +90,12 @@ class CacheService:
         """Get cached data by key"""
         cached_data = self.redis_client.get(key)
         if cached_data:
-            return json.loads(cached_data)
+            return fast_json_loads(cached_data)
         return None
 
     def set(self, key: str, value: dict, ttl: int) -> bool:
         """Set cached data with TTL"""
-        serialized = json.dumps(value)
+        serialized = fast_json_dumps(value)
         size_bytes = len(serialized)
         size_mb = size_bytes / (1024 * 1024)
 

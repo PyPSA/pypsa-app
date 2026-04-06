@@ -14,6 +14,7 @@ from starlette.middleware.sessions import SessionMiddleware
 from pypsa_app.backend.__version__ import __description__, __version__
 from pypsa_app.backend.api.routes import (
     admin,
+    analysis,
     api_keys,
     auth,
     cache,
@@ -291,6 +292,11 @@ app.include_router(
     networks.router, prefix=f"{API_V1_PREFIX}/networks", tags=["networks"]
 )
 app.include_router(plots.router, prefix=f"{API_V1_PREFIX}/plots", tags=["plots"])
+app.include_router(
+    analysis.router,
+    prefix=f"{API_V1_PREFIX}/analysis",
+    tags=["analysis"],
+)
 app.include_router(
     statistics.router,
     prefix=f"{API_V1_PREFIX}/statistics",
