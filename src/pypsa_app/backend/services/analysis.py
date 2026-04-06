@@ -38,6 +38,31 @@ except ImportError:
     POLARS_AVAILABLE = False
 
 
+# ── Bus country helpers ──────────────────────────────────────────────────────
+
+
+def _get_bus_countries(n: Any) -> pd.Series:
+    """Safely extract bus country column, returning empty Series if absent."""
+    if "country" in n.buses.columns:
+        return n.buses["country"]
+    return pd.Series(dtype=str, index=n.buses.index)
+
+
+def _buses_in_country(n: Any, country: str) -> pd.Index:
+    """Return bus indices belonging to a given country."""
+    countries = _get_bus_countries(n)
+    return countries.index[countries == country]
+
+
+def _bus_country(n: Any, bus: str) -> str:
+    """Return the country of a single bus, or empty string if unknown."""
+    countries = _get_bus_countries(n)
+    if bus in countries.index:
+        val = countries.at[bus]
+        return str(val) if pd.notna(val) else ""
+    return ""
+
+
 # ── Dispatch / Energy Balance ────────────────────────────────────────────────
 
 
@@ -65,13 +90,15 @@ def dispatch_area(
     carrier_map = n.generators.carrier
     dispatch = gen_p.T.groupby(carrier_map).sum().T
 
-    # Optional country filter
+    # Optional country filter — applied before groupby
     if country:
-        country_buses = n.buses.index[n.buses.get("country", "") == country]
+        country_buses = _buses_in_country(n, country)
         country_gens = n.generators.index[n.generators.bus.isin(country_buses)]
-        gen_p_filtered = gen_p[gen_p.columns.intersection(country_gens)]
-        carrier_map_filtered = n.generators.carrier.loc[gen_p_filtered.columns]
-        dispatch = gen_p_filtered.T.groupby(carrier_map_filtered).sum().T
+        gen_p = gen_p[gen_p.columns.intersection(country_gens)]
+        carrier_map = carrier_map.loc[gen_p.columns]
+        if gen_p.empty:
+            return _empty_figure(f"No generators found for {country}")
+        dispatch = gen_p.T.groupby(carrier_map).sum().T
 
     # Optional carrier filter
     if carrier_filter:
@@ -303,7 +330,7 @@ def price_duration_curve(
             return _empty_figure("No matching buses found")
         prices = prices[cols]
     elif country:
-        country_buses = n.buses.index[n.buses.get("country", "") == country]
+        country_buses = _buses_in_country(n, country)
         matching = prices.columns.intersection(country_buses)
         if matching.empty:
             return _empty_figure(f"No buses found for country {country}")
@@ -317,20 +344,26 @@ def price_duration_curve(
         for col in prices.columns:
             sorted_vals = np.sort(prices[col].dropna().values)[::-1]
             hours = np.arange(1, len(sorted_vals) + 1)
-            fig.add_trace(go.Scatter(x=hours, y=sorted_vals, name=col, mode="lines"))
+            fig.add_trace(
+                go.Scatter(
+                    x=hours, y=sorted_vals, name=col, mode="lines",
+                )
+            )
     else:
         # Aggregate: mean price across all selected buses
         mean_prices = prices.mean(axis=1)
         sorted_vals = np.sort(mean_prices.dropna().values)[::-1]
         hours = np.arange(1, len(sorted_vals) + 1)
         label = country or "Average"
+        color = (
+            COUNTRY_COLORS.get(country, "#2563eb")
+            if country
+            else "#2563eb"
+        )
         fig.add_trace(
             go.Scatter(
-                x=hours,
-                y=sorted_vals,
-                name=label,
-                mode="lines",
-                line={"color": COUNTRY_COLORS.get(country, "#2563eb")},
+                x=hours, y=sorted_vals, name=label,
+                mode="lines", line={"color": color},
             )
         )
 
@@ -361,7 +394,7 @@ def price_timeseries(
     prices = n.buses_t.marginal_price
 
     if country:
-        country_buses = n.buses.index[n.buses.get("country", "") == country]
+        country_buses = _buses_in_country(n, country)
         matching = prices.columns.intersection(country_buses)
         if matching.empty:
             return _empty_figure(f"No buses found for country {country}")
@@ -399,6 +432,32 @@ def price_timeseries(
 # ── Cross-Border Flows ───────────────────────────────────────────────────────
 
 
+def _collect_cross_border_flows(
+    n: Any,
+    component_df: pd.DataFrame,
+    component_t_p0: pd.DataFrame,
+    country: str,
+    country_buses: set[str],
+    flows: dict[str, list[pd.Series]],
+) -> None:
+    """Collect cross-border flows from a component (lines or links)."""
+    for name in component_df.index:
+        bus0 = component_df.at[name, "bus0"]
+        bus1 = component_df.at[name, "bus1"]
+        bus0_c = _bus_country(n, bus0)
+        bus1_c = _bus_country(n, bus1)
+
+        if bus0_c == bus1_c or name not in component_t_p0.columns:
+            continue
+
+        if bus0 in country_buses and bus1 not in country_buses:
+            label = f"{country} → {bus1_c or '?'}"
+            flows.setdefault(label, []).append(component_t_p0[name])
+        elif bus1 in country_buses and bus0 not in country_buses:
+            label = f"{bus0_c or '?'} → {country}"
+            flows.setdefault(label, []).append(-component_t_p0[name])
+
+
 def cross_border_flows(
     file_paths: list[str],
     *,
@@ -408,39 +467,35 @@ def cross_border_flows(
     """Cross-border flow analysis for a given country.
 
     Shows net imports/exports per interconnection over time.
+    Checks both links (HVDC) and AC lines crossing borders.
     """
     service = load_service(file_paths, use_cache=True)
     n = service.n
 
-    if n.links_t.p0.empty and n.lines_t.p0.empty:
+    has_links = not n.links_t.p0.empty
+    has_lines = not n.lines_t.p0.empty
+    if not has_links and not has_lines:
         return _empty_figure("No flow data available")
 
-    country_buses = set(n.buses.index[n.buses.get("country", "") == country])
+    country_buses = set(_buses_in_country(n, country))
     if not country_buses:
         return _empty_figure(f"No buses found for country {country}")
 
-    flows = {}
+    flows: dict[str, list[pd.Series]] = {}
 
-    # Check links (HVDC interconnectors)
-    for link_name in n.links.index:
-        bus0 = n.links.at[link_name, "bus0"]
-        bus1 = n.links.at[link_name, "bus1"]
-        bus0_country = n.buses.get("country", "").get(bus0, "")
-        bus1_country = n.buses.get("country", "").get(bus1, "")
-
-        if bus0 in country_buses and bus1 not in country_buses:
-            # Export from country
-            label = f"{country} → {bus1_country}"
-            if link_name in n.links_t.p0.columns:
-                flows.setdefault(label, []).append(n.links_t.p0[link_name])
-        elif bus1 in country_buses and bus0 not in country_buses:
-            # Import to country
-            label = f"{bus0_country} → {country}"
-            if link_name in n.links_t.p0.columns:
-                flows.setdefault(label, []).append(-n.links_t.p0[link_name])
+    if has_links:
+        _collect_cross_border_flows(
+            n, n.links, n.links_t.p0, country, country_buses, flows,
+        )
+    if has_lines:
+        _collect_cross_border_flows(
+            n, n.lines, n.lines_t.p0, country, country_buses, flows,
+        )
 
     if not flows:
-        return _empty_figure(f"No cross-border links found for {country}")
+        return _empty_figure(
+            f"No cross-border connections found for {country}"
+        )
 
     fig = go.Figure()
     for label, series_list in flows.items():
@@ -488,7 +543,7 @@ def capacity_mix(
 
     gens = n.generators.copy()
     if country:
-        country_buses = n.buses.index[n.buses.get("country", "") == country]
+        country_buses = _buses_in_country(n, country)
         gens = gens[gens.bus.isin(country_buses)]
 
     if gens.empty:
@@ -496,7 +551,7 @@ def capacity_mix(
 
     capacity = gens.groupby("carrier")["p_nom"].sum()
     ordered = sort_carriers_by_dispatch_order(list(capacity.index))
-    capacity = capacity.reindex(ordered)
+    capacity = capacity.reindex(ordered).fillna(0)
     colors = [get_carrier_color(c) for c in ordered]
 
     fig = go.Figure(
