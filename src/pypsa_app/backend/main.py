@@ -25,6 +25,7 @@ from pypsa_app.backend.api.routes import (
     statistics,
     tasks,
     version,
+    views,
 )
 from pypsa_app.backend.auth.authenticate import set_auth_disabled_user
 from pypsa_app.backend.cache import cache_service
@@ -306,6 +307,7 @@ app.include_router(
     prefix=f"{API_V1_PREFIX}/statistics",
     tags=["statistics"],
 )
+app.include_router(views.router, prefix=f"{API_V1_PREFIX}/views", tags=["views"])
 app.include_router(cache.router, prefix=f"{API_V1_PREFIX}/cache", tags=["cache"])
 app.include_router(version.router, prefix=f"{API_V1_PREFIX}/version", tags=["version"])
 app.include_router(tasks.router, prefix=f"{API_V1_PREFIX}/tasks", tags=["tasks"])

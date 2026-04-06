@@ -21,6 +21,9 @@ import type {
 	ComponentListResponse,
 	ComponentDataResponse,
 	ComponentTimeseriesResponse,
+	SavedView,
+	SavedViewListResponse,
+	ViewConfig,
 } from "$lib/types.js";
 
 const API_BASE = '/api/v1';
@@ -346,6 +349,38 @@ export const runs = {
 	},
 	async workflow(id: string): Promise<Workflow> {
 		return request<Workflow>(`/runs/${id}/workflow`, {}, `run-workflow-${id}`);
+	}
+};
+
+// Views API
+export const savedViews = {
+	async list(networkId?: string, skip = 0, limit = 50): Promise<SavedViewListResponse> {
+		const params = new URLSearchParams({ skip: String(skip), limit: String(limit) });
+		if (networkId) params.set('network_id', networkId);
+		return request<SavedViewListResponse>(`/views/?${params}`);
+	},
+	async get(id: string): Promise<SavedView> {
+		return request<SavedView>(`/views/${id}`);
+	},
+	async create(body: {
+		name: string;
+		description?: string;
+		network_id?: string;
+		visibility?: string;
+		config: ViewConfig;
+	}): Promise<SavedView> {
+		return request<SavedView>('/views/', { method: 'POST', body: JSON.stringify(body) });
+	},
+	async update(id: string, body: {
+		name?: string;
+		description?: string;
+		visibility?: string;
+		config?: ViewConfig;
+	}): Promise<SavedView> {
+		return request<SavedView>(`/views/${id}`, { method: 'PATCH', body: JSON.stringify(body) });
+	},
+	async delete(id: string): Promise<void> {
+		return request<void>(`/views/${id}`, { method: 'DELETE' });
 	}
 };
 

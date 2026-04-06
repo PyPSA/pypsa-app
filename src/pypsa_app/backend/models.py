@@ -248,6 +248,38 @@ class Network(Base):
         return tags if isinstance(tags, list) else None
 
 
+class SavedView(Base):
+    """A saved dashboard view configuration for a network."""
+
+    __tablename__ = "saved_views"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"),
+        index=True,
+    )
+    owner: Mapped["User"] = relationship(foreign_keys=[user_id])
+    network_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("networks.id", ondelete="CASCADE"),
+        index=True,
+    )
+    network: Mapped["Network | None"] = relationship(foreign_keys=[network_id])
+    name: Mapped[str] = mapped_column(String(255))
+    description: Mapped[str | None] = mapped_column(Text)
+    visibility: Mapped[Visibility] = mapped_column(
+        str_enum(Visibility, "visibility"),
+        default=Visibility.PRIVATE,
+        nullable=False,
+    )
+    config: Mapped[Any] = mapped_column(JSON, nullable=False)
+    created_at: Mapped[datetime | None] = mapped_column(
+        TIMESTAMP, server_default=func.now()
+    )
+    updated_at: Mapped[datetime | None] = mapped_column(
+        TIMESTAMP, server_default=func.now(), onupdate=func.now()
+    )
+
+
 class RunStatus(enum.StrEnum):
     """Run status, mirrors Snakedispatch's JobStatus."""
 

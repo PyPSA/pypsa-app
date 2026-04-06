@@ -5,7 +5,10 @@
 	import { goto } from '$app/navigation';
 	import { networks, plots } from '$lib/api/client.js';
 	import type { Network as NetworkType, PlotData, PlotResponse, ApiError } from '$lib/types.js';
+	import type { ViewConfig } from '$lib/types.js';
 	import ComponentBrowser from './components/ComponentBrowser.svelte';
+	import SaveViewDialog from './components/SaveViewDialog.svelte';
+	import ViewSelector from './components/ViewSelector.svelte';
 	import { formatFileSize, formatDate, formatRelativeTime, formatNumber, getDirectoryPath, getTagType, getTagColor } from '$lib/utils.js';
 	import { Network, AlertCircle, FolderOpen, Clock, CalendarRange, Waypoints, ChevronLeft, ChevronRight, SlidersHorizontal, PanelRight } from 'lucide-svelte';
 	import { toast } from 'svelte-sonner';
@@ -824,6 +827,42 @@ async function loadPlot(statistic: string, plotType: string, parameters: Record<
 		}
 	}
 
+	function buildCurrentViewConfig(): ViewConfig {
+		return {
+			active_tab: activeTab,
+			statistic: tabs.find(t => t.id === activeTab)?.statistic,
+			plot_type: tabs.find(t => t.id === activeTab)?.plotType,
+			selected_carriers: selectedCarriers,
+			selected_countries: selectedCountries,
+			individual_plots: individualPlots,
+			analysis_type: undefined,
+			analysis_parameters: {},
+			selected_component: undefined,
+			component_columns: undefined,
+			compare_network_ids: compareMode ? networkIds : [],
+			extra: {},
+		};
+	}
+
+	function handleLoadView(config: ViewConfig) {
+		// Apply carriers
+		if (config.selected_carriers?.length > 0) {
+			selectedCarriersStore.set(new Set(config.selected_carriers));
+		}
+		// Apply countries
+		if (config.selected_countries?.length > 0) {
+			selectedCountriesStore.set(new Set(config.selected_countries));
+		}
+		// Apply individual plots
+		if (config.individual_plots !== undefined) {
+			showIndividualPlots.set(config.individual_plots);
+		}
+		// Apply tab
+		if (config.active_tab) {
+			activeTab = config.active_tab;
+		}
+	}
+
 	function buildFilterParameters(tabConfig: TabConfig, carriers: string[]) {
 		const params: Record<string, unknown> = {
 			...tabConfig.parameters
@@ -1228,11 +1267,17 @@ async function loadPlot(statistic: string, plotType: string, parameters: Record<
 				<!-- Main Content -->
 				<div class="flex-1 min-w-0">
 					<!-- Header -->
-					<div class="mb-8">
-				<h1 class="text-3xl font-bold mb-2">{network.filename}</h1>
-				{#if network.name}
-					<p class="text-muted-foreground">{network.name}</p>
-				{/if}
+					<div class="mb-8 flex items-start justify-between">
+				<div>
+					<h1 class="text-3xl font-bold mb-2">{network.filename}</h1>
+					{#if network.name}
+						<p class="text-muted-foreground">{network.name}</p>
+					{/if}
+				</div>
+				<div class="flex items-center gap-2 shrink-0">
+					<ViewSelector networkId={networkId} onLoadView={handleLoadView} />
+					<SaveViewDialog networkId={networkId} currentConfig={buildCurrentViewConfig()} />
+				</div>
 			</div>
 
 			<!-- Network Overview with Map -->

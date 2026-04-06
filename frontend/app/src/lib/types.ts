@@ -306,6 +306,40 @@ export interface ComponentTimeseriesResponse {
 	limit: number;
 }
 
+// Saved view types
+
+export interface ViewConfig {
+	active_tab?: string;
+	statistic?: string;
+	plot_type?: string;
+	selected_carriers: string[];
+	selected_countries: string[];
+	individual_plots: boolean;
+	analysis_type?: string;
+	analysis_parameters: Record<string, unknown>;
+	selected_component?: string;
+	component_columns?: string[];
+	compare_network_ids: string[];
+	extra: Record<string, unknown>;
+}
+
+export interface SavedView {
+	id: string;
+	name: string;
+	description?: string;
+	network_id?: string;
+	visibility: Visibility;
+	config: ViewConfig;
+	owner: User;
+	created_at?: string;
+	updated_at?: string;
+}
+
+export interface SavedViewListResponse {
+	data: SavedView[];
+	total: number;
+}
+
 // API error type
 
 export interface ApiError extends Error {
