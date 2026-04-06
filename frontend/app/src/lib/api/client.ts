@@ -18,6 +18,9 @@ import type {
 	Visibility,
 	PaginatedResponse,
 	Workflow,
+	ComponentListResponse,
+	ComponentDataResponse,
+	ComponentTimeseriesResponse,
 } from "$lib/types.js";
 
 const API_BASE = '/api/v1';
@@ -131,6 +134,53 @@ export const networks = {
 		return request<Network>(`/networks/${id}`, {
 			method: 'PATCH',
 			body: JSON.stringify({ visibility })
+		});
+	},
+	async getComponents(id: string): Promise<ComponentListResponse> {
+		return request<ComponentListResponse>(`/networks/${id}/components`, {}, `components-${id}`);
+	},
+	async getComponentData(
+		id: string,
+		componentName: string,
+		params: { skip?: number; limit?: number; sort_by?: string; sort_desc?: boolean; search?: string } = {}
+	): Promise<ComponentDataResponse> {
+		const searchParams = new URLSearchParams();
+		if (params.skip !== undefined) searchParams.set('skip', String(params.skip));
+		if (params.limit !== undefined) searchParams.set('limit', String(params.limit));
+		if (params.sort_by) searchParams.set('sort_by', params.sort_by);
+		if (params.sort_desc) searchParams.set('sort_desc', 'true');
+		if (params.search) searchParams.set('search', params.search);
+		const qs = searchParams.toString();
+		return request<ComponentDataResponse>(
+			`/networks/${id}/components/${componentName}${qs ? '?' + qs : ''}`,
+			{},
+			`component-data-${id}-${componentName}`
+		);
+	},
+	async getComponentTimeseries(
+		id: string,
+		componentName: string,
+		attr: string,
+		params: { skip?: number; limit?: number } = {}
+	): Promise<ComponentTimeseriesResponse> {
+		const searchParams = new URLSearchParams();
+		if (params.skip !== undefined) searchParams.set('skip', String(params.skip));
+		if (params.limit !== undefined) searchParams.set('limit', String(params.limit));
+		const qs = searchParams.toString();
+		return request<ComponentTimeseriesResponse>(
+			`/networks/${id}/components/${componentName}/timeseries/${attr}${qs ? '?' + qs : ''}`,
+			{},
+			`component-ts-${id}-${componentName}-${attr}`
+		);
+	},
+	async updateComponentData(
+		id: string,
+		componentName: string,
+		updates: Record<string, Record<string, unknown>>
+	): Promise<{ message: string }> {
+		return request<{ message: string }>(`/networks/${id}/components/${componentName}`, {
+			method: 'PATCH',
+			body: JSON.stringify({ updates })
 		});
 	}
 };

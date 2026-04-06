@@ -5,6 +5,7 @@
 	import { goto } from '$app/navigation';
 	import { networks, plots } from '$lib/api/client.js';
 	import type { Network as NetworkType, PlotData, PlotResponse, ApiError } from '$lib/types.js';
+	import ComponentBrowser from './components/ComponentBrowser.svelte';
 	import { formatFileSize, formatDate, formatRelativeTime, formatNumber, getDirectoryPath, getTagType, getTagColor } from '$lib/utils.js';
 	import { Network, AlertCircle, FolderOpen, Clock, CalendarRange, Waypoints, ChevronLeft, ChevronRight, SlidersHorizontal, PanelRight } from 'lucide-svelte';
 	import { toast } from 'svelte-sonner';
@@ -1456,6 +1457,14 @@ async function loadPlot(statistic: string, plotType: string, parameters: Record<
 				</div>
 
 			</div>
+
+			<!-- Component Data Browser -->
+			{#if networkId}
+				<div class="mb-8">
+					<h2 class="text-xl font-semibold mb-4">Component Data</h2>
+					<ComponentBrowser networkId={networkId} />
+				</div>
+			{/if}
 
 			<!-- Plots Section with Tabs -->
 			<div class="w-full bg-card rounded-lg border border-border p-6">

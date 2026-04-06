@@ -267,6 +267,45 @@ export interface Workflow {
 	errors: WorkflowError[];
 }
 
+// Component types
+
+export interface ComponentSummary {
+	name: string;
+	list_name: string;
+	count: number;
+	category: string | null;
+	attrs: string[];
+	has_dynamic: boolean;
+	dynamic_attrs: string[];
+}
+
+export interface ComponentListResponse {
+	components: ComponentSummary[];
+	total_components: number;
+}
+
+export interface ComponentDataResponse {
+	component: string;
+	columns: string[];
+	index: string[];
+	data: (string | number | boolean | null)[][];
+	dtypes: Record<string, string>;
+	total: number;
+	skip: number;
+	limit: number;
+}
+
+export interface ComponentTimeseriesResponse {
+	component: string;
+	attr: string;
+	columns: string[];
+	index: string[];
+	data: (number | null)[][];
+	total_snapshots: number;
+	skip: number;
+	limit: number;
+}
+
 // API error type
 
 export interface ApiError extends Error {
