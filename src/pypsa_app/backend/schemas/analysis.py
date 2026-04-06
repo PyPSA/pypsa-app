@@ -10,9 +10,7 @@ from pypsa_app.backend.utils.allowlists import ALLOWED_ANALYSIS_TYPES
 class AnalysisRequest(BaseModel):
     """Request for custom analysis (dispatch, line loading, prices, etc.)"""
 
-    network_ids: list[str] = Field(
-        ..., description="List of network UUIDs"
-    )
+    network_ids: list[str] = Field(..., description="List of network UUIDs")
     analysis_type: str = Field(
         ...,
         description="Analysis type (e.g., 'dispatch_area')",

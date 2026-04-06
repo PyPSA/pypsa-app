@@ -141,9 +141,12 @@ def line_loading_histogram(
 
     if POLARS_AVAILABLE:
         # Vectorized with polars for speed on large networks
-        df = pl.DataFrame({
-            "line": max_loading.index, "loading_pct": max_loading.values,
-        })
+        df = pl.DataFrame(
+            {
+                "line": max_loading.index,
+                "loading_pct": max_loading.values,
+            }
+        )
         top_lines = df.sort("loading_pct", descending=True).head(top_n)
         top_names = top_lines["line"].to_list()
         top_values = top_lines["loading_pct"].to_list()
@@ -180,8 +183,12 @@ def line_loading_histogram(
         (n1_limit_pct, "red", f"N-1 Limit ({n1_limit_pct:.0f}%)"),
     ]:
         fig.add_vline(
-            x=pct, line_dash="dash", line_color=color,
-            annotation_text=label, row=1, col=1,
+            x=pct,
+            line_dash="dash",
+            line_color=color,
+            annotation_text=label,
+            row=1,
+            col=1,
         )
 
     # Top-N bar chart with color coding
@@ -252,7 +259,10 @@ def line_loading_timeseries(
         )
 
     fig.add_hline(
-        y=100, line_dash="dash", line_color="red", annotation_text="N-1 Limit",
+        y=100,
+        line_dash="dash",
+        line_color="red",
+        annotation_text="N-1 Limit",
     )
     fig.update_layout(
         template=PLOTLY_TEMPLATE,
@@ -307,9 +317,7 @@ def price_duration_curve(
         for col in prices.columns:
             sorted_vals = np.sort(prices[col].dropna().values)[::-1]
             hours = np.arange(1, len(sorted_vals) + 1)
-            fig.add_trace(
-                go.Scatter(x=hours, y=sorted_vals, name=col, mode="lines")
-            )
+            fig.add_trace(go.Scatter(x=hours, y=sorted_vals, name=col, mode="lines"))
     else:
         # Aggregate: mean price across all selected buses
         mean_prices = prices.mean(axis=1)
@@ -317,8 +325,13 @@ def price_duration_curve(
         hours = np.arange(1, len(sorted_vals) + 1)
         label = country or "Average"
         fig.add_trace(
-            go.Scatter(x=hours, y=sorted_vals, name=label, mode="lines",
-                       line={"color": COUNTRY_COLORS.get(country, "#2563eb")})
+            go.Scatter(
+                x=hours,
+                y=sorted_vals,
+                name=label,
+                mode="lines",
+                line={"color": COUNTRY_COLORS.get(country, "#2563eb")},
+            )
         )
 
     fig.update_layout(
@@ -511,8 +524,11 @@ def _empty_figure(message: str) -> dict[str, Any]:
     fig = go.Figure()
     fig.add_annotation(
         text=message,
-        xref="paper", yref="paper",
-        x=0.5, y=0.5, showarrow=False,
+        xref="paper",
+        yref="paper",
+        x=0.5,
+        y=0.5,
+        showarrow=False,
         font={"size": 16, "color": "grey"},
     )
     fig.update_layout(template=PLOTLY_TEMPLATE)
