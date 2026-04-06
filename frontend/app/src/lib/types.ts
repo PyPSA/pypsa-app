@@ -334,6 +334,8 @@ export interface MapDataResponse {
 	bounds: { southwest: [number, number]; northeast: [number, number] } | null;
 	total_buses: number;
 	total_branches: number;
+	carrier_colors: Record<string, string>;
+	country_colors: Record<string, string>;
 }
 
 // Saved view types

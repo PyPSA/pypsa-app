@@ -12,6 +12,7 @@ from pypsa_app.backend.api.deps import (
 )
 from pypsa_app.backend.models import Network
 from pypsa_app.backend.services.network import NetworkService
+from pypsa_app.backend.utils.carrier_colors import CARRIER_COLORS, COUNTRY_COLORS
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -21,11 +22,39 @@ def _load_network(network: Network) -> NetworkService:
     return NetworkService(network.file_path, use_cache=True)
 
 
+def _build_bus_stats(n) -> dict[str, dict]:
+    """Pre-compute per-bus generator/load counts and total capacity."""
+    stats: dict[str, dict] = {}
+
+    if len(n.generators) > 0:
+        for bus, group in n.generators.groupby("bus"):
+            s = stats.setdefault(str(bus), {})
+            s["generators"] = len(group)
+            s["gen_capacity"] = float(group["p_nom"].sum()) if "p_nom" in group else 0
+            # Dominant generator carrier at this bus
+            if "carrier" in group.columns:
+                s["gen_carriers"] = sorted(group["carrier"].unique().tolist())
+
+    if len(n.loads) > 0:
+        for bus, group in n.loads.groupby("bus"):
+            s = stats.setdefault(str(bus), {})
+            s["loads"] = len(group)
+
+    if len(n.storage_units) > 0:
+        for bus, group in n.storage_units.groupby("bus"):
+            s = stats.setdefault(str(bus), {})
+            s["storage"] = len(group)
+
+    return stats
+
+
 def _extract_bus_features(n, carriers: list[str] | None = None) -> list[dict]:
-    """Extract bus positions as GeoJSON Point features."""
+    """Extract bus positions as GeoJSON Point features with attached stats."""
     buses = n.buses
     if carriers:
         buses = buses[buses.carrier.isin(carriers)]
+
+    bus_stats = _build_bus_stats(n)
 
     features = []
     for idx, row in buses.iterrows():
@@ -40,6 +69,11 @@ def _extract_bus_features(n, carriers: list[str] | None = None) -> list[dict]:
                     props[col] = (
                         float(val) if isinstance(val, (int, float)) else str(val)
                     )
+
+        # Attach per-bus stats
+        if str(idx) in bus_stats:
+            props.update(bus_stats[str(idx)])
+
         features.append(
             {
                 "type": "Feature",
@@ -82,11 +116,22 @@ def _extract_branch_features(n, component: str, buses_df: pd.DataFrame) -> list[
             "type": component.rstrip("s"),  # "lines" -> "line", "links" -> "link"
         }
 
-        # Add capacity info
+        # Add capacity and carrier info
         if "s_nom" in row.index and pd.notna(row["s_nom"]):
             props["capacity"] = float(row["s_nom"])
         elif "p_nom" in row.index and pd.notna(row["p_nom"]):
             props["capacity"] = float(row["p_nom"])
+
+        if "carrier" in row.index and pd.notna(row["carrier"]):
+            props["carrier"] = str(row["carrier"])
+
+        # Cross-border flag
+        if bus0_name in buses_df.index and bus1_name in buses_df.index:
+            c0 = buses_df.loc[bus0_name].get("country", "")
+            c1 = buses_df.loc[bus1_name].get("country", "")
+            if c0 and c1 and c0 != c1:
+                props["cross_border"] = True
+                props["countries"] = f"{c0}-{c1}"
 
         features.append(
             {
@@ -126,6 +171,19 @@ def get_map_data(
             "northeast": [max(ys), max(xs)],
         }
 
+    # Collect unique carriers and countries for legend
+    bus_carriers = {
+        f["properties"]["carrier"]
+        for f in bus_features
+        if "carrier" in f["properties"]
+    }
+    carrier_colors = {c: CARRIER_COLORS.get(c, "#94a3b8") for c in bus_carriers}
+    country_colors = {
+        c: COUNTRY_COLORS.get(c, "#94a3b8")
+        for f in bus_features
+        if (c := f["properties"].get("country"))
+    }
+
     return {
         "buses": {
             "type": "FeatureCollection",
@@ -138,4 +196,6 @@ def get_map_data(
         "bounds": bounds,
         "total_buses": len(bus_features),
         "total_branches": len(line_features) + len(link_features),
+        "carrier_colors": carrier_colors,
+        "country_colors": country_colors,
     }
