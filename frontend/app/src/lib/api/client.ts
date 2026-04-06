@@ -24,6 +24,7 @@ import type {
 	SavedView,
 	SavedViewListResponse,
 	ViewConfig,
+	MapDataResponse,
 } from "$lib/types.js";
 
 const API_BASE = '/api/v1';
@@ -174,6 +175,18 @@ export const networks = {
 			`/networks/${id}/components/${componentName}/timeseries/${attr}${qs ? '?' + qs : ''}`,
 			{},
 			`component-ts-${id}-${componentName}-${attr}`
+		);
+	},
+	async getMapData(id: string, carriers?: string[]): Promise<MapDataResponse> {
+		const params = new URLSearchParams();
+		if (carriers && carriers.length > 0) {
+			carriers.forEach(c => params.append('carriers', c));
+		}
+		const qs = params.toString();
+		return request<MapDataResponse>(
+			`/networks/${id}/map${qs ? '?' + qs : ''}`,
+			{},
+			`map-${id}`
 		);
 	},
 	async updateComponentData(

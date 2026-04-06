@@ -19,6 +19,7 @@ from pypsa_app.backend.api.routes import (
     auth,
     cache,
     components,
+    map as map_routes,
     networks,
     plots,
     runs,
@@ -295,6 +296,9 @@ app.include_router(
 )
 app.include_router(
     components.router, prefix=f"{API_V1_PREFIX}/networks", tags=["components"]
+)
+app.include_router(
+    map_routes.router, prefix=f"{API_V1_PREFIX}/networks", tags=["map"]
 )
 app.include_router(plots.router, prefix=f"{API_V1_PREFIX}/plots", tags=["plots"])
 app.include_router(

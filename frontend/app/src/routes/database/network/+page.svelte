@@ -7,6 +7,7 @@
 	import type { Network as NetworkType, PlotData, PlotResponse, ApiError } from '$lib/types.js';
 	import type { ViewConfig } from '$lib/types.js';
 	import ComponentBrowser from './components/ComponentBrowser.svelte';
+	import NetworkMap from './components/NetworkMap.svelte';
 	import SaveViewDialog from './components/SaveViewDialog.svelte';
 	import ViewSelector from './components/ViewSelector.svelte';
 	import { formatFileSize, formatDate, formatRelativeTime, formatNumber, getDirectoryPath, getTagType, getTagColor } from '$lib/utils.js';
@@ -1500,6 +1501,15 @@ async function loadPlot(statistic: string, plotType: string, parameters: Record<
 					</table>
 				</div>
 				</div>
+
+				<!-- Network Map -->
+				{#if networkId}
+					<div class="col-span-1">
+						<div class="bg-card rounded-lg border border-border overflow-hidden h-full min-h-[300px]">
+							<NetworkMap networkId={networkId} carriers={selectedCarriers} />
+						</div>
+					</div>
+				{/if}
 
 			</div>
 

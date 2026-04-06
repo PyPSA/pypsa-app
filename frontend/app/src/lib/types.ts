@@ -306,6 +306,30 @@ export interface ComponentTimeseriesResponse {
 	limit: number;
 }
 
+// Map types
+
+export interface GeoJSONFeature {
+	type: 'Feature';
+	geometry: {
+		type: 'Point' | 'LineString';
+		coordinates: number[] | number[][];
+	};
+	properties: Record<string, unknown>;
+}
+
+export interface GeoJSONFeatureCollection {
+	type: 'FeatureCollection';
+	features: GeoJSONFeature[];
+}
+
+export interface MapDataResponse {
+	buses: GeoJSONFeatureCollection;
+	branches: GeoJSONFeatureCollection;
+	bounds: { southwest: [number, number]; northeast: [number, number] } | null;
+	total_buses: number;
+	total_branches: number;
+}
+
 // Saved view types
 
 export interface ViewConfig {
