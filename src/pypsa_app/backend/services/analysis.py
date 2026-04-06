@@ -346,7 +346,10 @@ def price_duration_curve(
             hours = np.arange(1, len(sorted_vals) + 1)
             fig.add_trace(
                 go.Scatter(
-                    x=hours, y=sorted_vals, name=col, mode="lines",
+                    x=hours,
+                    y=sorted_vals,
+                    name=col,
+                    mode="lines",
                 )
             )
     else:
@@ -355,15 +358,14 @@ def price_duration_curve(
         sorted_vals = np.sort(mean_prices.dropna().values)[::-1]
         hours = np.arange(1, len(sorted_vals) + 1)
         label = country or "Average"
-        color = (
-            COUNTRY_COLORS.get(country, "#2563eb")
-            if country
-            else "#2563eb"
-        )
+        color = COUNTRY_COLORS.get(country, "#2563eb") if country else "#2563eb"
         fig.add_trace(
             go.Scatter(
-                x=hours, y=sorted_vals, name=label,
-                mode="lines", line={"color": color},
+                x=hours,
+                y=sorted_vals,
+                name=label,
+                mode="lines",
+                line={"color": color},
             )
         )
 
@@ -485,17 +487,25 @@ def cross_border_flows(
 
     if has_links:
         _collect_cross_border_flows(
-            n, n.links, n.links_t.p0, country, country_buses, flows,
+            n,
+            n.links,
+            n.links_t.p0,
+            country,
+            country_buses,
+            flows,
         )
     if has_lines:
         _collect_cross_border_flows(
-            n, n.lines, n.lines_t.p0, country, country_buses, flows,
+            n,
+            n.lines,
+            n.lines_t.p0,
+            country,
+            country_buses,
+            flows,
         )
 
     if not flows:
-        return _empty_figure(
-            f"No cross-border connections found for {country}"
-        )
+        return _empty_figure(f"No cross-border connections found for {country}")
 
     fig = go.Figure()
     for label, series_list in flows.items():
@@ -625,9 +635,7 @@ def nodal_balance(
         return _empty_figure("No nodal data available")
 
     # Select top-N by absolute net injection
-    balance = balance.reindex(
-        balance["net_injection"].abs().nlargest(top_n).index
-    )
+    balance = balance.reindex(balance["net_injection"].abs().nlargest(top_n).index)
     balance = balance.sort_values("net_injection", ascending=True)
 
     snapshot_label = str(n.snapshots[snapshot_idx])
@@ -706,11 +714,7 @@ def line_flow_snapshot(
     n1_threshold = 100
     warning_threshold = 70
     bar_colors = [
-        "red"
-        if v > n1_threshold
-        else "orange"
-        if v > warning_threshold
-        else "green"
+        "red" if v > n1_threshold else "orange" if v > warning_threshold else "green"
         for v in top.values
     ]
 
@@ -721,10 +725,7 @@ def line_flow_snapshot(
             x=top.values[::-1],
             orientation="h",
             marker_color=bar_colors[::-1],
-            text=[
-                f"{top_flow[ln]:.0f} MW"
-                for ln in reversed(top.index)
-            ],
+            text=[f"{top_flow[ln]:.0f} MW" for ln in reversed(top.index)],
             textposition="outside",
         )
     )
