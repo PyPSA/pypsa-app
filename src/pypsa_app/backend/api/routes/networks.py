@@ -209,6 +209,34 @@ def delete_network(
     return {"message": message}
 
 
+# --- User search for sharing (non-admin) ---
+
+
+@router.get("/users/search")
+def search_users(
+    q: str = Query(..., min_length=1, description="Username search query"),
+    db: Session = Depends(get_db),
+    user: User = Depends(require_permission(Permission.NETWORKS_VIEW)),
+) -> list[dict]:
+    """Search users by username for sharing. Available to all authenticated users."""
+    from pypsa_app.backend.models import UserRole  # noqa: PLC0415
+
+    users = (
+        db.query(User)
+        .filter(
+            User.username.ilike(f"%{q}%"),
+            User.role != UserRole.PENDING,
+            User.id != user.id,
+        )
+        .limit(10)
+        .all()
+    )
+    return [
+        {"id": str(u.id), "username": u.username, "avatar_url": u.avatar_url}
+        for u in users
+    ]
+
+
 # --- Sharing endpoints ---
 
 

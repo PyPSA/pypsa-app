@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { networks, admin } from '$lib/api/client.js';
+	import { networks } from '$lib/api/client.js';
 	import type { User, ApiError } from '$lib/types.js';
 	import { Share2, X, UserPlus, Trash2, Loader2, Globe, Lock } from 'lucide-svelte';
 	import Button from '$lib/components/ui/button/button.svelte';
@@ -57,11 +57,9 @@
 		searchTimeout = setTimeout(async () => {
 			searching = true;
 			try {
-				const response = await admin.listUsers(0, 10);
-				// Filter client-side by username match
-				searchResults = response.data.filter(
-					u => u.username.toLowerCase().includes(value.toLowerCase())
-						&& !sharedUsers.some(su => su.id === u.id)
+				const results = await networks.searchUsers(value);
+				searchResults = results.filter(
+					u => !sharedUsers.some(su => su.id === u.id)
 				);
 			} catch {
 				searchResults = [];

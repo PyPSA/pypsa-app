@@ -250,11 +250,10 @@ def update_component_data(
 
     # Validate and export to file
     safe_path = validate_path(Path(auth.model.file_path), must_exist=True)
-    n.export(safe_path)
+    n.export_to_netcdf(safe_path)
 
     # Invalidate only the affected network in cache
-    with _network_cache._lock:
-        _network_cache.cache.pop(str(safe_path), None)
+    _network_cache.cache.pop(str(safe_path), None)
 
     logger.info(
         "Component data updated",

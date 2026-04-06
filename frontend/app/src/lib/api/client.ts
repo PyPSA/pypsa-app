@@ -135,6 +135,11 @@ export const networks = {
 	async delete(id: string): Promise<void> {
 		return request<void>(`/networks/${id}`, { method: 'DELETE' });
 	},
+	async searchUsers(q: string): Promise<{ id: string; username: string; avatar_url?: string }[]> {
+		return request<{ id: string; username: string; avatar_url?: string }[]>(
+			`/networks/users/search?q=${encodeURIComponent(q)}`
+		);
+	},
 	async getShares(id: string): Promise<NetworkShareResponse> {
 		return request<NetworkShareResponse>(`/networks/${id}/shares`);
 	},
