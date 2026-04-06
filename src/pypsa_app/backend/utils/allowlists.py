@@ -46,6 +46,8 @@ ALLOWED_ANALYSIS_TYPES: Final[frozenset[str]] = frozenset(
         "price_timeseries",
         "cross_border_flows",
         "capacity_mix",
+        "nodal_balance",
+        "line_flow_snapshot",
     }
 )
 

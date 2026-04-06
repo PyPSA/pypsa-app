@@ -571,6 +571,174 @@ def capacity_mix(
     return json.loads(fig.to_json())
 
 
+# ── Nodal Balance (GitHub issue #6) ──────────────────────────────────────────
+
+
+def nodal_balance(
+    file_paths: list[str],
+    *,
+    snapshot_idx: int = 0,
+    country: str | None = None,
+    top_n: int = 30,
+) -> dict[str, Any]:
+    """Per-node generation, load, and net injection at a given snapshot.
+
+    Returns a bar chart of top-N buses by absolute net injection,
+    showing generation vs load balance per node.
+    """
+    service = load_service(file_paths, use_cache=True)
+    n = service.n
+
+    if n.generators_t.p.empty:
+        return _empty_figure("No generator dispatch data available")
+
+    # Clamp snapshot index
+    snapshot_idx = max(0, min(snapshot_idx, len(n.snapshots) - 1))
+
+    # Generation per bus at this snapshot
+    gen_p = n.generators_t.p.iloc[snapshot_idx]
+    gen_by_bus = gen_p.groupby(n.generators.bus).sum()
+
+    # Load per bus at this snapshot
+    load_by_bus = pd.Series(dtype=float)
+    if not n.loads_t.p_set.empty:
+        load_p = n.loads_t.p_set.iloc[snapshot_idx]
+        load_by_bus = load_p.groupby(n.loads.bus).sum()
+
+    # Combine into a single DataFrame
+    all_buses = sorted(set(gen_by_bus.index) | set(load_by_bus.index))
+    balance = pd.DataFrame(
+        {
+            "generation": gen_by_bus.reindex(all_buses, fill_value=0),
+            "load": load_by_bus.reindex(all_buses, fill_value=0),
+        },
+        index=all_buses,
+    )
+    balance["net_injection"] = balance["generation"] - balance["load"]
+
+    # Optional country filter
+    if country:
+        country_buses = _buses_in_country(n, country)
+        balance = balance.loc[balance.index.isin(country_buses)]
+
+    if balance.empty:
+        return _empty_figure("No nodal data available")
+
+    # Select top-N by absolute net injection
+    balance = balance.reindex(
+        balance["net_injection"].abs().nlargest(top_n).index
+    )
+    balance = balance.sort_values("net_injection", ascending=True)
+
+    snapshot_label = str(n.snapshots[snapshot_idx])
+
+    fig = go.Figure()
+    fig.add_trace(
+        go.Bar(
+            y=balance.index,
+            x=balance["generation"].values,
+            name="Generation",
+            orientation="h",
+            marker_color="#2ca02c",
+        )
+    )
+    fig.add_trace(
+        go.Bar(
+            y=balance.index,
+            x=-balance["load"].values,
+            name="Load",
+            orientation="h",
+            marker_color="#d62728",
+        )
+    )
+
+    fig.update_layout(
+        template=PLOTLY_TEMPLATE,
+        title=f"Nodal Balance — {snapshot_label}"
+        + (f" ({country})" if country else ""),
+        xaxis_title="Power (MW, + = generation, - = load)",
+        barmode="overlay",
+        height=max(400, top_n * 20),
+        hovermode="y unified",
+    )
+
+    return json.loads(fig.to_json())
+
+
+def line_flow_snapshot(
+    file_paths: list[str],
+    *,
+    snapshot_idx: int = 0,
+    top_n: int = 30,
+) -> dict[str, Any]:
+    """Per-line power flow and loading % at a given snapshot.
+
+    Returns a horizontal bar chart of top-N lines by loading %,
+    with flow magnitude and direction indicated.
+    """
+    service = load_service(file_paths, use_cache=True)
+    n = service.n
+
+    if not len(n.lines) or n.lines_t.p0.empty:
+        return _empty_figure("No line flow data available")
+
+    snapshot_idx = max(0, min(snapshot_idx, len(n.snapshots) - 1))
+    snapshot_label = str(n.snapshots[snapshot_idx])
+
+    # Flow at this snapshot
+    flow = n.lines_t.p0.iloc[snapshot_idx]
+    s_nom = n.lines.s_nom
+    s_nom_safe = s_nom.replace(0, np.nan)
+    loading = (flow.abs() / s_nom_safe * 100).dropna()
+
+    # Top-N by loading
+    top = loading.nlargest(top_n)
+    top_flow = flow.loc[top.index]
+
+    # Build labels with direction
+    labels = []
+    for line_name in top.index:
+        bus0 = n.lines.at[line_name, "bus0"]
+        bus1 = n.lines.at[line_name, "bus1"]
+        direction = "→" if top_flow[line_name] >= 0 else "←"
+        labels.append(f"{bus0} {direction} {bus1}")
+
+    n1_threshold = 100
+    warning_threshold = 70
+    bar_colors = [
+        "red"
+        if v > n1_threshold
+        else "orange"
+        if v > warning_threshold
+        else "green"
+        for v in top.values
+    ]
+
+    fig = go.Figure()
+    fig.add_trace(
+        go.Bar(
+            y=labels[::-1],
+            x=top.values[::-1],
+            orientation="h",
+            marker_color=bar_colors[::-1],
+            text=[
+                f"{top_flow[ln]:.0f} MW"
+                for ln in reversed(top.index)
+            ],
+            textposition="outside",
+        )
+    )
+
+    fig.update_layout(
+        template=PLOTLY_TEMPLATE,
+        title=f"Line Loading — {snapshot_label}",
+        xaxis_title="Loading (%)",
+        height=max(400, top_n * 22),
+    )
+
+    return json.loads(fig.to_json())
+
+
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
 
@@ -600,6 +768,8 @@ ANALYSIS_TYPES: dict[str, callable] = {
     "price_timeseries": price_timeseries,
     "cross_border_flows": cross_border_flows,
     "capacity_mix": capacity_mix,
+    "nodal_balance": nodal_balance,
+    "line_flow_snapshot": line_flow_snapshot,
 }
 
 
