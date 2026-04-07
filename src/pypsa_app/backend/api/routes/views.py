@@ -102,9 +102,12 @@ def get_view(
         raise HTTPException(404, "View not found")
 
     # Check access: own views or public
-    if view.user_id != user.id and view.visibility != Visibility.PUBLIC:
-        if not has_permission(user, Permission.NETWORKS_MANAGE_ALL):
-            raise HTTPException(404, "View not found")
+    if (
+        view.user_id != user.id
+        and view.visibility != Visibility.PUBLIC
+        and not has_permission(user, Permission.NETWORKS_MANAGE_ALL)
+    ):
+        raise HTTPException(404, "View not found")
 
     return view
 

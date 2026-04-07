@@ -4,6 +4,7 @@ import logging
 from typing import Any
 
 import pandas as pd
+import pypsa
 from fastapi import APIRouter, Depends, Query
 
 from pypsa_app.backend.api.deps import (
@@ -22,7 +23,7 @@ def _load_network(network: Network) -> NetworkService:
     return NetworkService(network.file_path, use_cache=True)
 
 
-def _build_bus_stats(n) -> dict[str, dict]:
+def _build_bus_stats(n: pypsa.Network) -> dict[str, dict]:
     """Pre-compute per-bus generator/load counts and total capacity."""
     stats: dict[str, dict] = {}
 
@@ -48,7 +49,9 @@ def _build_bus_stats(n) -> dict[str, dict]:
     return stats
 
 
-def _extract_bus_features(n, carriers: list[str] | None = None) -> list[dict]:
+def _extract_bus_features(
+    n: pypsa.Network, carriers: list[str] | None = None
+) -> list[dict]:
     """Extract bus positions as GeoJSON Point features with attached stats."""
     buses = n.buses
     if carriers:
@@ -84,7 +87,9 @@ def _extract_bus_features(n, carriers: list[str] | None = None) -> list[dict]:
     return features
 
 
-def _extract_branch_features(n, component: str, buses_df: pd.DataFrame) -> list[dict]:
+def _extract_branch_features(
+    n: pypsa.Network, component: str, buses_df: pd.DataFrame
+) -> list[dict]:
     """Extract branch (Line/Link) data as GeoJSON LineString features."""
     df = getattr(n, component, None)
     if df is None or len(df) == 0:
@@ -106,7 +111,8 @@ def _extract_branch_features(n, component: str, buses_df: pd.DataFrame) -> list[
                 break
             coords.append([float(x), float(y)])
 
-        if len(coords) != 2:
+        expected_endpoints = 2
+        if len(coords) != expected_endpoints:
             continue
 
         props: dict[str, Any] = {

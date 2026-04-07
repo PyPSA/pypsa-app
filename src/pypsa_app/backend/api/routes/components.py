@@ -4,6 +4,7 @@ import logging
 from pathlib import Path
 
 import pandas as pd
+import pypsa
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
@@ -35,15 +36,15 @@ def _load_network(network: Network, *, use_cache: bool = True) -> NetworkService
     return NetworkService(network.file_path, use_cache=use_cache)
 
 
-def _find_component(n, component_name: str):
+def _find_component(n: pypsa.Network, component_name: str):  # noqa: ANN202
     """Find a component by name or list_name. Raises 404 if not found."""
     for c in n.components:
-        if c.name == component_name or c.list_name == component_name:
+        if component_name in (c.name, c.list_name):
             return c
     raise HTTPException(404, f"Component '{component_name}' not found in network")
 
 
-def _get_dynamic_attrs(n, list_name: str) -> list[str]:
+def _get_dynamic_attrs(n: pypsa.Network, list_name: str) -> list[str]:
     """Get non-empty time-varying attribute names for a component."""
     dynamic_attr = f"{list_name}_t"
     if not hasattr(n, dynamic_attr):
@@ -51,15 +52,13 @@ def _get_dynamic_attrs(n, list_name: str) -> list[str]:
 
     dynamic_store = getattr(n, dynamic_attr)
     attrs = []
-    # Use pandas-based iteration over known DataFrame attributes
-    # rather than dir() which can expose internal Python attributes
     for attr_name in dynamic_store:
         try:
             attr_val = getattr(dynamic_store, attr_name, None)
             if isinstance(attr_val, pd.DataFrame) and len(attr_val) > 0:
                 attrs.append(attr_name)
-        except Exception:
-            continue
+        except Exception:  # noqa: S112
+            logger.debug("Skipping dynamic attr %s.%s", list_name, attr_name)
     return sorted(attrs)
 
 
