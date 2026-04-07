@@ -1,6 +1,7 @@
 """API routes for browsing and editing network component data."""
 
 import logging
+import math
 from pathlib import Path
 
 import pandas as pd
@@ -62,6 +63,16 @@ def _get_dynamic_attrs(n: pypsa.Network, list_name: str) -> list[str]:
     return sorted(attrs)
 
 
+def _safe_category(c) -> str | None:  # noqa: ANN001, ANN202
+    """Extract component category, handling NaN values."""
+    cat = getattr(c, "category", None)
+    if cat is None:
+        return None
+    if isinstance(cat, float) and math.isnan(cat):
+        return None
+    return str(cat) if cat else None
+
+
 @router.get("/{network_id}/components", response_model=ComponentListResponse)
 def list_components(
     auth: Authorized[Network] = Depends(require_network("read")),
@@ -85,7 +96,7 @@ def list_components(
                 name=c.name,
                 list_name=c.list_name,
                 count=len(c),
-                category=getattr(c, "category", None) or None,
+                category=_safe_category(c),
                 attrs=list(static_df.columns),
                 has_dynamic=len(dynamic_attrs) > 0,
                 dynamic_attrs=dynamic_attrs,
