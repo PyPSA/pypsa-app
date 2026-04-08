@@ -14,15 +14,21 @@ from starlette.middleware.sessions import SessionMiddleware
 from pypsa_app.backend.__version__ import __description__, __version__
 from pypsa_app.backend.api.routes import (
     admin,
+    analysis,
     api_keys,
     auth,
     cache,
+    components,
     networks,
     plots,
     runs,
     statistics,
     tasks,
     version,
+    views,
+)
+from pypsa_app.backend.api.routes import (
+    map as map_routes,
 )
 from pypsa_app.backend.auth.authenticate import set_auth_disabled_user
 from pypsa_app.backend.cache import cache_service
@@ -290,12 +296,22 @@ app.include_router(admin.router, prefix=f"{API_V1_PREFIX}/admin", tags=["admin"]
 app.include_router(
     networks.router, prefix=f"{API_V1_PREFIX}/networks", tags=["networks"]
 )
+app.include_router(
+    components.router, prefix=f"{API_V1_PREFIX}/networks", tags=["components"]
+)
+app.include_router(map_routes.router, prefix=f"{API_V1_PREFIX}/networks", tags=["map"])
 app.include_router(plots.router, prefix=f"{API_V1_PREFIX}/plots", tags=["plots"])
+app.include_router(
+    analysis.router,
+    prefix=f"{API_V1_PREFIX}/analysis",
+    tags=["analysis"],
+)
 app.include_router(
     statistics.router,
     prefix=f"{API_V1_PREFIX}/statistics",
     tags=["statistics"],
 )
+app.include_router(views.router, prefix=f"{API_V1_PREFIX}/views", tags=["views"])
 app.include_router(cache.router, prefix=f"{API_V1_PREFIX}/cache", tags=["cache"])
 app.include_router(version.router, prefix=f"{API_V1_PREFIX}/version", tags=["version"])
 app.include_router(tasks.router, prefix=f"{API_V1_PREFIX}/tasks", tags=["tasks"])

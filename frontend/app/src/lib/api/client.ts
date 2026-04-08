@@ -1,6 +1,7 @@
 import type {
 	User,
 	Network,
+	NetworkShareResponse,
 	Run,
 	RunSummary,
 	Backend,
@@ -18,6 +19,13 @@ import type {
 	Visibility,
 	PaginatedResponse,
 	Workflow,
+	ComponentListResponse,
+	ComponentDataResponse,
+	ComponentTimeseriesResponse,
+	SavedView,
+	SavedViewListResponse,
+	ViewConfig,
+	MapDataResponse,
 } from "$lib/types.js";
 
 const API_BASE = '/api/v1';
@@ -127,10 +135,86 @@ export const networks = {
 	async delete(id: string): Promise<void> {
 		return request<void>(`/networks/${id}`, { method: 'DELETE' });
 	},
+	async searchUsers(q: string): Promise<{ id: string; username: string; avatar_url?: string }[]> {
+		return request<{ id: string; username: string; avatar_url?: string }[]>(
+			`/networks/users/search?q=${encodeURIComponent(q)}`
+		);
+	},
+	async getShares(id: string): Promise<NetworkShareResponse> {
+		return request<NetworkShareResponse>(`/networks/${id}/shares`);
+	},
+	async shareWith(id: string, userId: string): Promise<NetworkShareResponse> {
+		return request<NetworkShareResponse>(`/networks/${id}/shares`, {
+			method: 'POST',
+			body: JSON.stringify({ user_id: userId })
+		});
+	},
+	async unshare(id: string, userId: string): Promise<NetworkShareResponse> {
+		return request<NetworkShareResponse>(`/networks/${id}/shares/${userId}`, { method: 'DELETE' });
+	},
 	async updateVisibility(id: string, visibility: Visibility): Promise<Network> {
 		return request<Network>(`/networks/${id}`, {
 			method: 'PATCH',
 			body: JSON.stringify({ visibility })
+		});
+	},
+	async getComponents(id: string): Promise<ComponentListResponse> {
+		return request<ComponentListResponse>(`/networks/${id}/components`, {}, `components-${id}`);
+	},
+	async getComponentData(
+		id: string,
+		componentName: string,
+		params: { skip?: number; limit?: number; sort_by?: string; sort_desc?: boolean; search?: string } = {}
+	): Promise<ComponentDataResponse> {
+		const searchParams = new URLSearchParams();
+		if (params.skip !== undefined) searchParams.set('skip', String(params.skip));
+		if (params.limit !== undefined) searchParams.set('limit', String(params.limit));
+		if (params.sort_by) searchParams.set('sort_by', params.sort_by);
+		if (params.sort_desc) searchParams.set('sort_desc', 'true');
+		if (params.search) searchParams.set('search', params.search);
+		const qs = searchParams.toString();
+		return request<ComponentDataResponse>(
+			`/networks/${id}/components/${componentName}${qs ? '?' + qs : ''}`,
+			{},
+			`component-data-${id}-${componentName}`
+		);
+	},
+	async getComponentTimeseries(
+		id: string,
+		componentName: string,
+		attr: string,
+		params: { skip?: number; limit?: number } = {}
+	): Promise<ComponentTimeseriesResponse> {
+		const searchParams = new URLSearchParams();
+		if (params.skip !== undefined) searchParams.set('skip', String(params.skip));
+		if (params.limit !== undefined) searchParams.set('limit', String(params.limit));
+		const qs = searchParams.toString();
+		return request<ComponentTimeseriesResponse>(
+			`/networks/${id}/components/${componentName}/timeseries/${attr}${qs ? '?' + qs : ''}`,
+			{},
+			`component-ts-${id}-${componentName}-${attr}`
+		);
+	},
+	async getMapData(id: string, carriers?: string[]): Promise<MapDataResponse> {
+		const params = new URLSearchParams();
+		if (carriers && carriers.length > 0) {
+			carriers.forEach(c => params.append('carriers', c));
+		}
+		const qs = params.toString();
+		return request<MapDataResponse>(
+			`/networks/${id}/map${qs ? '?' + qs : ''}`,
+			{},
+			`map-${id}`
+		);
+	},
+	async updateComponentData(
+		id: string,
+		componentName: string,
+		updates: Record<string, Record<string, unknown>>
+	): Promise<{ message: string }> {
+		return request<{ message: string }>(`/networks/${id}/components/${componentName}`, {
+			method: 'PATCH',
+			body: JSON.stringify({ updates })
 		});
 	}
 };
@@ -296,6 +380,38 @@ export const runs = {
 	},
 	async workflow(id: string): Promise<Workflow> {
 		return request<Workflow>(`/runs/${id}/workflow`, {}, `run-workflow-${id}`);
+	}
+};
+
+// Views API
+export const savedViews = {
+	async list(networkId?: string, skip = 0, limit = 50): Promise<SavedViewListResponse> {
+		const params = new URLSearchParams({ skip: String(skip), limit: String(limit) });
+		if (networkId) params.set('network_id', networkId);
+		return request<SavedViewListResponse>(`/views/?${params}`);
+	},
+	async get(id: string): Promise<SavedView> {
+		return request<SavedView>(`/views/${id}`);
+	},
+	async create(body: {
+		name: string;
+		description?: string;
+		network_id?: string;
+		visibility?: string;
+		config: ViewConfig;
+	}): Promise<SavedView> {
+		return request<SavedView>('/views/', { method: 'POST', body: JSON.stringify(body) });
+	},
+	async update(id: string, body: {
+		name?: string;
+		description?: string;
+		visibility?: string;
+		config?: ViewConfig;
+	}): Promise<SavedView> {
+		return request<SavedView>(`/views/${id}`, { method: 'PATCH', body: JSON.stringify(body) });
+	},
+	async delete(id: string): Promise<void> {
+		return request<void>(`/views/${id}`, { method: 'DELETE' });
 	}
 };
 

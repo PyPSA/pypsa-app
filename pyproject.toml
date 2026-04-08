@@ -30,6 +30,8 @@ dependencies = [
     "httpx",
     "python-multipart",
     "alembic",
+    "orjson",
+    "plotly",
 ]
 
 [project.optional-dependencies]
@@ -37,6 +39,7 @@ full = [
     "psycopg2-binary",
     "redis",
     "celery[redis]",
+    "polars",
 ]
 
 dev = [

@@ -14,6 +14,7 @@
 	import StatusBadge from './cells/StatusBadge.svelte';
 	import { Play } from 'lucide-svelte';
 	import { toast } from 'svelte-sonner';
+	import CreateRunDialog from './components/CreateRunDialog.svelte';
 	import PaginatedTable from '$lib/components/PaginatedTable.svelte';
 	import { createColumns } from './components/columns.js';
 	import { authStore } from '$lib/stores/auth.svelte.js';
@@ -248,6 +249,12 @@
 
 <div class="min-h-screen">
 	<div class="max-w-[80rem] mx-auto py-8">
+		<!-- Header with New Run button -->
+		<div class="flex items-center justify-between mb-4">
+			<div></div>
+			<CreateRunDialog />
+		</div>
+
 		<!-- Filter bar always visible (except during initial load) -->
 		{#if viewState !== 'loading' && viewState !== 'empty'}
 			<FilterBar

@@ -53,6 +53,25 @@ user_backends = Table(
 )
 
 
+network_shares = Table(
+    "network_shares",
+    Base.metadata,
+    Column(
+        "network_id",
+        Uuid,
+        ForeignKey("networks.id", ondelete="CASCADE"),
+        primary_key=True,
+    ),
+    Column(
+        "user_id",
+        Uuid,
+        ForeignKey("users.id", ondelete="CASCADE"),
+        primary_key=True,
+    ),
+    Column("created_at", TIMESTAMP, server_default=func.now()),
+)
+
+
 class SnakedispatchBackend(Base):
     """A registered Snakedispatch execution backend."""
 
@@ -242,10 +261,50 @@ class Network(Base):
     facets: Mapped[Any | None] = mapped_column(JSON)
     topology_svg: Mapped[str | None] = mapped_column(Text)
 
+    shared_with: Mapped[list["User"]] = relationship(
+        secondary=network_shares, backref="shared_networks"
+    )
+
+    @property
+    def shared_user_ids(self) -> list[uuid.UUID]:
+        return [u.id for u in self.shared_with]
+
     @property
     def tags(self) -> list | None:
         tags = self.meta.get("tags") if self.meta else None
         return tags if isinstance(tags, list) else None
+
+
+class SavedView(Base):
+    """A saved dashboard view configuration for a network."""
+
+    __tablename__ = "saved_views"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"),
+        index=True,
+    )
+    owner: Mapped["User"] = relationship(foreign_keys=[user_id])
+    network_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("networks.id", ondelete="CASCADE"),
+        index=True,
+    )
+    network: Mapped["Network | None"] = relationship(foreign_keys=[network_id])
+    name: Mapped[str] = mapped_column(String(255))
+    description: Mapped[str | None] = mapped_column(Text)
+    visibility: Mapped[Visibility] = mapped_column(
+        str_enum(Visibility, "visibility"),
+        default=Visibility.PRIVATE,
+        nullable=False,
+    )
+    config: Mapped[Any] = mapped_column(JSON, nullable=False)
+    created_at: Mapped[datetime | None] = mapped_column(
+        TIMESTAMP, server_default=func.now()
+    )
+    updated_at: Mapped[datetime | None] = mapped_column(
+        TIMESTAMP, server_default=func.now(), onupdate=func.now()
+    )
 
 
 class RunStatus(enum.StrEnum):

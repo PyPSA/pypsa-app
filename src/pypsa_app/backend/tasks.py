@@ -12,6 +12,7 @@ from pypsa_app.backend.cache import cache
 from pypsa_app.backend.database import SessionLocal
 from pypsa_app.backend.models import Run, RunStatus, SnakedispatchBackend
 from pypsa_app.backend.schemas.task import TaskResultResponse
+from pypsa_app.backend.services.analysis import run_analysis as run_analysis_service
 from pypsa_app.backend.services.callback import fire_callback_sync
 from pypsa_app.backend.services.network import import_network_file
 from pypsa_app.backend.services.run import SnakedispatchClient
@@ -67,6 +68,13 @@ def get_plot_task(self: Any, **kwargs: Any) -> dict[str, Any]:
     """Background task for plot generation"""
     func = cache("plot", ttl=settings.plot_cache_ttl)(get_plot_service)
     return _execute_task(self, "Plot generation", func, **kwargs)
+
+
+@task_app.task(bind=True, name="tasks.run_analysis")
+def run_analysis_task(self: Any, **kwargs: Any) -> dict[str, Any]:
+    """Background task for custom analysis generation"""
+    func = cache("analysis", ttl=settings.plot_cache_ttl)(run_analysis_service)
+    return _execute_task(self, "Analysis generation", func, **kwargs)
 
 
 @task_app.task(bind=True, name="tasks.import_run_outputs")

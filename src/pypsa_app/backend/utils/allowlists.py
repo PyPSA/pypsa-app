@@ -37,4 +37,18 @@ ALLOWED_CHART_TYPES: Final[frozenset[str]] = frozenset(
     }
 )
 
-__all__ = ["ALLOWED_STATISTICS", "ALLOWED_CHART_TYPES"]
+ALLOWED_ANALYSIS_TYPES: Final[frozenset[str]] = frozenset(
+    {
+        "dispatch_area",
+        "line_loading_histogram",
+        "line_loading_timeseries",
+        "price_duration_curve",
+        "price_timeseries",
+        "cross_border_flows",
+        "capacity_mix",
+        "nodal_balance",
+        "line_flow_snapshot",
+    }
+)
+
+__all__ = ["ALLOWED_STATISTICS", "ALLOWED_CHART_TYPES", "ALLOWED_ANALYSIS_TYPES"]

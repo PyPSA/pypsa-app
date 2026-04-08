@@ -41,6 +41,7 @@ export interface Network {
 	file_size?: number;
 	visibility: Visibility;
 	owner: User;
+	shared_with?: User[];
 	source_run_id?: string;
 	dimensions?: Record<string, number>;
 	dimensions_count?: number;
@@ -50,6 +51,11 @@ export interface Network {
 	update_history?: string[];
 	created_at?: string;
 	updated_at?: string;
+}
+
+export interface NetworkShareResponse {
+	network_id: string;
+	shared_with: User[];
 }
 
 export type Visibility = "public" | "private";
@@ -265,6 +271,105 @@ export interface Workflow {
 	rulegraph: Rulegraph | null;
 	rules: WorkflowRule[];
 	errors: WorkflowError[];
+}
+
+// Component types
+
+export interface ComponentSummary {
+	name: string;
+	list_name: string;
+	count: number;
+	category: string | null;
+	attrs: string[];
+	has_dynamic: boolean;
+	dynamic_attrs: string[];
+}
+
+export interface ComponentListResponse {
+	components: ComponentSummary[];
+	total_components: number;
+}
+
+export interface ComponentDataResponse {
+	component: string;
+	columns: string[];
+	index: string[];
+	data: (string | number | boolean | null)[][];
+	dtypes: Record<string, string>;
+	total: number;
+	skip: number;
+	limit: number;
+}
+
+export interface ComponentTimeseriesResponse {
+	component: string;
+	attr: string;
+	columns: string[];
+	index: string[];
+	data: (number | null)[][];
+	total_snapshots: number;
+	skip: number;
+	limit: number;
+}
+
+// Map types
+
+export interface GeoJSONFeature {
+	type: 'Feature';
+	geometry: {
+		type: 'Point' | 'LineString';
+		coordinates: number[] | number[][];
+	};
+	properties: Record<string, unknown>;
+}
+
+export interface GeoJSONFeatureCollection {
+	type: 'FeatureCollection';
+	features: GeoJSONFeature[];
+}
+
+export interface MapDataResponse {
+	buses: GeoJSONFeatureCollection;
+	branches: GeoJSONFeatureCollection;
+	bounds: { southwest: [number, number]; northeast: [number, number] } | null;
+	total_buses: number;
+	total_branches: number;
+	carrier_colors: Record<string, string>;
+	country_colors: Record<string, string>;
+}
+
+// Saved view types
+
+export interface ViewConfig {
+	active_tab?: string;
+	statistic?: string;
+	plot_type?: string;
+	selected_carriers: string[];
+	selected_countries: string[];
+	individual_plots: boolean;
+	analysis_type?: string;
+	analysis_parameters: Record<string, unknown>;
+	selected_component?: string;
+	component_columns?: string[];
+	compare_network_ids: string[];
+	extra: Record<string, unknown>;
+}
+
+export interface SavedView {
+	id: string;
+	name: string;
+	description?: string;
+	network_id?: string;
+	visibility: Visibility;
+	config: ViewConfig;
+	owner: User;
+	created_at?: string;
+	updated_at?: string;
+}
+
+export interface SavedViewListResponse {
+	data: SavedView[];
+	total: number;
 }
 
 // API error type
