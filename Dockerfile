@@ -35,6 +35,7 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y \
     curl \
     gosu \
+    tini \
     libhdf5-310 \
     libnetcdf22 \
     && rm -rf /var/lib/apt/lists/*

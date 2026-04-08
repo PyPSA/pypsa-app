@@ -7,4 +7,5 @@ chown -R appuser:appuser /data
 
 gosu appuser alembic upgrade head
 
-exec gosu appuser "$@"
+# Use tini as PID 1 to clean up zombie processes (e.g. docker health checks)
+exec tini -- gosu appuser "$@"
