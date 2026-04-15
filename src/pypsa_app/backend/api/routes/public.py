@@ -38,9 +38,7 @@ async def get_public_run(run: Run = Depends(require_public_run)) -> JSONResponse
     )
 
     is_terminal = run.status in RUN_TERMINAL_STATUSES
-    cache_control = (
-        "public, max-age=300" if is_terminal else "no-cache"
-    )
+    cache_control = "public, max-age=300" if is_terminal else "no-cache"
 
     return JSONResponse(
         content=data.model_dump(mode="json"),

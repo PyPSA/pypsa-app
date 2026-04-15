@@ -529,8 +529,6 @@
 							<span class="text-sm font-medium">Files</span>
 							{#if outputsLoading}
 								<Loader2 class="h-3.5 w-3.5 animate-spin text-muted-foreground" />
-							{:else if outputsError}
-								<span class="text-xs text-destructive">{outputsError}</span>
 							{:else if outputsUnavailable}
 								<span class="text-xs text-muted-foreground">no longer available</span>
 							{:else if outputFiles && outputFiles.length > 0}
