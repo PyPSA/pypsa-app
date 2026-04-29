@@ -45,6 +45,7 @@ class RunCreate(BaseModel):
     configfile: str | None = None
     snakemake_args: list[str] | None = None
     extra_files: dict[str, str] | None = None
+    env_vars: dict[str, str] | None = None
     cache: RunCache | None = None
     import_networks: list[str] | None = None
     backend_id: uuid.UUID | None = None
