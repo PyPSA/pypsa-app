@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import logging
 import math
@@ -12,13 +13,14 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+import pandas as pd
 import pypsa
 
 from pypsa_app.backend.models import Network, Permission, User, Visibility
 from pypsa_app.backend.permissions import has_permission
 from pypsa_app.backend.settings import settings
-from pypsa_app.backend.utils.validation import validate_path
 from pypsa_app.backend.utils.serializers import sanitize_metadata
+from pypsa_app.backend.utils.validation import validate_path
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
@@ -159,11 +161,7 @@ class NetworkService:
 
         info["name"] = self.n.name
 
-        info["dimensions_count"] = {
-            "timesteps": len(self.n.snapshots),
-            "periods": len(self.n.investment_periods),
-            "scenarios": len(self.n.scenarios),
-        }
+        info["dimensions"] = self._extract_dimensions(self.n)
 
         info["components_count"] = {
             c.name: int(len(c))
@@ -185,6 +183,40 @@ class NetworkService:
         info["facets"] = facets or None
 
         return info
+
+    @staticmethod
+    def _extract_dimension(idx: pd.Index) -> dict:
+        """Extract count, start, end, freq for a single dimension index."""
+        info: dict = {"count": len(idx)}
+        if len(idx) > 0:
+            info["start"] = pd.Timestamp(idx[0]).isoformat()
+            info["end"] = pd.Timestamp(idx[-1]).isoformat()
+        if len(idx) >= 3:  # noqa: PLR2004
+            with contextlib.suppress(ValueError, TypeError):
+                info["freq"] = pd.infer_freq(idx)
+        return info
+
+    @classmethod
+    def _extract_dimensions(cls, network: pypsa.Network) -> dict:
+        """Extract dimensions payload for timesteps, periods, scenarios."""
+        snapshots = network.snapshots
+        if isinstance(snapshots, pd.MultiIndex):
+            level = (
+                "timestep" if "timestep" in snapshots.names else snapshots.names[-1]
+            )
+            timesteps_idx = snapshots.get_level_values(level).unique()
+        else:
+            timesteps_idx = snapshots
+
+        return {
+            "timesteps": cls._extract_dimension(timesteps_idx),
+            "periods": cls._extract_dimension(
+                pd.Index(network.investment_periods),
+            ),
+            "scenarios": cls._extract_dimension(
+                pd.Index(network.scenarios),
+            ),
+        }
 
     @staticmethod
     def _extract_carriers(network: pypsa.Network) -> dict[str, dict]:
@@ -321,11 +353,12 @@ def import_network_file(
         file_hash=file_hash,
         file_size=service.get_file_size(),
         name=info["name"],
-        dimensions_count=info["dimensions_count"],
+        dimensions=info["dimensions"],
         components_count=info["components_count"],
         meta=info["meta"],
         facets=info["facets"],
-        update_history=[datetime.now(UTC).isoformat()],
+        # SQLite stores naive datetimes; strip tzinfo but always generate UTC
+        update_history=[datetime.now(UTC).replace(tzinfo=None).isoformat()],
     )
     db.add(network)
     db.flush()

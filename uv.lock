@@ -1368,6 +1368,15 @@ wheels = [
 ]
 
 [[package]]
+name = "platformdirs"
+version = "4.9.6"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/9f/4a/0883b8e3802965322523f0b200ecf33d31f10991d0401162f4b23c698b42/platformdirs-4.9.6.tar.gz", hash = "sha256:3bfa75b0ad0db84096ae777218481852c0ebc6c727b3168c1b9e0118e458cf0a", size = 29400, upload-time = "2026-04-09T00:04:10.812Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/75/a6/a0a304dc33b49145b21f4808d763822111e67d1c3a32b524a1baf947b6e1/platformdirs-4.9.6-py3-none-any.whl", hash = "sha256:e61adb1d5e5cb3441b4b7710bea7e4c12250ca49439228cc1021c00dcfac0917", size = 21348, upload-time = "2026-04-09T00:04:09.463Z" },
+]
+
+[[package]]
 name = "plotly"
 version = "6.6.0"
 source = { registry = "https://pypi.org/simple" }
@@ -1715,7 +1724,7 @@ wheels = [
 
 [[package]]
 name = "pypsa"
-version = "1.1.2"
+version = "1.2.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "deprecation" },
@@ -1728,6 +1737,7 @@ dependencies = [
     { name = "networkx" },
     { name = "numpy" },
     { name = "pandas" },
+    { name = "platformdirs" },
     { name = "plotly" },
     { name = "pydeck" },
     { name = "scipy" },
@@ -1736,9 +1746,9 @@ dependencies = [
     { name = "validators" },
     { name = "xarray" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/b1/fe/072985bef3419079fa4b4039b989cd05c062f49664be803cc11a6ce9c6e5/pypsa-1.1.2.tar.gz", hash = "sha256:5d8ac5e1416b095326c3cf687708dc2d78f5b34d7ea9811d9c48286a02296d7d", size = 12985258, upload-time = "2026-02-23T17:00:53.572Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/1d/40/bd7be1b98e2a094bd9b96793d94291d241059fb5ea77c6c446993c0c0360/pypsa-1.2.0.tar.gz", hash = "sha256:36c71ac19c9d1a379a671fbf333bde1a714ca742767fa168b40edbdfe3a1b8b1", size = 13049881, upload-time = "2026-04-22T07:14:34.81Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/1d/20/f90749cef27e91d33729110514704cec78b4b4bc6087f7b3872ca57ed884/pypsa-1.1.2-py3-none-any.whl", hash = "sha256:5b48e6cfe14127c354d3e20fb1383e10dfdb28e23be588e95e179319bf632ad6", size = 347349, upload-time = "2026-02-23T17:00:51.733Z" },
+    { url = "https://files.pythonhosted.org/packages/e9/63/0b45d680612131fa26f1fd3766774d7c95766537db5cc86dbbd96c07f01b/pypsa-1.2.0-py3-none-any.whl", hash = "sha256:76e1fdd459b8328edd0edc34a7e08350b4f1ccc2d002492d144238bc64ca481c", size = 358326, upload-time = "2026-04-22T07:14:32.502Z" },
 ]
 
 [[package]]
@@ -1782,7 +1792,7 @@ requires-dist = [
     { name = "psycopg2-binary", marker = "extra == 'full'" },
     { name = "pydantic" },
     { name = "pydantic-settings" },
-    { name = "pypsa", specifier = ">1.1" },
+    { name = "pypsa", specifier = ">=1.2" },
     { name = "pytest", marker = "extra == 'dev'" },
     { name = "pytest-asyncio", marker = "extra == 'dev'" },
     { name = "python-multipart" },

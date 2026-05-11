@@ -7,7 +7,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from sqlalchemy.orm import Session, joinedload
 
 from pypsa_app.backend.api.deps import get_backend, get_db, require_permission
-from pypsa_app.backend.api.utils.network_utils import delete_network
+from pypsa_app.backend.api.utils.network import delete_network
 from pypsa_app.backend.models import (
     Network,
     Permission,

@@ -23,7 +23,7 @@ dependencies = [
     "pydantic",
     "pydantic-settings",
     "sqlalchemy",
-    "pypsa>1.1",
+    "pypsa>=1.2",
     "click",
     "authlib",
     "itsdangerous",

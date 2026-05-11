@@ -236,7 +236,7 @@ class Network(Base):
 
     # Metadata from PyPSA Network
     name: Mapped[str | None] = mapped_column(String(255))
-    dimensions_count: Mapped[Any | None] = mapped_column(JSON)
+    dimensions: Mapped[Any | None] = mapped_column(JSON)
     components_count: Mapped[Any | None] = mapped_column(JSON)
     meta: Mapped[Any | None] = mapped_column(JSON)
     facets: Mapped[Any | None] = mapped_column(JSON)

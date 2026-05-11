@@ -3,6 +3,7 @@
 import json
 import logging
 
+from pypsa_app.backend.services.explore import fix_carrier_colors
 from pypsa_app.backend.services.network import (
     NetworkCollectionService,
     load_service,
@@ -35,14 +36,16 @@ def get_plot(
     """Generate plot from network files (handles single or multiple networks)"""
     service = load_service(file_paths, use_cache=True)
 
-    # Sanitize carriers
+    # Sanitize carriers and fix matplotlib color shorthands
     if isinstance(service, NetworkCollectionService):
         for network in service.n.networks:
             network.c.carriers.add_missing_carriers()
             network.c.carriers.assign_colors()
+            fix_carrier_colors(network)
     else:
         service.n.c.carriers.add_missing_carriers()
         service.n.c.carriers.assign_colors()
+        fix_carrier_colors(service.n)
     # TODO-framework should be moved to obj.sanitize
 
     # Generate plot

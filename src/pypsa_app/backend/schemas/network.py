@@ -11,6 +11,19 @@ from pypsa_app.backend.schemas.auth import UserPublicResponse
 from pypsa_app.backend.schemas.common import ListMeta
 
 
+class DimensionInfo(BaseModel):
+    count: int
+    start: datetime | None = None
+    end: datetime | None = None
+    freq: str | None = None
+
+
+class DimensionsInfo(BaseModel):
+    timesteps: DimensionInfo
+    periods: DimensionInfo
+    scenarios: DimensionInfo
+
+
 class NetworkResponse(BaseModel):
     """Network API response"""
 
@@ -18,13 +31,12 @@ class NetworkResponse(BaseModel):
     created_at: datetime
     update_history: list[Any] | None = None
     filename: str
-    file_path: str
     file_size: int | None = None
     file_hash: str | None = None
 
     # PyPSA Network metadata
     name: str | None = None
-    dimensions_count: dict[str, Any] | None = None
+    dimensions: DimensionsInfo | None = None
     components_count: dict[str, Any] | None = None
     meta: dict[str, Any] | None = None
     facets: dict[str, Any] | None = None

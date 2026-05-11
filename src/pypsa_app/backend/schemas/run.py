@@ -16,8 +16,17 @@ from pypsa_app.backend.settings import settings
 class RunCache(BaseModel):
     """Cache configuration for a run."""
 
-    key: str
-    dirs: list[str]
+    key: str = Field(
+        ...,
+        description=(
+            "Cache identifier. Runs sharing a key reuse each other's "
+            "cached directories."
+        ),
+    )
+    dirs: list[str] = Field(
+        ...,
+        description="Directories to cache (e.g. `./data`).",
+    )
 
 
 class OutputFileResponse(BaseModel):
@@ -40,17 +49,77 @@ class RunNetworkSummary(BaseModel):
 class RunCreate(BaseModel):
     """POST /runs request body."""
 
-    workflow: str
-    git_ref: str | None = None
-    configfile: str | None = None
-    snakemake_args: list[str] | None = None
-    extra_files: dict[str, str] | None = None
-    env_vars: dict[str, str] | None = None
-    cache: RunCache | None = None
-    import_networks: list[str] | None = None
-    backend_id: uuid.UUID | None = None
-    visibility: Visibility = Visibility.PRIVATE
-    callback_url: HttpUrl | None = None
+    workflow: str = Field(
+        ...,
+        description="Git URL of the Snakemake workflow repository to clone and run.",
+    )
+    git_ref: str | None = Field(
+        default=None,
+        description=(
+            "Git branch, tag, or commit SHA to check out. "
+            "Defaults to the repository's default branch."
+        ),
+    )
+    configfile: str | None = Field(
+        default=None,
+        description="Path to a Snakemake config file in the workflow repo.",
+    )
+    snakemake_args: list[str] | None = Field(
+        default=None,
+        description=(
+            "Additional snakemake arguments appended to the backend's execution "
+            "defaults. No need to pass own execution defaults like `--cores` or "
+            "`--profile`."
+        ),
+    )
+    extra_files: dict[str, str] | None = Field(
+        default=None,
+        description=(
+            "Files written into the working directory before execution. "
+            "Keys are repo-relative paths, values are file contents."
+        ),
+    )
+    env_vars: dict[str, str] | None = Field(
+        default=None,
+        description=(
+            "Environment variables set before execution. "
+            "Keys are variable names, values are their contents."
+        ),
+    )
+    cache: RunCache | None = Field(
+        default=None,
+        description=(
+            "Optional cache. Restores `dirs` from a previous run with the same `key` "
+            "before launch, saves them back on success."
+        ),
+    )
+    import_networks: list[str] | None = Field(
+        default=None,
+        description=(
+            "Paths of `.nc` output files to import as networks after the run completes."
+        ),
+    )
+    backend_id: uuid.UUID | None = Field(
+        default=None,
+        description=(
+            "Snakedispatch backend that executes this run. "
+            "Required when more than one backend is active."
+        ),
+    )
+    visibility: Visibility = Field(
+        default=Visibility.PRIVATE,
+        description=(
+            "Who can see this run. Public runs are visible to all logged-in users. "
+            "Private runs only to you."
+        ),
+    )
+    callback_url: HttpUrl | None = Field(
+        default=None,
+        description=(
+            "Webhook invoked when the run finishes. "
+            "Host must match the allowed callback domains setting."
+        ),
+    )
 
     @field_validator("callback_url")
     @classmethod
