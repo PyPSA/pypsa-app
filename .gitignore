@@ -1,3 +1,7 @@
+# dev
+dev
+todo.md
+
 # Data
 data
 
@@ -48,6 +52,7 @@ infra/
 .claude
 AGENTS.md
 .mcp.json
+CLAUDE.md
 
 # IDEs
 .vscode/
