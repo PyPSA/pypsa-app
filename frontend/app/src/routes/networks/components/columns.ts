@@ -1,5 +1,6 @@
 import { renderComponent } from '$lib/components/ui/data-table/render-helpers.js';
 import FileCell from '../cells/file-cell.svelte';
+import PathCell from '../cells/path-cell.svelte';
 import DimensionsCell from '../cells/dimensions-cell.svelte';
 import TagsCell from '../cells/tags-cell.svelte';
 import DateTime from '$lib/components/DateTime.svelte';
@@ -51,6 +52,15 @@ export const createColumns = (helpers: DatabaseColumnsHelpers): ColumnDef<Networ
 				const network = info.row.original;
 				return renderComponent(FileCell, { network });
 			},
+		},
+		{
+			accessorKey: 'file_path',
+			header: 'Path',
+			enableSorting: false,
+			cell: (info) => {
+				const network = info.row.original;
+				return renderComponent(PathCell, { network });
+			}
 		},
 		{
 			accessorKey: 'dimensions',

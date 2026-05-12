@@ -3,7 +3,7 @@
 import logging
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
 from sqlalchemy.orm import Session, joinedload
 
@@ -130,6 +130,7 @@ def update_network_admin(
 @router.delete("/networks/{network_id}", response_model=MessageResponse)
 def delete_network_admin(
     network_id: UUID,
+    remove_file: bool = Query(False),
     db: Session = Depends(get_db),
     admin: User = Depends(require_permission(Permission.NETWORKS_MANAGE_ALL)),
 ) -> dict:
@@ -138,6 +139,6 @@ def delete_network_admin(
     if not network:
         raise HTTPException(404, "Network not found")
 
-    message = delete_network(network, db)
+    message = delete_network(network, db, remove_file=remove_file)
     logger.info("Network deleted by admin: %s by %s", network.filename, admin.username)
     return {"message": message}

@@ -9,7 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from pypsa_app.backend.auth.session import get_session_store
-from pypsa_app.backend.models import ApiKey, User
+from pypsa_app.backend.models import ApiKey, User, UserRole
 from pypsa_app.backend.settings import SESSION_COOKIE_NAME, settings
 
 logger = logging.getLogger(__name__)
@@ -24,6 +24,25 @@ def set_auth_disabled_user(user: User) -> None:
         raise RuntimeError(msg)
     global _auth_disabled_user  # noqa: PLW0603
     _auth_disabled_user = user
+
+
+def ensure_system_user(db: Session) -> User:
+    """Return the system admin user, creating it if missing.
+
+    Only callable when authentication is disabled. The returned user is also
+    registered as the implicit caller for auth-disabled requests.
+    """
+    if settings.enable_auth:
+        msg = "Cannot create system user when authentication is enabled"
+        raise RuntimeError(msg)
+    system_user = db.scalars(select(User).where(User.username == "system")).first()
+    if not system_user:
+        system_user = User(username="system", role=UserRole.ADMIN)
+        db.add(system_user)
+        db.commit()
+        db.refresh(system_user)
+    set_auth_disabled_user(system_user)
+    return system_user
 
 
 def hash_api_key(token: str) -> str:

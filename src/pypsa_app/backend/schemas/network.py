@@ -4,11 +4,12 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, model_validator
 
 from pypsa_app.backend.models import Visibility
 from pypsa_app.backend.schemas.auth import UserPublicResponse
 from pypsa_app.backend.schemas.common import ListMeta
+from pypsa_app.backend.settings import settings
 
 
 class DimensionInfo(BaseModel):
@@ -33,6 +34,9 @@ class NetworkResponse(BaseModel):
     filename: str
     file_size: int | None = None
     file_hash: str | None = None
+    is_external: bool = False
+    file_path: str | None = None
+    file_missing: bool = False
 
     # PyPSA Network metadata
     name: str | None = None
@@ -50,6 +54,13 @@ class NetworkResponse(BaseModel):
     tags: list[str | dict] | None = None
 
     model_config = ConfigDict(from_attributes=True)
+
+    @model_validator(mode="after")
+    def _hide_internal_file_path(self) -> "NetworkResponse":
+        # Hide server-managed paths in non-local mode.
+        if not self.is_external and not settings.local_mode:
+            self.file_path = None
+        return self
 
 
 class NetworkListMeta(ListMeta):

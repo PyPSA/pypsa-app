@@ -90,5 +90,21 @@
 			>Data</a>
 		</div>
 	</div>
+	{#if network.file_missing}
+		<div class="my-4 rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-200">
+			<div class="flex items-start gap-2">
+				<AlertCircle class="size-4 mt-0.5 shrink-0" />
+				<div>
+					<div class="font-medium">Network file is no longer available</div>
+					<div class="mt-1 text-xs">
+						The underlying file was moved or deleted. Charts and component data cannot be rendered.
+						{#if network.file_path}
+							<div class="mt-1 font-mono break-all">{network.file_path}</div>
+						{/if}
+					</div>
+				</div>
+			</div>
+		</div>
+	{/if}
 	{@render children?.()}
 {/if}

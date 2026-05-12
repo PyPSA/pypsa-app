@@ -198,7 +198,13 @@ def get_networks(
     user: User | None = None,
 ) -> list[Network]:
     """Validate network_ids exist and user has access. Raises 404 if not."""
-    networks = db.scalars(select(Network).where(Network.id.in_(network_ids))).all()
+    # SQLite's Uuid bind processor expects uuid.UUID, not str.
+    try:
+        uuids = [UUID(nid) for nid in network_ids]
+    except ValueError as e:
+        raise HTTPException(404, "One or more networks not found") from e
+
+    networks = db.scalars(select(Network).where(Network.id.in_(uuids))).all()
 
     if len(networks) != len(network_ids):
         raise HTTPException(404, "One or more networks not found")

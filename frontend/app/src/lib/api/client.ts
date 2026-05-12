@@ -171,8 +171,9 @@ export const networks = {
 	async reset(): Promise<void> {
 		return request<void>('/networks/reset', { method: 'DELETE' });
 	},
-	async delete(id: string): Promise<void> {
-		return request<void>(`/networks/${id}`, { method: 'DELETE' });
+	async delete(id: string, removeFile = false): Promise<void> {
+		const qs = removeFile ? '?remove_file=true' : '';
+		return request<void>(`/networks/${id}${qs}`, { method: 'DELETE' });
 	},
 	async updateVisibility(id: string, visibility: Visibility): Promise<Network> {
 		return request<Network>(`/networks/${id}`, {
@@ -492,8 +493,9 @@ export const admin = {
 		});
 	},
 
-	async deleteNetwork(networkId: string): Promise<void> {
-		return request<void>(`/admin/networks/${networkId}`, { method: 'DELETE' });
+	async deleteNetwork(networkId: string, removeFile = false): Promise<void> {
+		const qs = removeFile ? '?remove_file=true' : '';
+		return request<void>(`/admin/networks/${networkId}${qs}`, { method: 'DELETE' });
 	},
 
 	async listRuns(

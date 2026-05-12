@@ -3,17 +3,17 @@ revision = 3
 requires-python = ">=3.13"
 resolution-markers = [
     "python_full_version >= '3.14' and platform_machine == 'ARM64' and sys_platform == 'win32'",
-    "python_full_version < '3.14' and platform_machine == 'ARM64' and sys_platform == 'win32'",
     "python_full_version >= '3.14' and platform_machine != 'ARM64' and sys_platform == 'win32'",
     "python_full_version >= '3.14' and sys_platform == 'emscripten'",
     "python_full_version >= '3.14' and sys_platform != 'emscripten' and sys_platform != 'win32'",
+    "python_full_version < '3.14' and platform_machine == 'ARM64' and sys_platform == 'win32'",
     "python_full_version < '3.14' and platform_machine != 'ARM64' and sys_platform == 'win32'",
     "python_full_version < '3.14' and sys_platform == 'emscripten'",
     "python_full_version < '3.14' and sys_platform != 'emscripten' and sys_platform != 'win32'",
 ]
 
 [options]
-exclude-newer = "2026-05-05T15:07:25.706707434Z"
+exclude-newer = "2026-05-05T16:06:41.153419917Z"
 exclude-newer-span = "P7D"
 
 [[package]]
@@ -1879,6 +1879,7 @@ dependencies = [
     { name = "jinja2" },
     { name = "markupsafe" },
     { name = "pandas" },
+    { name = "platformdirs" },
     { name = "pydantic" },
     { name = "pydantic-settings" },
     { name = "pypsa" },
@@ -1915,6 +1916,7 @@ requires-dist = [
     { name = "jinja2", specifier = ">=3.1,<4" },
     { name = "markupsafe", specifier = ">=3.0,<4" },
     { name = "pandas", specifier = ">=3.0,<4" },
+    { name = "platformdirs", specifier = ">=4" },
     { name = "psycopg2-binary", marker = "extra == 'full'", specifier = ">=2.9" },
     { name = "pydantic", specifier = ">=2.13,<3" },
     { name = "pydantic-settings", specifier = ">=2.14,<3" },

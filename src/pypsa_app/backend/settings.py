@@ -3,11 +3,15 @@
 from pathlib import Path
 from typing import Self
 
+from platformdirs import user_data_dir
 from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 API_V1_PREFIX = "/api/v1"
 SESSION_COOKIE_NAME = "pypsa_session"
+
+# Sentinel value: when database_url equals this, it is derived from data_dir.
+_DEFAULT_DATABASE_URL_SENTINEL = "__derive_from_data_dir__"
 
 # Database pool settings (PostgreSQL only)
 DB_POOL_SIZE = 20
@@ -30,8 +34,17 @@ class Settings(BaseSettings):
         description="Publicly accessible URL of the application",
         json_schema_extra={"category": "Application"},
     )
+    local_mode: bool = Field(
+        default=False,
+        description=(
+            "Single-user local-dashboard deployment (the bare `pypsa-app` CLI). "
+            "Enables zero-copy in-place network registration. "
+            "Incompatible with ENABLE_AUTH=true."
+        ),
+        json_schema_extra={"category": "Application"},
+    )
     data_dir: str = Field(
-        default="./data",
+        default_factory=lambda: user_data_dir("pypsa-app", "PyPSA"),
         description=(
             "File storage directory to store application data and network files"
         ),
@@ -50,8 +63,11 @@ class Settings(BaseSettings):
 
     # Database
     database_url: str = Field(
-        default="sqlite:///./data/pypsa-app.db",
-        description="Database URL (SQLite and PostgreSQL is supported)",
+        default=_DEFAULT_DATABASE_URL_SENTINEL,
+        description=(
+            "Database URL (SQLite and PostgreSQL are supported). "
+            "Defaults to a SQLite file inside data_dir."
+        ),
         json_schema_extra={"category": "Database"},
     )
 
@@ -224,6 +240,22 @@ class Settings(BaseSettings):
         ),
         json_schema_extra={"category": "Development", "depends_on": "backend_only"},
     )
+
+    @model_validator(mode="after")
+    def resolve_database_url(self) -> Self:
+        if self.database_url == _DEFAULT_DATABASE_URL_SENTINEL:
+            self.database_url = f"sqlite:///{self.data_dir_path}/pypsa-app.db"
+        return self
+
+    @model_validator(mode="after")
+    def validate_local_mode(self) -> Self:
+        if self.local_mode and self.enable_auth:
+            msg = (
+                "LOCAL_MODE and ENABLE_AUTH cannot both be true. "
+                "Local mode is a single-user dashboard deployment."
+            )
+            raise ValueError(msg)
+        return self
 
     @model_validator(mode="after")
     def validate_auth_settings(self) -> Self:

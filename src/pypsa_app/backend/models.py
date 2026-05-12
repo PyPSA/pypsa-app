@@ -3,12 +3,14 @@
 import enum
 import uuid
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any
 
 from sqlalchemy import (
     JSON,
     TIMESTAMP,
     BigInteger,
+    CheckConstraint,
     Column,
     Enum,
     ForeignKey,
@@ -233,6 +235,8 @@ class Network(Base):
     file_path: Mapped[str] = mapped_column(Text, unique=True, index=True)
     file_size: Mapped[int | None] = mapped_column(BigInteger)
     file_hash: Mapped[str | None] = mapped_column(String(64))
+    # External: file lives outside data_dir (LOCAL_MODE only); do not unlink on delete
+    is_external: Mapped[bool] = mapped_column(default=False, nullable=False)
 
     # Metadata from PyPSA Network
     name: Mapped[str | None] = mapped_column(String(255))
@@ -247,6 +251,12 @@ class Network(Base):
     def tags(self) -> list | None:
         tags = self.meta.get("tags") if self.meta else None
         return tags if isinstance(tags, list) else None
+
+    @property
+    def file_missing(self) -> bool:
+        # Only external rows can legitimately point outside data_dir.
+        # For app-owned files we trust the import path.
+        return self.is_external and not Path(self.file_path).exists()
 
 
 class RunStatus(enum.StrEnum):
@@ -321,3 +331,14 @@ class Run(Base):
     networks: Mapped[list["Network"]] = relationship(
         foreign_keys="Network.source_run_id", viewonly=True
     )
+
+
+class AppInfo(Base):
+    """Single-row table recording the last pypsa-app version that migrated the DB."""
+
+    __tablename__ = "app_info"
+    __table_args__ = (CheckConstraint("id = 1", name="app_info_single_row"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    last_app_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    last_migrated_at: Mapped[datetime] = mapped_column(TIMESTAMP, nullable=False)

@@ -18,7 +18,12 @@ logger = logging.getLogger(__name__)
 def _check_exists(path: Path) -> None:
     """Raise 404 if path does not exist."""
     if not path.exists():
-        raise HTTPException(status.HTTP_404_NOT_FOUND, f"File not found: {path.name}")
+        # Local mode: show absolute path so user can find/restore. Server mode: basename only.
+        if settings.local_mode:
+            detail = f"Network file is no longer at the original location: {path}"
+        else:
+            detail = f"File not found: {path.name}"
+        raise HTTPException(status.HTTP_404_NOT_FOUND, detail)
 
 
 def validate_path(
@@ -26,27 +31,25 @@ def validate_path(
 ) -> Path:
     """Validate file path is within base directory."""
     base_dir = base_dir or settings.networks_path
+    path = Path(file_path).resolve()
 
-    try:
-        path = Path(file_path).resolve()
-        base = base_dir.resolve()
-
-        path.relative_to(base)  # Raises ValueError otherwise
-
-    except ValueError:
-        logger.exception(
-            "Path traversal attempt detected",
-            extra={
-                "file_path": str(file_path),
-                "base_dir": str(base_dir),
-                "resolved_path": str(path) if "path" in locals() else None,
-            },
-        )
-        raise HTTPException(
-            status.HTTP_403_FORBIDDEN, "Access denied: Path outside allowed directory"
-        ) from None
-    except HTTPException:
-        raise
+    # LOCAL_MODE allows arbitrary file paths (no HTTP attack surface).
+    if not settings.local_mode:
+        try:
+            path.relative_to(base_dir.resolve())
+        except ValueError:
+            logger.exception(
+                "Path traversal attempt detected",
+                extra={
+                    "file_path": str(file_path),
+                    "base_dir": str(base_dir),
+                    "resolved_path": str(path),
+                },
+            )
+            raise HTTPException(
+                status.HTTP_403_FORBIDDEN,
+                "Access denied: Path outside allowed directory",
+            ) from None
 
     if must_exist:
         _check_exists(path)

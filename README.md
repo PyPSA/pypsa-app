@@ -46,8 +46,19 @@ Check out the difference between the minimal and full version [below](README##Ar
 
 #### Python Package
 
+Install package system-wide with [`uv`](https://docs.astral.sh/uv/) and open a single network file as a local dashboard:
+
+```sh
+uv tool install pypsa-app
+pypsa-app path/to/network.nc   # register and open a network
+# or
+pypsa-app                      # just open the dashboard
+```
+
+Your browser opens at [`http://127.0.0.1:4743`](http://127.0.0.1:4743).
+
 > [!NOTE]
-> Installation via python package is coming soon.
+> Networks are persisted in the local database until you remove them. To add more, either upload via the web interface or run `pypsa-app path/to/another.nc` again. Each invocation registers the file alongside the existing ones.
 
 #### Docker
 

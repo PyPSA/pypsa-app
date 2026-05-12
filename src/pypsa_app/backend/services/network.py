@@ -301,18 +301,45 @@ def _calculate_file_hash(file_path: Path) -> str:
     return sha256_hash.hexdigest()
 
 
-def import_network_file(
+def _apply_network_metadata(
+    network: Network, file_path: Path, file_hash: str
+) -> None:
+    """Read the file at file_path and copy its metadata onto network."""
+    service = NetworkService(file_path, use_cache=False)
+    info = service.extract_database_info()
+    network.file_hash = file_hash
+    network.file_size = service.get_file_size()
+    network.name = info["name"]
+    network.dimensions = info["dimensions"]
+    network.components_count = info["components_count"]
+    network.meta = info["meta"]
+    network.facets = info["facets"]
+    # SQLite stores naive datetimes; strip tzinfo but always generate UTC.
+    network.update_history = [
+        *(network.update_history or []),
+        datetime.now(UTC).replace(tzinfo=None).isoformat(),
+    ]
+
+
+def import_network_file(  # noqa: PLR0913
     file_path: Path,
     original_filename: str,
     user_id: uuid.UUID,
     db: Session,
     source_run_id: uuid.UUID | None = None,
     visibility: Visibility = Visibility.PRIVATE,
+    *,
+    is_external: bool = False,
 ) -> Network:
-    """Import a network file.
+    """Import a network file and create a DB record.
 
-    Hash, move to storage, extract metadata and create DB record.
+    By default the file is moved into data_dir. With `is_external=True`
+    (LOCAL_MODE only) the file stays in place and its absolute path is stored.
     """
+    if is_external and not settings.local_mode:
+        msg = "is_external imports require LOCAL_MODE"
+        raise RuntimeError(msg)
+
     user = db.get(User, user_id)
     if not user or not has_permission(user, Permission.NETWORKS_MODIFY):
         msg = "User does not have permission to import networks"
@@ -320,48 +347,62 @@ def import_network_file(
 
     file_hash = _calculate_file_hash(file_path)
 
-    # Check for duplicate file content
     existing = db.scalars(
         select(Network).where(
             Network.user_id == user_id, Network.file_hash == file_hash
         )
     ).first()
     if existing:
-        file_path.unlink(missing_ok=True)
+        if not is_external:
+            file_path.unlink(missing_ok=True)
         return existing
 
-    # Generate ID upfront so file is stored as {user_id}/{network_id}.nc
-    network_id = uuid.uuid4()
-    user_dir = settings.networks_path / str(user_id)
-    user_dir.mkdir(parents=True, exist_ok=True)
-    dest = user_dir / f"{network_id}.nc"
-
-    shutil.move(str(file_path), str(dest))
-
-    # Reload from final path and extract metadata
-    service = NetworkService(dest, use_cache=False)
-    info = service.extract_database_info()
+    if is_external:
+        dest = file_path
+        # The user edited the same file in place. Refresh metadata so the
+        # unique constraint on file_path does not blow up the second open.
+        edited = db.scalars(
+            select(Network).where(
+                Network.user_id == user_id, Network.file_path == str(dest)
+            )
+        ).first()
+        if edited:
+            _apply_network_metadata(edited, dest, file_hash)
+            db.flush()
+            return edited
+    else:
+        # Store as data_dir/{user_id}/{network_id}.nc so files cannot collide.
+        network_id = uuid.uuid4()
+        user_dir = settings.networks_path / str(user_id)
+        user_dir.mkdir(parents=True, exist_ok=True)
+        dest = user_dir / f"{network_id}.nc"
+        shutil.move(str(file_path), str(dest))
 
     network = Network(
-        id=network_id,
         user_id=user_id,
         source_run_id=source_run_id,
         visibility=visibility,
         filename=original_filename,
         file_path=str(dest),
-        file_hash=file_hash,
-        file_size=service.get_file_size(),
-        name=info["name"],
-        dimensions=info["dimensions"],
-        components_count=info["components_count"],
-        meta=info["meta"],
-        facets=info["facets"],
-        # SQLite stores naive datetimes; strip tzinfo but always generate UTC
-        update_history=[datetime.now(UTC).replace(tzinfo=None).isoformat()],
+        is_external=is_external,
     )
+    _apply_network_metadata(network, dest, file_hash)
     db.add(network)
     db.flush()
     return network
+
+
+def register_network_in_place(
+    file_path: Path, user_id: uuid.UUID, db: Session
+) -> Network:
+    """Register a .nc file at its current location without copying it."""
+    file_path = file_path.resolve(strict=True)
+    if not file_path.is_file() or file_path.suffix != ".nc":
+        msg = f"Expected an existing .nc file, got: {file_path}"
+        raise ValueError(msg)
+    return import_network_file(
+        file_path, file_path.name, user_id, db, is_external=True
+    )
 
 
 def load_service(

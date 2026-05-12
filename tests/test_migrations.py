@@ -225,3 +225,78 @@ def test_0003_downgrade_collapses_dimensions(
         ).one()
 
     assert _decode_json(row[0]) == {"timesteps": 100, "periods": 2, "scenarios": 5}
+
+
+# ---------------------------------------------------------------------------
+# 0004 — is_external column on networks
+# ---------------------------------------------------------------------------
+
+
+def test_0004_backfills_is_external_on_existing_networks(
+    alembic_runner,
+    alembic_engine,
+    user_id: uuid.UUID,
+    network_id: uuid.UUID,
+) -> None:
+    alembic_runner.migrate_up_to("0003")
+
+    with alembic_engine.begin() as conn:
+        _insert_user(conn, user_id, "dave")
+        conn.execute(
+            sa.text(
+                "INSERT INTO networks "
+                "(id, user_id, visibility, filename, file_path) "
+                "VALUES (:id, :uid, 'private', 'foo.nc', '/p/foo.nc')"
+            ).bindparams(
+                sa.bindparam("id", type_=sa.Uuid()),
+                sa.bindparam("uid", type_=sa.Uuid()),
+            ),
+            {"id": network_id, "uid": user_id},
+        )
+
+    alembic_runner.migrate_up_one()  # 0003 -> 0004
+
+    with alembic_engine.connect() as conn:
+        is_external = conn.execute(
+            sa.text(
+                "SELECT is_external FROM networks WHERE id = :id"
+            ).bindparams(sa.bindparam("id", type_=sa.Uuid())),
+            {"id": network_id},
+        ).scalar_one()
+
+    assert bool(is_external) is False
+
+
+def test_0004_downgrade_drops_is_external_column(
+    alembic_runner, alembic_engine
+) -> None:
+    alembic_runner.migrate_up_to("0004")
+    alembic_runner.migrate_down_one()
+
+    inspector = sa.inspect(alembic_engine)
+    columns = {c["name"] for c in inspector.get_columns("networks")}
+    assert "is_external" not in columns
+
+
+# ---------------------------------------------------------------------------
+# 0005 — app_info single-row table
+# ---------------------------------------------------------------------------
+
+
+def test_0005_creates_app_info_table(alembic_runner, alembic_engine) -> None:
+    alembic_runner.migrate_up_to("0005")
+
+    inspector = sa.inspect(alembic_engine)
+    assert "app_info" in inspector.get_table_names()
+    columns = {c["name"] for c in inspector.get_columns("app_info")}
+    assert {"id", "last_app_version", "last_migrated_at"}.issubset(columns)
+
+
+def test_0005_downgrade_drops_app_info_table(
+    alembic_runner, alembic_engine
+) -> None:
+    alembic_runner.migrate_up_to("0005")
+    alembic_runner.migrate_down_one()
+
+    inspector = sa.inspect(alembic_engine)
+    assert "app_info" not in inspector.get_table_names()

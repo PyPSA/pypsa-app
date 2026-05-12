@@ -4,7 +4,7 @@ import logging
 from collections.abc import Callable
 
 from pypsa_app.backend.settings import API_V1_PREFIX
-from pypsa_app.backend.task_queue import task_app
+from pypsa_app.backend.task_queue import InMemoryAsyncResult, task_app
 
 logger = logging.getLogger(__name__)
 
@@ -20,8 +20,6 @@ def get_task_status_response(task_id: str) -> dict:
     except (ImportError, AttributeError) as e:
         # Fall back to in-memory AsyncResult
         logger.warning("Celery unavailable, using in-memory task queue: %s", e)
-        from pypsa_app.backend.task_queue import InMemoryAsyncResult  # noqa: PLC0415
-
         task = InMemoryAsyncResult(task_id)
 
     response = {"task_id": task_id, "state": task.state}

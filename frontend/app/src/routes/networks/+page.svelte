@@ -11,6 +11,7 @@
 	import * as Dialog from '$lib/components/ui/dialog';
 	import { Combobox } from '$lib/components/widgets/combobox';
 	import { Label } from '$lib/components/ui/label';
+	import { Checkbox } from '$lib/components/ui/checkbox';
 	import Button from '$lib/components/ui/button/button.svelte';
 	import DataTable from '$lib/components/DataTable.svelte';
 	import { createColumns } from './components/columns.js';
@@ -96,6 +97,17 @@
 		});
 	});
 
+	// Auto-show the path column when an external row exists; explicit user toggle wins.
+	const hasExternal = $derived(networksList.some((n) => n.is_external));
+	let userTouchedFilePath = $state(false);
+	$effect(() => {
+		if (userTouchedFilePath) return;
+		const want = hasExternal;
+		if (columnVisibility.file_path !== want) {
+			columnVisibility = { ...columnVisibility, file_path: want };
+		}
+	});
+
 	const VALID_PAGE_SIZES = [10, 25, 50, 100];
 
 	function restoreFromUrl() {
@@ -103,7 +115,11 @@
 
 		const prefs = loadTablePrefs('networks');
 		pageSize = (prefs.pageSize && VALID_PAGE_SIZES.includes(prefs.pageSize)) ? prefs.pageSize : 25;
-		if (prefs.columnVisibility) columnVisibility = prefs.columnVisibility;
+		if (prefs.columnVisibility) {
+			columnVisibility = prefs.columnVisibility;
+			// User has a saved preference for the path column — don't auto-toggle it.
+			if ('file_path' in prefs.columnVisibility) userTouchedFilePath = true;
+		}
 
 		const urlPage = params.get('page');
 		if (urlPage) {
@@ -187,6 +203,9 @@
 	}
 
 	function handleColumnVisibilityChange(visibility: VisibilityState) {
+		if (visibility.file_path !== columnVisibility.file_path) {
+			userTouchedFilePath = true;
+		}
 		columnVisibility = visibility;
 		saveTablePref('networks', 'columnVisibility', visibility);
 	}
@@ -210,23 +229,38 @@
 		await loadNetworks();
 	}
 
-	async function handleDelete(networkId: string) {
+	// Delete confirmation dialog state. Replaces a bare `confirm()` so we can
+	// surface the "also delete file from disk" checkbox for external networks.
+	let deleteDialogOpen = $state(false);
+	let deleteTarget = $state<NetworkType | null>(null);
+	let deleteRemoveFile = $state(false);
+
+	function handleDelete(networkId: string) {
 		if (deletingId) return;
-		if (!confirm('Are you sure you want to delete this network? This will remove both the database record and the file from disk. This action cannot be undone.')) {
-			return;
-		}
+		const target = networksList.find((n) => n.id === networkId) ?? null;
+		deleteTarget = target;
+		deleteRemoveFile = false;
+		deleteDialogOpen = true;
+	}
+
+	async function confirmDelete() {
+		if (!deleteTarget || deletingId) return;
+		const networkId = deleteTarget.id;
+		const removeFile = !!deleteTarget.is_external && deleteRemoveFile;
+		deleteDialogOpen = false;
 		deletingId = networkId;
 		try {
 			if (authStore.isAdmin) {
-				await admin.deleteNetwork(networkId);
+				await admin.deleteNetwork(networkId, removeFile);
 			} else {
-				await networks.delete(networkId);
+				await networks.delete(networkId, removeFile);
 			}
 			await loadNetworks();
 		} catch (err) {
 			if (!(err as ApiError).cancelled) toast.error((err as Error).message);
 		} finally {
 			deletingId = null;
+			deleteTarget = null;
 		}
 	}
 
@@ -285,7 +319,9 @@
 	}
 
 	function canEditNetwork(network: NetworkType) {
-		if (!authStore.authEnabled || !authStore.user) return false;
+		// Auth disabled = single-user/local mode; backend bypasses ownership checks.
+		if (authStore.authEnabled === false) return true;
+		if (!authStore.user) return false;
 		return authStore.isAdmin || network.owner.id === authStore.user.id;
 	}
 
@@ -323,6 +359,50 @@
 		{/if}
 	</div>
 </div>
+
+<!-- Delete confirmation dialog -->
+<Dialog.Root bind:open={deleteDialogOpen}>
+	<Dialog.Content class="max-w-sm">
+		{#if deleteTarget}
+			<Dialog.Header>
+				<Dialog.Title>Delete network?</Dialog.Title>
+				<Dialog.Description class="text-xs text-muted-foreground">
+					{deleteTarget.filename}
+				</Dialog.Description>
+			</Dialog.Header>
+			<div class="space-y-3 py-4 text-sm">
+				{#if deleteTarget.is_external}
+					<p class="text-muted-foreground">
+						This network was registered in place. By default the underlying file is kept on disk and only the database reference is removed.
+					</p>
+					<label class="flex items-start gap-2 cursor-pointer">
+						<Checkbox bind:checked={deleteRemoveFile} class="mt-0.5" />
+						<span>
+							<span class="font-medium">Also delete the file from disk</span>
+							{#if deleteTarget.file_path}
+								<span class="block text-xs text-muted-foreground mt-0.5 font-mono break-all">
+									{deleteTarget.file_path}
+								</span>
+							{/if}
+						</span>
+					</label>
+				{:else}
+					<p class="text-muted-foreground">
+						This will remove both the database record and the file from disk. This action cannot be undone.
+					</p>
+				{/if}
+			</div>
+			<Dialog.Footer class="flex gap-2">
+				<Button variant="outline" size="sm" onclick={() => (deleteDialogOpen = false)}>
+					Cancel
+				</Button>
+				<Button variant="destructive" size="sm" onclick={confirmDelete}>
+					Delete
+				</Button>
+			</Dialog.Footer>
+		{/if}
+	</Dialog.Content>
+</Dialog.Root>
 
 <!-- Admin: Change Owner Dialog -->
 <Dialog.Root bind:open={editDialogOpen}>

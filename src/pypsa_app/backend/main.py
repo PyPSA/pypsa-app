@@ -12,6 +12,7 @@ from sqlalchemy import select, text
 from starlette.middleware.sessions import SessionMiddleware
 
 from pypsa_app.backend.__version__ import __description__, __version__
+from pypsa_app.backend.alembic import run_migrations
 from pypsa_app.backend.api.routes import (
     admin,
     api_keys,
@@ -25,10 +26,11 @@ from pypsa_app.backend.api.routes import (
     tasks,
     version,
 )
-from pypsa_app.backend.auth.authenticate import set_auth_disabled_user
+from pypsa_app.backend.auth import session
+from pypsa_app.backend.auth.authenticate import ensure_system_user
 from pypsa_app.backend.cache import cache_service
 from pypsa_app.backend.database import SessionLocal, engine
-from pypsa_app.backend.models import SnakedispatchBackend, User, UserRole
+from pypsa_app.backend.models import SnakedispatchBackend
 from pypsa_app.backend.services.backend_registry import backend_registry
 from pypsa_app.backend.services.run import SnakedispatchError
 from pypsa_app.backend.services.sync import run_sync_loop
@@ -86,24 +88,6 @@ def _sync_backends() -> None:
         db.close()
 
 
-def _ensure_system_user() -> None:
-    """Create a system admin user for auth-disabled mode."""
-    if settings.enable_auth:
-        msg = "Cannot create system user when authentication is enabled"
-        raise RuntimeError(msg)
-    db = SessionLocal()
-    try:
-        system_user = db.scalars(select(User).where(User.username == "system")).first()
-        if not system_user:
-            system_user = User(username="system", role=UserRole.ADMIN)
-            db.add(system_user)
-            db.commit()
-            db.refresh(system_user)
-        set_auth_disabled_user(system_user)
-    finally:
-        db.close()
-
-
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Lifespan context manager for startup and shutdown events"""
@@ -122,24 +106,16 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # Ensure networks directory exists
     settings.networks_path.mkdir(parents=True, exist_ok=True)
 
-    # Run database migrations
-    from alembic import command  # noqa: PLC0415
-    from alembic.config import Config  # noqa: PLC0415
-
-    alembic_ini = str(Path(__file__).resolve().parents[3] / "alembic.ini")  # noqa: ASYNC240
-    alembic_cfg = Config(alembic_ini)
-    command.upgrade(alembic_cfg, "head")
+    run_migrations()  # noqa: ASYNC240
 
     db = SessionLocal()
     try:
         db.execute(text("SELECT 1"))
         logger.info("Database ready")
+        if not settings.enable_auth:
+            ensure_system_user(db)
     finally:
         db.close()
-
-    # Create system user for auth-disabled mode
-    if not settings.enable_auth:
-        _ensure_system_user()
 
     # Initialize authentication if enabled
     if settings.enable_auth:
@@ -171,8 +147,6 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             raise RuntimeError(msg)
 
         # Initialize session store
-        from pypsa_app.backend.auth import session  # noqa: PLC0415
-
         session.session_store = session.SessionStore()
         logger.info(
             "Session store initialized",

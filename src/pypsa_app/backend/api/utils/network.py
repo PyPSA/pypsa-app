@@ -19,13 +19,18 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-def delete_network(network: Network, db: Session) -> str:
-    """Delete network from DB and file system. Returns status message."""
+def delete_network(network: Network, db: Session, remove_file: bool = False) -> str:
+    """Delete network from DB and (optionally) file system. Returns status message."""
     filename = network.filename
     file_path = Path(network.file_path)
+    is_external = network.is_external
 
     db.delete(network)
     db.commit()
+
+    # External files are not owned by the app, so keep them in place by default.
+    if is_external and not remove_file:
+        return f"Network {filename} removed (file kept in place)"
 
     if file_path.exists():
         try:

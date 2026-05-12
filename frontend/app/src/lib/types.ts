@@ -67,11 +67,13 @@ export interface Network {
 	owner: User;
 	source_run_id?: string;
 	dimensions?: DimensionsInfo;
-	components?: Record<string, number>;
-	components_count?: number;
+	components_count?: Record<string, number>;
 	tags?: (string | NetworkTag)[];
 	update_history?: string[];
 	created_at?: string;
+	is_external?: boolean;
+	file_path?: string;
+	file_missing?: boolean;
 }
 
 export type Visibility = "public" | "private";

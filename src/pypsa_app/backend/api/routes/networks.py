@@ -294,9 +294,10 @@ def get_component_data(
 
 @router.delete("/{network_id}", response_model=MessageResponse)
 def delete_network(
+    remove_file: bool = Query(False),
     auth: Authorized[Network] = Depends(require_network("modify")),
     db: Session = Depends(get_db),
 ) -> dict:
-    """Delete network from database and file system"""
-    message = delete_network_and_file(auth.model, db)
+    """Delete network from database and (optionally) file system."""
+    message = delete_network_and_file(auth.model, db, remove_file=remove_file)
     return {"message": message}
