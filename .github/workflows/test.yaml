@@ -1,0 +1,97 @@
+name: Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: ["*"]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build and verify package
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4.3.1
+      with:
+        fetch-depth: 0   # Needed for setuptools_scm
+
+    - uses: ./.github/actions/build-package
+
+  pytest:
+    name: pytest (${{ matrix.backend }})
+    needs: [build]
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        backend: [sqlite, postgres]
+
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: test
+        ports:
+        - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U test -d test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      TEST_POSTGRES_URL: postgresql+psycopg2://test:test@localhost:5432/test
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4.3.1
+      with:
+        fetch-depth: 0   # Needed for setuptools_scm
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b  # v8.1.0
+      with:
+        enable-cache: true
+        python-version: "3.13"
+
+    - name: Download built package
+      uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
+      with:
+        name: Packages
+        path: dist
+
+    - name: Install dependencies and built wheel
+      run: |
+        uv sync --extra dev --extra full --no-install-project
+        uv pip install dist/*.whl
+
+    - name: Run pytest
+      run: >
+        uv run --no-sync pytest -v -k ${{ matrix.backend }}
+        --cov=pypsa_app --junitxml=junit.xml -o junit_family=legacy
+        && uv run --no-sync coverage xml
+
+    - name: Upload coverage to Codecov
+      if: ${{ !cancelled() }}
+      uses: codecov/codecov-action@3f20e214133d0983f9a10f3d63b0faf9241a3daa  # v6.0.0
+      with:
+        token: ${{ secrets.CODECOV_TOKEN }}
+        flags: unit-tests,backend-${{ matrix.backend }}
+
+    - name: Upload test results to Codecov
+      if: ${{ !cancelled() }}
+      uses: codecov/test-results-action@6ba3fdeec616fb91fd6a389b788a2366835a0fa2  # v1.2.1
+      with:
+        token: ${{ secrets.CODECOV_TOKEN }}
+        flags: unit-tests,backend-${{ matrix.backend }}

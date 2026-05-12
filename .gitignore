@@ -73,6 +73,8 @@ logs/
 
 # Testing
 .coverage
+coverage.xml
+junit.xml
 .pytest_cache/
 htmlcov/
 
