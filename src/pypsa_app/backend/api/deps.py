@@ -7,6 +7,7 @@ from typing import Literal
 from uuid import UUID
 
 from fastapi import Depends, HTTPException, Path, Request
+from sqlalchemy import select
 from sqlalchemy.orm import Session, joinedload
 
 from pypsa_app.backend.auth.authenticate import resolve_current_user
@@ -117,13 +118,16 @@ def require_run(
         user = _require_user_with_permission(user, permission)
 
         run = (
-            db.query(Run)
-            .options(
-                joinedload(Run.owner),
-                joinedload(Run.backend),
-                joinedload(Run.networks),
+            db.scalars(
+                select(Run)
+                .options(
+                    joinedload(Run.owner),
+                    joinedload(Run.backend),
+                    joinedload(Run.networks),
+                )
+                .where(Run.job_id == run_id)
             )
-            .filter(Run.job_id == run_id)
+            .unique()
             .first()
         )
         if not run or not access_check(user, run):
@@ -149,12 +153,11 @@ def require_network(
     ) -> Authorized[Network]:
         user = _require_user_with_permission(user, permission)
 
-        network = (
-            db.query(Network)
+        network = db.scalars(
+            select(Network)
             .options(joinedload(Network.owner))
-            .filter(Network.id == network_id)
-            .first()
-        )
+            .where(Network.id == network_id)
+        ).first()
         if not network or not access_check(user, network):
             raise HTTPException(404, "Network not found")
 
@@ -172,13 +175,16 @@ async def require_public_run(
     Returns 404 for missing or private runs.
     """
     run = (
-        db.query(Run)
-        .options(
-            joinedload(Run.owner),
-            joinedload(Run.backend),
-            joinedload(Run.networks),
+        db.scalars(
+            select(Run)
+            .options(
+                joinedload(Run.owner),
+                joinedload(Run.backend),
+                joinedload(Run.networks),
+            )
+            .where(Run.job_id == run_id, Run.visibility == Visibility.PUBLIC)
         )
-        .filter(Run.job_id == run_id, Run.visibility == Visibility.PUBLIC)
+        .unique()
         .first()
     )
     if not run:
@@ -192,7 +198,9 @@ def get_networks(
     user: User | None = None,
 ) -> list[Network]:
     """Validate network_ids exist and user has access. Raises 404 if not."""
-    networks = db.query(Network).filter(Network.id.in_(network_ids)).all()
+    networks = db.scalars(
+        select(Network).where(Network.id.in_(network_ids))
+    ).all()
 
     if len(networks) != len(network_ids):
         raise HTTPException(404, "One or more networks not found")
@@ -211,14 +219,21 @@ def get_backend(
     _admin: User = Depends(require_permission(Permission.SYSTEM_MANAGE)),
 ) -> SnakedispatchBackend:
     """Fetch backend by ID."""
-    backend = (
-        db.query(SnakedispatchBackend)
-        .filter(SnakedispatchBackend.id == backend_id)
-        .first()
-    )
+    backend = db.get(SnakedispatchBackend, backend_id)
     if not backend:
         raise HTTPException(404, "Backend not found")
     return backend
+
+
+def get_user(
+    user_id: UUID = Path(..., description="User UUID"),
+    db: Session = Depends(get_db),
+) -> User:
+    """Fetch user by ID. 404 if missing. Route owns the permission check."""
+    user = db.get(User, user_id)
+    if not user:
+        raise HTTPException(404, "User not found")
+    return user
 
 
 __all__ = [
@@ -228,6 +243,7 @@ __all__ = [
     "get_current_user_optional",
     "get_db",
     "get_networks",
+    "get_user",
     "require_network",
     "require_permission",
     "require_public_run",

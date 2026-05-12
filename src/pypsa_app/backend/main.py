@@ -8,7 +8,7 @@ from pathlib import Path
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from sqlalchemy import text
+from sqlalchemy import select, text
 from starlette.middleware.sessions import SessionMiddleware
 
 from pypsa_app.backend.__version__ import __description__, __version__
@@ -46,7 +46,7 @@ def _sync_backends() -> None:
     configured = {b["name"]: b["url"] for b in settings.resolved_backends}
     db = SessionLocal()
     try:
-        for backend in db.query(SnakedispatchBackend).all():
+        for backend in db.scalars(select(SnakedispatchBackend)).all():
             if backend.name in configured:
                 backend.url = configured.pop(backend.name)
                 backend.is_active = True
@@ -60,11 +60,11 @@ def _sync_backends() -> None:
 
         # Populate registry (needs DB ids for new backends)
         backend_registry.clear()
-        for backend in (
-            db.query(SnakedispatchBackend)
-            .filter(SnakedispatchBackend.is_active.is_(True))
-            .all()
-        ):
+        for backend in db.scalars(
+            select(SnakedispatchBackend).where(
+                SnakedispatchBackend.is_active.is_(True)
+            )
+        ).all():
             backend_registry.register(backend.id, backend.name, backend.url)
 
         # Startup health check (non-fatal)
@@ -95,7 +95,9 @@ def _ensure_system_user() -> None:
         raise RuntimeError(msg)
     db = SessionLocal()
     try:
-        system_user = db.query(User).filter(User.username == "system").first()
+        system_user = db.scalars(
+            select(User).where(User.username == "system")
+        ).first()
         if not system_user:
             system_user = User(username="system", role=UserRole.ADMIN)
             db.add(system_user)

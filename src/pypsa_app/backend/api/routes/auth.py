@@ -7,6 +7,7 @@ from urllib.parse import urlparse
 from authlib.integrations.starlette_client import OAuth, OAuthError
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 from fastapi.responses import RedirectResponse
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from pypsa_app.backend.api.deps import get_current_user_optional, get_db
@@ -24,8 +25,10 @@ def _get_admin_emails(db: Session) -> list[str]:
     """Get email addresses of all admin users."""
     return [
         a.email
-        for a in db.query(User).filter(
-            User.role == UserRole.ADMIN, User.email.isnot(None)
+        for a in db.scalars(
+            select(User).where(
+                User.role == UserRole.ADMIN, User.email.isnot(None)
+            )
         )
         if a.email
     ]
@@ -105,23 +108,21 @@ async def callback(
 
         # Get Oauth link
         provider_id = str(github_user["id"])
-        oauth_link = (
-            db.query(UserOAuthProvider)
-            .filter(
+        oauth_link = db.scalars(
+            select(UserOAuthProvider).where(
                 UserOAuthProvider.provider == "github",
                 UserOAuthProvider.provider_id == provider_id,
             )
-            .first()
-        )
+        ).first()
 
         if oauth_link:
             # Existing user - just update last_login (profile stays unchanged)
-            user = db.query(User).filter(User.id == oauth_link.user_id).first()
+            user = db.get(User, oauth_link.user_id)
             user.update_last_login()
             logger.info("User logged in: %s (role: %s)", user.username, user.role)
         else:
             # New user - first user becomes admin, others are pending
-            existing_user = db.query(User).limit(1).first()
+            existing_user = db.scalars(select(User).limit(1)).first()
             is_first_user = existing_user is None
 
             if is_first_user:

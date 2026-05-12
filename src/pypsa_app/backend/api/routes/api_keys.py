@@ -5,6 +5,7 @@ from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from pypsa_app.backend.api.deps import get_db, require_permission
@@ -22,7 +23,7 @@ def create_api_key(
     _: User = Depends(require_permission(Permission.SYSTEM_MANAGE)),
 ) -> ApiKeyResponse:
     # Validate linked user exists and is a bot
-    bot_user = db.query(User).filter(User.id == body.user_id).first()
+    bot_user = db.get(User, body.user_id)
     if not bot_user:
         raise HTTPException(404, "User not found")
     if bot_user.role != UserRole.BOT:
@@ -54,7 +55,7 @@ def list_api_keys(
     db: Session = Depends(get_db),
     _: User = Depends(require_permission(Permission.SYSTEM_MANAGE)),
 ) -> list[ApiKeyResponse]:
-    return db.query(ApiKey).order_by(ApiKey.created_at.desc()).all()
+    return db.scalars(select(ApiKey).order_by(ApiKey.created_at.desc())).all()
 
 
 @router.delete("/{key_id}", status_code=204)
@@ -63,7 +64,7 @@ def delete_api_key(
     db: Session = Depends(get_db),
     _: User = Depends(require_permission(Permission.SYSTEM_MANAGE)),
 ) -> None:
-    api_key = db.query(ApiKey).filter(ApiKey.id == key_id).first()
+    api_key = db.get(ApiKey, key_id)
     if not api_key:
         raise HTTPException(404, "API key not found")
 

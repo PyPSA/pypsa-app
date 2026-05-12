@@ -9,6 +9,8 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
 
+from sqlalchemy import select
+
 from pypsa_app.backend.database import SessionLocal
 from pypsa_app.backend.models import Run, RunStatus
 from pypsa_app.backend.services.backend_registry import backend_registry
@@ -102,7 +104,9 @@ def sync_non_terminal_runs() -> list[dict]:
     callbacks: list[dict] = []
     db = SessionLocal()
     try:
-        non_terminal = db.query(Run).filter(Run.status.notin_(SYNCED_STATUSES)).all()
+        non_terminal = db.scalars(
+            select(Run).where(Run.status.notin_(SYNCED_STATUSES))
+        ).all()
         if not non_terminal:
             return callbacks
 

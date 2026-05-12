@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING
 
 import pandas as pd
 import pypsa
+from sqlalchemy import select
 
 from pypsa_app.backend.models import Network, Permission, User, Visibility
 from pypsa_app.backend.permissions import has_permission
@@ -314,7 +315,7 @@ def import_network_file(
 
     Hash, move to storage, extract metadata and create DB record.
     """
-    user = db.query(User).filter(User.id == user_id).first()
+    user = db.get(User, user_id)
     if not user or not has_permission(user, Permission.NETWORKS_MODIFY):
         msg = "User does not have permission to import networks"
         raise PermissionError(msg)
@@ -322,11 +323,11 @@ def import_network_file(
     file_hash = _calculate_file_hash(file_path)
 
     # Check for duplicate file content
-    existing = (
-        db.query(Network)
-        .filter(Network.user_id == user_id, Network.file_hash == file_hash)
-        .first()
-    )
+    existing = db.scalars(
+        select(Network).where(
+            Network.user_id == user_id, Network.file_hash == file_hash
+        )
+    ).first()
     if existing:
         file_path.unlink(missing_ok=True)
         return existing

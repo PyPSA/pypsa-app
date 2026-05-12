@@ -5,6 +5,7 @@ import logging
 from datetime import UTC, datetime, timedelta
 
 from fastapi import HTTPException, Request
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from pypsa_app.backend.auth.session import get_session_store
@@ -33,7 +34,7 @@ def hash_api_key(token: str) -> str:
 def _authenticate_api_key(token: str, db: Session) -> User | None:
     """Authenticate a Bearer token and return the linked user, or None."""
     key_hash = hash_api_key(token)
-    api_key = db.query(ApiKey).filter(ApiKey.key_hash == key_hash).first()
+    api_key = db.scalars(select(ApiKey).where(ApiKey.key_hash == key_hash)).first()
     if not api_key:
         return None
 
@@ -70,7 +71,7 @@ def resolve_current_user(request: Request, db: Session) -> User | None:
             user_id = session_store.get_session(session_id)
 
             if user_id:
-                user = db.query(User).filter(User.id == user_id).first()
+                user = db.get(User, user_id)
                 if user:
                     logger.debug(
                         "User authenticated: %s (role: %s)",

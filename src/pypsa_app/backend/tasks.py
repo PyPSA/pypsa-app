@@ -178,15 +178,11 @@ def import_run_outputs_task(self: Any, job_id: str) -> None:  # noqa: PLR0915
     """Download .nc outputs from a completed run and import as networks."""
     db = SessionLocal()
     try:
-        run = db.query(Run).filter(Run.job_id == job_id).first()
+        run = db.get(Run, job_id)
         if not run or run.status != RunStatus.UPLOADING:
             return
 
-        backend = (
-            db.query(SnakedispatchBackend)
-            .filter(SnakedispatchBackend.id == run.backend_id)
-            .first()
-        )
+        backend = db.get(SnakedispatchBackend, run.backend_id)
         if backend is None:
             logger.error(
                 "Backend %s not found in DB for run %s",
@@ -239,7 +235,7 @@ def import_run_outputs_task(self: Any, job_id: str) -> None:  # noqa: PLR0915
                     extra={"run_id": job_id, "output_path": output_path},
                 )
                 db.rollback()
-                run = db.query(Run).filter(Run.job_id == job_id).first()
+                run = db.get(Run, job_id)
                 if run:
                     run.status = RunStatus.ERROR
                     db.commit()
@@ -254,7 +250,7 @@ def import_run_outputs_task(self: Any, job_id: str) -> None:  # noqa: PLR0915
     except Exception:
         logger.exception("Import task failed", extra={"run_id": job_id})
         try:
-            run = db.query(Run).filter(Run.job_id == job_id).first()
+            run = db.get(Run, job_id)
             if run:
                 run.status = RunStatus.ERROR
                 db.commit()
