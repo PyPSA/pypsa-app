@@ -7,7 +7,7 @@
 	import { saveTablePref, buildOwnerOptions, loadTablePrefs, clampPage } from '$lib/utils.js';
 	import { RUN_FINAL_STATUSES } from '$lib/types.js';
 	import type { RunSummary, User, BackendPublic, ApiError, Visibility } from '$lib/types.js';
-	import type { FilterCategory } from '$lib/components/ui/filter-dialog';
+	import type { FilterCategory } from '$lib/components/widgets/filter-dialog';
 	import type { FilterAst } from '$lib/filters/ast';
 	import { emptyAnd, isEmpty as astIsEmpty } from '$lib/filters/ast';
 	import { parse as parseDsl, serialize as serializeDsl } from '$lib/filters/dsl';

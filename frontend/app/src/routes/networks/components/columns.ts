@@ -9,7 +9,7 @@ import Lock from '@lucide/svelte/icons/lock';
 import Globe from '@lucide/svelte/icons/globe';
 import Trash2 from '@lucide/svelte/icons/trash-2';
 import UserRoundCog from '@lucide/svelte/icons/user-round-cog';
-import OwnerCell from '$lib/components/OwnerCell.svelte';
+import OwnerCell from '$lib/components/cells/OwnerCell.svelte';
 import type { ColumnDef } from '@tanstack/table-core';
 import { byDate } from '$lib/utils.js';
 import type { Network, NetworkTag, TagType, TagColor, Visibility } from '$lib/types.js';

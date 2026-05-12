@@ -18,8 +18,8 @@
 	import ArrowDown from '@lucide/svelte/icons/arrow-down';
 	import { Button } from '$lib/components/ui/button';
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
-	import { TokenSearchInput } from '$lib/components/ui/filter-dialog';
-	import type { FilterCategory, FilterOption } from '$lib/components/ui/filter-dialog';
+	import { TokenSearchInput } from '$lib/components/widgets/filter-dialog';
+	import type { FilterCategory, FilterOption } from '$lib/components/widgets/filter-dialog';
 	import type { FilterAst } from '$lib/filters/ast';
 	import { emptyAnd } from '$lib/filters/ast';
 	import type { Snippet } from 'svelte';

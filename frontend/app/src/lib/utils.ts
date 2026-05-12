@@ -1,10 +1,21 @@
 import { browser } from '$app/environment';
+import { clsx, type ClassValue } from "clsx";
+import { twMerge } from "tailwind-merge";
 import type { VisibilityState } from '@tanstack/table-core';
 import { toast } from 'svelte-sonner';
 import type { NetworkTag, TagType, TagColor, User } from "./types.js";
-import type { FilterOption } from '$lib/components/ui/filter-dialog';
+import type { FilterOption } from '$lib/components/widgets/filter-dialog';
 
-export { cn } from "$lib/lib/utils.js";
+export function cn(...inputs: ClassValue[]) {
+	return twMerge(clsx(inputs));
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type WithoutChild<T> = T extends { child?: any } ? Omit<T, "child"> : T;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type WithoutChildren<T> = T extends { children?: any } ? Omit<T, "children"> : T;
+export type WithoutChildrenOrChild<T> = WithoutChildren<WithoutChild<T>>;
+export type WithElementRef<T, U extends HTMLElement = HTMLElement> = T & { ref?: U | null };
 
 /**
  * Copy text to clipboard with success/error toast.

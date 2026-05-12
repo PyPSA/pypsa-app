@@ -5,7 +5,7 @@
 	import Plus from '@lucide/svelte/icons/plus';
 	import Trash2 from '@lucide/svelte/icons/trash-2';
 	import Button from '$lib/components/ui/button/button.svelte';
-	import { Combobox } from '$lib/components/ui/combobox';
+	import { Combobox } from '$lib/components/widgets/combobox';
 	import * as Dialog from '$lib/components/ui/dialog';
 	import DataTable from '$lib/components/DataTable.svelte';
 	import { Badge } from '$lib/components/ui/badge';
@@ -13,16 +13,15 @@
 	import { breadcrumbStore } from '$lib/stores/breadcrumb.svelte.js';
 	import ApiKeyReveal from '$lib/components/admin/ApiKeyReveal.svelte';
 	import { TableSkeleton } from '$lib/components/skeletons';
-	import type { FilterCategory } from '$lib/components/ui/filter-dialog';
+	import type { FilterCategory } from '$lib/components/widgets/filter-dialog';
 	import type { FilterAst } from '$lib/filters/ast';
 	import { emptyAnd } from '$lib/filters/ast';
 	import { filterStateFromAst } from '$lib/filters/legacy';
-	import { renderComponent } from '$lib/components/ui/data-table/render-helpers.js';
-	import BadgeCell from '$lib/components/cells/BadgeCell.svelte';
-	import { byDate, copyToClipboard } from '$lib/utils.js';
+	import { copyToClipboard } from '$lib/utils.js';
 	import { toast } from 'svelte-sonner';
 	import type { User, ApiKey } from '$lib/types.js';
-	import type { ColumnDef, SortingState } from '@tanstack/table-core';
+	import type { SortingState } from '@tanstack/table-core';
+	import { createColumns } from '../components/api-key-columns.js';
 
 	let allKeys = $state<ApiKey[]>([]);
 	let keysLoading = $state(true);
@@ -87,60 +86,7 @@
 		})
 	);
 
-	const columns: ColumnDef<ApiKey, unknown>[] = [
-		{
-			accessorKey: 'name',
-			header: 'Name',
-			enableSorting: true,
-			sortingFn: 'alphanumeric',
-			cell: (info) => info.getValue() as string
-		},
-		{
-			accessorKey: 'key_prefix',
-			header: 'Prefix',
-			enableSorting: false,
-			cell: (info) => `${info.getValue() as string}...`
-		},
-		{
-			id: 'owner',
-			header: 'Owner',
-			enableSorting: true,
-			cell: (info) => info.row.original.owner.username
-		},
-		{
-			accessorKey: 'created_at',
-			header: 'Created',
-			enableSorting: true,
-			sortingFn: byDate<ApiKey>((r) => r.created_at),
-			cell: (info) => renderComponent(DateTime, { value: info.getValue() as string })
-		},
-		{
-			accessorKey: 'last_used_at',
-			header: 'Last used',
-			enableSorting: true,
-			sortingFn: byDate<ApiKey>((r) => r.last_used_at),
-			cell: (info) => renderComponent(DateTime, { value: info.getValue() as string })
-		},
-		{
-			accessorKey: 'expires_at',
-			header: 'Expires',
-			enableSorting: true,
-			sortingFn: byDate<ApiKey>((r) => r.expires_at),
-			cell: (info) => renderComponent(DateTime, { value: info.getValue() as string })
-		},
-		{
-			id: 'status',
-			header: 'Status',
-			enableSorting: false,
-			cell: (info) => {
-				const expired = isExpired(info.row.original);
-				return renderComponent(BadgeCell, {
-					label: expired ? 'expired' : 'active',
-					variant: expired ? 'outline' : 'default'
-				});
-			}
-		}
-	];
+	const columns = createColumns({ isExpired });
 
 	onMount(async () => {
 		await Promise.all([loadApiKeys(), loadBotUsers()]);

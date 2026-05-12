@@ -12,7 +12,7 @@ import Trash2 from '@lucide/svelte/icons/trash-2';
 import RotateCw from '@lucide/svelte/icons/rotate-cw';
 import LockKeyhole from '@lucide/svelte/icons/lock-keyhole';
 import Globe from '@lucide/svelte/icons/globe';
-import OwnerCell from '$lib/components/OwnerCell.svelte';
+import OwnerCell from '$lib/components/cells/OwnerCell.svelte';
 import type { ColumnDef } from '@tanstack/table-core';
 import { RUN_SETTLED_STATUSES } from '$lib/types.js';
 import type { RunSummary, Visibility } from '$lib/types.js';

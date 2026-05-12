@@ -8,7 +8,7 @@
 	import Button from '$lib/components/ui/button/button.svelte';
 	import * as Dialog from '$lib/components/ui/dialog';
 	import DataTable from '$lib/components/DataTable.svelte';
-	import type { FilterCategory } from '$lib/components/ui/filter-dialog';
+	import type { FilterCategory } from '$lib/components/widgets/filter-dialog';
 	import type { FilterAst } from '$lib/filters/ast';
 	import { emptyAnd, isEmpty as astIsEmpty } from '$lib/filters/ast';
 	import { parse as parseDsl, serialize as serializeDsl } from '$lib/filters/dsl';

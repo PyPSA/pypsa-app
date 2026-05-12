@@ -9,7 +9,7 @@
 	import Loader2 from '@lucide/svelte/icons/loader-2';
 	import { toast } from 'svelte-sonner';
 	import * as Dialog from '$lib/components/ui/dialog';
-	import { Combobox } from '$lib/components/ui/combobox';
+	import { Combobox } from '$lib/components/widgets/combobox';
 	import { Label } from '$lib/components/ui/label';
 	import Button from '$lib/components/ui/button/button.svelte';
 	import DataTable from '$lib/components/DataTable.svelte';
@@ -18,7 +18,7 @@
 	import EmptyState from '$lib/components/EmptyState.svelte';
 	import { TableSkeleton } from '$lib/components/skeletons';
 	import type { Network as NetworkType, User, NetworkUpdate, ApiError, Visibility } from '$lib/types.js';
-	import type { FilterCategory } from '$lib/components/ui/filter-dialog';
+	import type { FilterCategory } from '$lib/components/widgets/filter-dialog';
 	import type { FilterAst } from '$lib/filters/ast';
 	import { emptyAnd, isEmpty as astIsEmpty } from '$lib/filters/ast';
 	import { parse as parseDsl, serialize as serializeDsl } from '$lib/filters/dsl';

@@ -2,7 +2,7 @@
 	import Plus from '@lucide/svelte/icons/plus';
 	import Trash2 from '@lucide/svelte/icons/trash-2';
 	import Button from '$lib/components/ui/button/button.svelte';
-	import { Combobox, type ComboboxOption } from '$lib/components/ui/combobox';
+	import { Combobox, type ComboboxOption } from '$lib/components/widgets/combobox';
 
 	type Props = {
 		items: T[];

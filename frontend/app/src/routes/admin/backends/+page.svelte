@@ -4,7 +4,7 @@
 	import { admin } from '$lib/api/client.js';
 	import Server from '@lucide/svelte/icons/server';
 	import DataTable from '$lib/components/DataTable.svelte';
-	import type { FilterCategory } from '$lib/components/ui/filter-dialog';
+	import type { FilterCategory } from '$lib/components/widgets/filter-dialog';
 	import type { FilterAst } from '$lib/filters/ast';
 	import { emptyAnd } from '$lib/filters/ast';
 	import { filterStateFromAst } from '$lib/filters/legacy';

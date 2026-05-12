@@ -2,7 +2,7 @@
 // Only handles the flat and-of-in shape — non-flat ASTs (or, not, nesting)
 // produced by Query mode collapse to an empty FilterState here.
 
-import type { FilterState } from '$lib/components/ui/filter-dialog';
+import type { FilterState } from '$lib/components/widgets/filter-dialog';
 import type { FilterAst, FilterAnd, FilterIn } from '$lib/filters/ast';
 
 export function astFromFilterState(state: FilterState): FilterAnd {

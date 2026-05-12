@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { authStore } from '$lib/stores/auth.svelte.js';
-	import LoginForm from '$lib/components/login-form.svelte';
+	import LoginForm from './login-form.svelte';
 
 	let loading = $state(false);
 
