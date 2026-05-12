@@ -2,7 +2,7 @@ import logging
 from collections.abc import Iterator
 from pathlib import PurePosixPath
 
-from fastapi import APIRouter, Body, Depends, HTTPException, UploadFile
+from fastapi import APIRouter, Body, Depends, HTTPException, Query, UploadFile
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session, joinedload
 
@@ -36,11 +36,14 @@ from pypsa_app.backend.models import Network, Permission, User, Visibility
 from pypsa_app.backend.permissions import has_permission
 from pypsa_app.backend.schemas.common import MessageResponse
 from pypsa_app.backend.schemas.network import (
+    ComponentDataResponse,
     NetworkListResponse,
     NetworkResponse,
     NetworkUpdate,
+    ReportsPayload,
 )
 from pypsa_app.backend.schemas.task import TaskQueuedResponse
+from pypsa_app.backend.services.network import NetworkService
 from pypsa_app.backend.settings import settings
 from pypsa_app.backend.tasks import (
     import_network_from_file_task,
@@ -206,6 +209,91 @@ def update_network(
     )
 
     return network
+
+
+@router.get("/{network_id}/reports")
+def get_network_reports(
+    auth: Authorized[Network] = Depends(require_network("read")),
+) -> ReportsPayload | None:
+    return auth.model.reports
+
+
+@router.put("/{network_id}/reports", response_model=ReportsPayload)
+def save_network_reports(
+    body: ReportsPayload,
+    auth: Authorized[Network] = Depends(require_network("modify")),
+    db: Session = Depends(get_db),
+) -> ReportsPayload:
+    network = auth.model
+    network.reports = body.model_dump()
+    db.commit()
+    return body
+
+
+@router.get(
+    "/{network_id}/components/{component_name}",
+    response_model=ComponentDataResponse,
+)
+def get_component_data(
+    component_name: str,
+    auth: Authorized[Network] = Depends(require_network("read")),
+    offset: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=500),
+    sort_by: str | None = Query(None),
+    sort_dir: str = Query("asc", pattern="^(asc|desc)$"),
+    search: str | None = Query(None),
+) -> ComponentDataResponse:
+    network = auth.model
+    service = NetworkService(network.file_path)
+    n = service.n
+
+    try:
+        component = n.components[component_name]
+    except KeyError as exc:
+        raise HTTPException(404, f"Component '{component_name}' not found") from exc
+
+    df = component.static
+
+    if search:
+        # Might wanna add optional regex search at some point
+        mask = (
+            df.astype(str)
+            .apply(
+                lambda col: col.str.contains(
+                    search, case=False, regex=False, na=False
+                )
+            )
+            .any(axis=1)
+        )
+        df = df[mask]
+
+    total = len(df)
+
+    if sort_by and sort_by in df.columns:
+        df = df.sort_values(sort_by, ascending=(sort_dir == "asc"))
+
+    page = df.iloc[offset : offset + limit]
+
+    dtypes = {col: str(dtype) for col, dtype in page.dtypes.items()}
+    data = []
+    for _, row in page.iterrows():
+        data.append(
+            [
+                None if isinstance(v, float) and (v != v) else v  # noqa: PLR0124
+                for v in row.tolist()
+            ]
+        )
+
+    return ComponentDataResponse(
+        component=component_name,
+        columns=list(page.columns),
+        dtypes=dtypes,
+        index=[str(i) for i in page.index],
+        data=data,
+        total=total,
+        offset=offset,
+        limit=limit,
+    )
 
 
 @router.delete("/{network_id}", response_model=MessageResponse)

@@ -240,6 +240,7 @@ class Network(Base):
     components_count: Mapped[Any | None] = mapped_column(JSON)
     meta: Mapped[Any | None] = mapped_column(JSON)
     facets: Mapped[Any | None] = mapped_column(JSON)
+    reports: Mapped[Any | None] = mapped_column(JSON)
     topology_svg: Mapped[str | None] = mapped_column(Text)
 
     @property

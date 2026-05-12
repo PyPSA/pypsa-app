@@ -74,3 +74,36 @@ class NetworkAdminUpdate(NetworkUpdate):
     """Admin-only fields"""
 
     user_id: UUID | None = None
+
+
+class ReportCard(BaseModel):
+    id: str
+    type: str
+    x: int
+    y: int
+    w: int
+    h: int
+    model_config = ConfigDict(extra="allow")
+
+
+class ReportSchema(BaseModel):
+    id: str
+    name: str
+    cards: list[ReportCard]
+    isDefault: bool = False
+
+
+class ReportsPayload(BaseModel):
+    reports: list[ReportSchema]
+    activeReportId: str
+
+
+class ComponentDataResponse(BaseModel):
+    component: str
+    columns: list[str]
+    dtypes: dict[str, str]
+    index: list[str]
+    data: list[list[Any]]
+    total: int
+    offset: int
+    limit: int
