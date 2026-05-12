@@ -39,9 +39,9 @@ def get_task_status_response(task_id: str) -> dict:
         case "SUCCESS":
             response["result"] = task.result
         case "FAILURE":
-            response["error"] = str(task.info)
+            response["error"] = "Task failed unexpectedly"
         case _:
-            response["message"] = str(task.info)
+            response["message"] = "Task in unknown state"
 
     return response
 
