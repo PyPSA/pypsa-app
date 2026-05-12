@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Any
 
 from fastapi import HTTPException
 from pydantic import ValidationError
-from sqlalchemy import and_, false, not_, or_, true
+from sqlalchemy import and_, false, not_, or_, select, true
 
 from pypsa_app.backend.filters.ast import (
     AndNode,
@@ -24,7 +24,7 @@ if TYPE_CHECKING:
     from collections.abc import Callable
 
     from sqlalchemy import ColumnElement, Select
-    from sqlalchemy.orm import InstrumentedAttribute
+    from sqlalchemy.orm import InstrumentedAttribute, Session
 
 
 class FilterError(ValueError):
@@ -55,6 +55,23 @@ def enum_coercer[E: enum.Enum](cls: type[E]) -> Callable[[str], E]:
                 return member
         msg = f"{s!r} is not a valid {cls.__name__}"
         raise ValueError(msg)
+
+    return coerce
+
+
+def name_to_id[M](
+    db: Session, model: type[M], name_attr: str, label: str
+) -> Callable[[str], Any]:
+    """Return a coercer that resolves `model.<name_attr>` to its `id`."""
+
+    def coerce(s: str) -> Any:
+        obj = db.scalars(
+            select(model).where(getattr(model, name_attr) == s)
+        ).first()
+        if obj is None:
+            msg = f"Unknown {label}: {s}"
+            raise ValueError(msg)
+        return obj.id
 
     return coerce
 

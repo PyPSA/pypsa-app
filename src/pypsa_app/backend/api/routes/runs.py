@@ -11,8 +11,7 @@ from typing import Any, Literal
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi import Path as PathParam
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel
-from sqlalchemy import or_
+from sqlalchemy import or_, select
 from sqlalchemy.orm import Session, joinedload
 
 from pypsa_app.backend.api.deps import (
@@ -21,7 +20,19 @@ from pypsa_app.backend.api.deps import (
     require_permission,
     require_run,
 )
+from pypsa_app.backend.api.pagination import (
+    FilteredListParams,
+    apply_pagination,
+    list_meta,
+)
 from pypsa_app.backend.cache import cache
+from pypsa_app.backend.filters import (
+    FieldMap,
+    FieldSpec,
+    apply_filter_to_query,
+    enum_coercer,
+    name_to_id,
+)
 from pypsa_app.backend.models import (
     Permission,
     Run,
@@ -71,19 +82,17 @@ def _get_user_backends(user: User, db: Session) -> list[SnakedispatchBackend]:
     Users with RUNS_MANAGE_ALL get all active backends, bypassing the assignment table.
     """
     if has_permission(user, Permission.RUNS_MANAGE_ALL):
-        return (
-            db.query(SnakedispatchBackend)
-            .filter(SnakedispatchBackend.is_active.is_(True))
+        return db.scalars(
+            select(SnakedispatchBackend)
+            .where(SnakedispatchBackend.is_active.is_(True))
             .order_by(SnakedispatchBackend.name)
-            .all()
-        )
-    return (
-        db.query(SnakedispatchBackend)
+        ).all()
+    return db.scalars(
+        select(SnakedispatchBackend)
         .join(SnakedispatchBackend.users)
-        .filter(User.id == user.id, SnakedispatchBackend.is_active.is_(True))
+        .where(User.id == user.id, SnakedispatchBackend.is_active.is_(True))
         .order_by(SnakedispatchBackend.name)
-        .all()
-    )
+    ).all()
 
 
 @router.get("/backends", response_model=list[BackendPublicResponse])
@@ -167,26 +176,26 @@ def create_run(
     return RunResponse.model_validate(run)
 
 
-class RunListFilters(BaseModel):
-    """Query parameters for filtering the runs list."""
-
-    skip: int = 0
-    limit: int = 100
-    statuses: list[str] | None = Query(None, description="Filter by status values")
-    workflows: list[str] | None = Query(None, description="Filter by workflow names")
-    owners: list[str] | None = Query(
-        None, description="Filter by owner IDs. Use 'me' for current user."
-    )
-    git_refs: list[str] | None = Query(None, description="Filter by git ref")
-    configfiles: list[str] | None = Query(None, description="Filter by configfile")
-    backends: list[str] | None = Query(
-        None, description="Filter by backend IDs (UUIDs)"
-    )
+def _build_run_field_map(user: User, db: Session) -> FieldMap:
+    # 'owner' accepts "me" (current user) or a username.
+    username_to_id = name_to_id(db, User, "username", "user")
+    return {
+        "status": FieldSpec(Run.status, enum_coercer(RunStatus)),
+        "workflow": FieldSpec(Run.workflow, str),
+        "owner": FieldSpec(
+            Run.user_id, lambda s: user.id if s == "me" else username_to_id(s)
+        ),
+        "git_ref": FieldSpec(Run.git_ref, str),
+        "configfile": FieldSpec(Run.configfile, str),
+        "backend": FieldSpec(
+            Run.backend_id, name_to_id(db, SnakedispatchBackend, "name", "backend")
+        ),
+    }
 
 
 @router.get("/", response_model=RunListResponse)
 def list_runs(
-    filters: RunListFilters = Depends(),
+    filters: FilteredListParams = Depends(),
     db: Session = Depends(get_db),
     user: User = Depends(require_permission(Permission.RUNS_VIEW)),
 ) -> RunListResponse:
@@ -203,10 +212,10 @@ def list_runs(
 
     # Collect distinct values per column for filter dropdowns
     def _distinct_vals(col: Any) -> list:
-        q = db.query(col).filter(col.isnot(None))
+        stmt = select(col).where(col.isnot(None)).distinct()
         if user_filter is not None:
-            q = q.filter(user_filter)
-        return sorted(r[0] for r in q.distinct().all())
+            stmt = stmt.where(user_filter)
+        return sorted(db.scalars(stmt).all())
 
     all_statuses = list(RunStatus)
     present_statuses = set(_distinct_vals(Run.status))
@@ -219,61 +228,45 @@ def list_runs(
 
     backend_ids = _distinct_vals(Run.backend_id)
     filter_options["backends"] = (
-        db.query(SnakedispatchBackend)
-        .filter(SnakedispatchBackend.id.in_(backend_ids))
-        .order_by(SnakedispatchBackend.name)
-        .all()
+        db.scalars(
+            select(SnakedispatchBackend)
+            .where(SnakedispatchBackend.id.in_(backend_ids))
+            .order_by(SnakedispatchBackend.name)
+        ).all()
         if backend_ids
         else None
     )
 
     owner_ids = _distinct_vals(Run.user_id)
     filter_options["owners"] = (
-        db.query(User).filter(User.id.in_(owner_ids)).all() if owner_ids else None
+        db.scalars(select(User).where(User.id.in_(owner_ids))).all()
+        if owner_ids
+        else None
     )
 
-    query = db.query(Run).options(joinedload(Run.owner), joinedload(Run.backend))
+    query = select(Run).options(joinedload(Run.owner), joinedload(Run.backend))
     if user_filter is not None:
-        query = query.filter(user_filter)
-    if filters.statuses:
-        try:
-            parsed_statuses = [RunStatus(s) for s in filters.statuses]
-        except ValueError as e:
-            raise HTTPException(422, f"Invalid status filter: {e}") from None
-        query = query.filter(Run.status.in_(parsed_statuses))
-    if filters.workflows:
-        query = query.filter(Run.workflow.in_(filters.workflows))
-    if filters.owners:
-        resolved_ids = [user.id if o == "me" else o for o in filters.owners]
-        query = query.filter(Run.user_id.in_(resolved_ids))
-    if filters.git_refs:
-        query = query.filter(Run.git_ref.in_(filters.git_refs))
-    if filters.configfiles:
-        query = query.filter(Run.configfile.in_(filters.configfiles))
-    if filters.backends:
-        try:
-            parsed_backends = [uuid.UUID(b) for b in filters.backends]
-        except ValueError as e:
-            raise HTTPException(422, f"Invalid backend ID: {e}") from None
-        query = query.filter(Run.backend_id.in_(parsed_backends))
+        query = query.where(user_filter)
 
-    total = query.count()
-    runs = (
-        query.order_by(Run.created_at.desc())
-        .offset(filters.skip)
-        .limit(filters.limit)
-        .all()
+    query = apply_filter_to_query(
+        query,
+        filters.filter_q,
+        _build_run_field_map(user, db),
+        text_fields=(Run.workflow, Run.configfile),
     )
+
+    runs_query, total = apply_pagination(
+        query,
+        Run,
+        filters,
+        session=db,
+        allowed_sort_fields={"created_at", "status", "workflow"},
+    )
+    runs = db.scalars(runs_query).all()
 
     return RunListResponse(
         data=[RunSummary.model_validate(r) for r in runs],
-        meta={
-            "total": total,
-            "skip": filters.skip,
-            "limit": filters.limit,
-            "count": len(runs),
-            **filter_options,
-        },
+        meta={**list_meta(total, filters, len(runs)), **filter_options},
     )
 
 

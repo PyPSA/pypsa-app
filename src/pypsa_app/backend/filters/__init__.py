@@ -15,6 +15,7 @@ from pypsa_app.backend.filters.sqla import (
     FilterError,
     apply_filter_to_query,
     enum_coercer,
+    name_to_id,
     resolve_filter_ast,
     to_sqla,
 )
@@ -32,6 +33,7 @@ __all__ = [
     "TextNode",
     "apply_filter_to_query",
     "enum_coercer",
+    "name_to_id",
     "resolve_filter_ast",
     "to_sqla",
 ]

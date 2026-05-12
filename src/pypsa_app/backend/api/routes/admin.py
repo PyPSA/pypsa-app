@@ -3,11 +3,24 @@
 import logging
 from uuid import UUID
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
+from sqlalchemy import select
 from sqlalchemy.orm import Session, joinedload
 
 from pypsa_app.backend.api.deps import get_backend, get_db, require_permission
+from pypsa_app.backend.api.pagination import (
+    FilteredListParams,
+    apply_pagination,
+    list_meta,
+)
 from pypsa_app.backend.api.utils.network import delete_network
+from pypsa_app.backend.filters import (
+    FieldMap,
+    FieldSpec,
+    apply_filter_to_query,
+    enum_coercer,
+    name_to_id,
+)
 from pypsa_app.backend.models import (
     Network,
     Permission,
@@ -58,34 +71,39 @@ def get_permissions(
     }
 
 
+_USER_FIELD_MAP: FieldMap = {
+    "role": FieldSpec(User.role, enum_coercer(UserRole)),
+}
+
+
 @router.get("/users", response_model=UserListResponse)
 def list_users(
-    skip: int = 0,
-    limit: int = 100,
-    role: str | None = Query(None, description="Filter by role"),
+    filters: FilteredListParams = Depends(),
     db: Session = Depends(get_db),
     admin: User = Depends(require_permission(Permission.USERS_MANAGE)),
 ) -> UserListResponse:
     """List all users"""
-    query = db.query(User)
+    query = select(User)
 
-    if role:
-        try:
-            role_enum = UserRole(role)
-            query = query.filter(User.role == role_enum)
-        except ValueError as e:
-            valid_roles = [r.value for r in UserRole]
-            raise HTTPException(
-                400,
-                f"Invalid role filter. Must be one of: {', '.join(valid_roles)}",
-            ) from e
+    query = apply_filter_to_query(
+        query,
+        filters.filter_q,
+        _USER_FIELD_MAP,
+        text_fields=(User.username, User.email),
+    )
 
-    total = query.count()
-    users = query.order_by(User.created_at.desc()).offset(skip).limit(limit).all()
+    users_query, total = apply_pagination(
+        query,
+        User,
+        filters,
+        session=db,
+        allowed_sort_fields={"created_at", "username", "email", "last_login", "role"},
+    )
+    users = db.scalars(users_query).all()
 
     return UserListResponse(
         data=users,
-        meta={"total": total, "skip": skip, "limit": limit, "count": len(users)},
+        meta=list_meta(total, filters, len(users)),
     )
 
 
@@ -99,7 +117,7 @@ def create_user(
     if body.role != UserRole.BOT:
         raise HTTPException(400, "Only bot users can be created via API")
 
-    existing = db.query(User).filter(User.username == body.username).first()
+    existing = db.scalars(select(User).where(User.username == body.username)).first()
     if existing:
         raise HTTPException(409, "Username already taken")
 
@@ -205,39 +223,41 @@ def delete_user(
     return {"message": f"User {username} deleted successfully"}
 
 
+def _build_admin_network_field_map(db: Session) -> FieldMap:
+    return {
+        "visibility": FieldSpec(Network.visibility, enum_coercer(Visibility)),
+        "owner": FieldSpec(Network.user_id, name_to_id(db, User, "username", "user")),
+    }
+
+
 @router.get("/networks", response_model=NetworkListResponse)
 def list_all_networks(
-    skip: int = 0,
-    limit: int = 100,
-    visibility: Visibility | None = Query(
-        None, description="Filter: 'public' or 'private'"
-    ),
-    owner: str | None = Query(None, description="Filter by owner user_id"),
+    filters: FilteredListParams = Depends(),
     db: Session = Depends(get_db),
     admin: User = Depends(require_permission(Permission.NETWORKS_MANAGE_ALL)),
 ) -> NetworkListResponse:
     """List ALL networks (admin only) - bypasses normal visibility rules"""
-    query = db.query(Network).options(joinedload(Network.owner))
+    query = select(Network).options(joinedload(Network.owner))
 
-    if visibility:
-        query = query.filter(Network.visibility == visibility)
+    query = apply_filter_to_query(
+        query,
+        filters.filter_q,
+        _build_admin_network_field_map(db),
+        text_fields=(Network.filename, Network.name),
+    )
 
-    # Apply owner filter
-    if owner:
-        try:
-            owner_uuid = UUID(owner)
-            query = query.filter(Network.user_id == owner_uuid)
-        except ValueError as e:
-            raise HTTPException(
-                400, "Invalid owner filter. Must be a valid UUID"
-            ) from e
-
-    total = query.count()
-    networks = query.order_by(Network.created_at.desc()).offset(skip).limit(limit).all()
+    networks_query, total = apply_pagination(
+        query,
+        Network,
+        filters,
+        session=db,
+        allowed_sort_fields={"created_at", "name", "filename", "file_size"},
+    )
+    networks = db.scalars(networks_query).all()
 
     return NetworkListResponse(
         data=networks,
-        meta={"total": total, "skip": skip, "limit": limit, "count": len(networks)},
+        meta=list_meta(total, filters, len(networks)),
     )
 
 
@@ -249,12 +269,11 @@ def update_network_admin(
     admin: User = Depends(require_permission(Permission.NETWORKS_MANAGE_ALL)),
 ) -> Network:
     """Update network properties (admin only) - can change owner, visibility, name"""
-    network = (
-        db.query(Network)
+    network = db.scalars(
+        select(Network)
         .options(joinedload(Network.owner))
-        .filter(Network.id == network_id)
-        .first()
-    )
+        .where(Network.id == network_id)
+    ).first()
 
     if not network:
         raise HTTPException(404, "Network not found")
@@ -265,7 +284,7 @@ def update_network_admin(
     # Update user_id (owner)
     if body.user_id is not None:
         old_owner = network.owner.username
-        new_owner = db.query(User).filter(User.id == body.user_id).first()
+        new_owner = db.get(User, body.user_id)
         if not new_owner:
             raise HTTPException(400, "Specified owner does not exist")
         network.user_id = body.user_id
@@ -305,7 +324,7 @@ def delete_network_admin(
     admin: User = Depends(require_permission(Permission.NETWORKS_MANAGE_ALL)),
 ) -> dict:
     """Delete any network (admin only)"""
-    network = db.query(Network).filter(Network.id == network_id).first()
+    network = db.get(Network, network_id)
     if not network:
         raise HTTPException(404, "Network not found")
 
@@ -317,38 +336,41 @@ def delete_network_admin(
 # --- Run management ---
 
 
+def _build_admin_run_field_map(db: Session) -> FieldMap:
+    return {
+        "visibility": FieldSpec(Run.visibility, enum_coercer(Visibility)),
+        "owner": FieldSpec(Run.user_id, name_to_id(db, User, "username", "user")),
+    }
+
+
 @router.get("/runs", response_model=RunListResponse)
 def list_all_runs(
-    skip: int = 0,
-    limit: int = 100,
-    visibility: Visibility | None = Query(
-        None, description="Filter: 'public' or 'private'"
-    ),
-    owner: str | None = Query(None, description="Filter by owner user_id"),
+    filters: FilteredListParams = Depends(),
     db: Session = Depends(get_db),
     admin: User = Depends(require_permission(Permission.RUNS_MANAGE_ALL)),
 ) -> RunListResponse:
     """List ALL runs (admin only) - bypasses normal visibility rules"""
-    query = db.query(Run).options(joinedload(Run.owner), joinedload(Run.backend))
+    query = select(Run).options(joinedload(Run.owner), joinedload(Run.backend))
 
-    if visibility:
-        query = query.filter(Run.visibility == visibility)
+    query = apply_filter_to_query(
+        query,
+        filters.filter_q,
+        _build_admin_run_field_map(db),
+        text_fields=(Run.workflow, Run.configfile),
+    )
 
-    if owner:
-        try:
-            owner_uuid = UUID(owner)
-            query = query.filter(Run.user_id == owner_uuid)
-        except ValueError as e:
-            raise HTTPException(
-                400, "Invalid owner filter. Must be a valid UUID"
-            ) from e
-
-    total = query.count()
-    runs = query.order_by(Run.created_at.desc()).offset(skip).limit(limit).all()
+    runs_query, total = apply_pagination(
+        query,
+        Run,
+        filters,
+        session=db,
+        allowed_sort_fields={"created_at", "status", "workflow"},
+    )
+    runs = db.scalars(runs_query).all()
 
     return RunListResponse(
         data=[RunSummary.model_validate(r) for r in runs],
-        meta={"total": total, "skip": skip, "limit": limit, "count": len(runs)},
+        meta=list_meta(total, filters, len(runs)),
     )
 
 
@@ -361,11 +383,16 @@ def update_run_admin(
 ) -> RunResponse:
     """Update run properties (admin only) - can change owner, visibility"""
     run = (
-        db.query(Run)
-        .options(
-            joinedload(Run.owner), joinedload(Run.backend), joinedload(Run.networks)
+        db.scalars(
+            select(Run)
+            .options(
+                joinedload(Run.owner),
+                joinedload(Run.backend),
+                joinedload(Run.networks),
+            )
+            .where(Run.job_id == run_id)
         )
-        .filter(Run.job_id == run_id)
+        .unique()
         .first()
     )
     if not run:
@@ -375,7 +402,7 @@ def update_run_admin(
 
     if body.user_id is not None:
         old_owner = run.owner.username
-        new_owner = db.query(User).filter(User.id == body.user_id).first()
+        new_owner = db.get(User, body.user_id)
         if not new_owner:
             raise HTTPException(400, "Specified owner does not exist")
         run.user_id = body.user_id
@@ -408,7 +435,7 @@ def delete_run_admin(
     admin: User = Depends(require_permission(Permission.RUNS_MANAGE_ALL)),
 ) -> dict:
     """Delete any run (admin only)"""
-    run = db.query(Run).filter(Run.job_id == run_id).first()
+    run = db.get(Run, run_id)
     if not run:
         raise HTTPException(404, "Run not found")
 
@@ -435,7 +462,9 @@ def list_backends(
     admin: User = Depends(require_permission(Permission.SYSTEM_MANAGE)),
 ) -> list[SnakedispatchBackend]:
     """List all registered Snakedispatch backends."""
-    return db.query(SnakedispatchBackend).order_by(SnakedispatchBackend.name).all()
+    return db.scalars(
+        select(SnakedispatchBackend).order_by(SnakedispatchBackend.name)
+    ).all()
 
 
 @router.get("/backends/{backend_id}/users", response_model=list[UserResponse])
@@ -453,7 +482,7 @@ def assign_user_to_backend(
     backend: SnakedispatchBackend = Depends(get_backend),
 ) -> dict:
     """Assign a user to a backend."""
-    user = db.query(User).filter(User.id == body.user_id).first()
+    user = db.get(User, body.user_id)
     if not user:
         raise HTTPException(404, "User not found")
 

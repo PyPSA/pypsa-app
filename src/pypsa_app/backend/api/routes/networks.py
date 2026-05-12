@@ -2,9 +2,8 @@ import logging
 import uuid as _uuid
 from pathlib import PurePosixPath
 
-from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile
-from pydantic import BaseModel
-from sqlalchemy import ColumnElement, or_
+from fastapi import APIRouter, Depends, HTTPException, UploadFile
+from sqlalchemy import or_, select
 from sqlalchemy.orm import Session, joinedload
 
 from pypsa_app.backend.api.deps import (
@@ -13,8 +12,20 @@ from pypsa_app.backend.api.deps import (
     require_network,
     require_permission,
 )
+from pypsa_app.backend.api.pagination import (
+    FilteredListParams,
+    apply_pagination,
+    list_meta,
+)
 from pypsa_app.backend.api.utils.network import (
     delete_network as delete_network_and_file,
+)
+from pypsa_app.backend.filters import (
+    FieldMap,
+    FieldSpec,
+    apply_filter_to_query,
+    enum_coercer,
+    name_to_id,
 )
 from pypsa_app.backend.models import Network, Permission, User, Visibility
 from pypsa_app.backend.permissions import has_permission
@@ -83,75 +94,66 @@ def upload_network(
         tmp.unlink(missing_ok=True)
 
 
-class NetworkListFilters(BaseModel):
-    """Query parameters for filtering the networks list."""
-
-    skip: int = 0
-    limit: int = 100
-    owners: list[str] | None = Query(
-        None,
-        description="Filter by owner IDs. Use 'me' for current user.",
-    )
+def _build_network_field_map(user: User, db: Session) -> FieldMap:
+    username_to_id = name_to_id(db, User, "username", "user")
+    return {
+        "owner": FieldSpec(
+            Network.user_id, lambda s: user.id if s == "me" else username_to_id(s)
+        ),
+        "visibility": FieldSpec(Network.visibility, enum_coercer(Visibility)),
+    }
 
 
 @router.get("/", response_model=NetworkListResponse)
 def list_networks(
-    filters: NetworkListFilters = Depends(),
+    filters: FilteredListParams = Depends(),
     db: Session = Depends(get_db),
     user: User = Depends(require_permission(Permission.NETWORKS_VIEW)),
 ) -> NetworkListResponse:
     """List networks with pagination and optional filtering."""
-    query = db.query(Network).options(joinedload(Network.owner))
+    query = select(Network).options(joinedload(Network.owner))
 
     visibility_filter = None
     if not has_permission(user, Permission.NETWORKS_MANAGE_ALL):
-        # Non-admin users see: own networks + public
         visibility_filter = or_(
             Network.user_id == user.id,
             Network.visibility == Visibility.PUBLIC,
         )
-        query = query.filter(visibility_filter)
+        query = query.where(visibility_filter)
 
-    # Apply owner filter if specified
-    if filters.owners:
-
-        def owner_to_condition(owner_id: str) -> ColumnElement[bool]:
-            if owner_id == "me":
-                return Network.user_id == user.id
-            return Network.user_id == owner_id
-
-        conditions = [owner_to_condition(oid) for oid in filters.owners]
-        query = query.filter(or_(*conditions))
-
-    total = query.count()
-    networks = (
-        query.order_by(Network.created_at.desc())
-        .offset(filters.skip)
-        .limit(filters.limit)
-        .all()
+    query = apply_filter_to_query(
+        query,
+        filters.filter_q,
+        _build_network_field_map(user, db),
+        text_fields=(Network.filename, Network.name),
     )
+
+    networks_query, total = apply_pagination(
+        query,
+        Network,
+        filters,
+        session=db,
+        allowed_sort_fields={"created_at", "name", "filename", "file_size"},
+    )
+    networks = db.scalars(networks_query).all()
 
     # Get all unique owners for filter dropdown
     all_owners = []
-    owners_query = db.query(Network.user_id)
+    owners_query = select(Network.user_id).distinct()
     if not has_permission(user, Permission.NETWORKS_MANAGE_ALL):
         if visibility_filter is not None:
-            owners_query = owners_query.filter(visibility_filter)
+            owners_query = owners_query.where(visibility_filter)
         else:
-            owners_query = owners_query.filter(Network.user_id == user.id)
-    owner_ids = [oid[0] for oid in owners_query.distinct().all()]
+            owners_query = owners_query.where(Network.user_id == user.id)
+    owner_ids = db.scalars(owners_query).all()
     if owner_ids:
-        all_owners = db.query(User).filter(User.id.in_(owner_ids)).all()
+        all_owners = db.scalars(
+            select(User).where(User.id.in_(owner_ids))
+        ).all()
 
     return NetworkListResponse(
         data=networks,
-        meta={
-            "total": total,
-            "skip": filters.skip,
-            "limit": filters.limit,
-            "count": len(networks),
-            "owners": all_owners,
-        },
+        meta={**list_meta(total, filters, len(networks)), "owners": all_owners},
     )
 
 
