@@ -5,8 +5,10 @@ import logging
 import socket
 import urllib.parse
 from pathlib import Path
+from typing import Annotated
 
 from fastapi import HTTPException, status
+from pydantic import AfterValidator, HttpUrl
 
 from pypsa_app.backend.settings import settings
 
@@ -80,3 +82,12 @@ def validate_url_external(url: str) -> None:
         ):
             msg = "URLs pointing to internal or reserved networks are not allowed"
             raise ValueError(msg)
+
+
+def _validate_external_url(url: HttpUrl) -> HttpUrl:
+    validate_url_external(str(url))
+    return url
+
+
+ExternalHttpUrl = Annotated[HttpUrl, AfterValidator(_validate_external_url)]
+"""HttpUrl that rejects private, loopback, and reserved networks (SSRF guard)."""

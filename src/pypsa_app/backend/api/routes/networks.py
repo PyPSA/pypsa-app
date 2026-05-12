@@ -1,8 +1,8 @@
 import logging
-import uuid as _uuid
+from collections.abc import Iterator
 from pathlib import PurePosixPath
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile
+from fastapi import APIRouter, Body, Depends, HTTPException, UploadFile
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session, joinedload
 
@@ -20,6 +20,11 @@ from pypsa_app.backend.api.pagination import (
 from pypsa_app.backend.api.utils.network import (
     delete_network as delete_network_and_file,
 )
+from pypsa_app.backend.api.utils.network import (
+    make_temp_path,
+    stream_to_file_with_limit,
+)
+from pypsa_app.backend.api.utils.task_utils import queue_task
 from pypsa_app.backend.filters import (
     FieldMap,
     FieldSpec,
@@ -35,63 +40,73 @@ from pypsa_app.backend.schemas.network import (
     NetworkResponse,
     NetworkUpdate,
 )
-from pypsa_app.backend.services.network import import_network_file
+from pypsa_app.backend.schemas.task import TaskQueuedResponse
 from pypsa_app.backend.settings import settings
+from pypsa_app.backend.tasks import (
+    import_network_from_file_task,
+    import_network_from_url_task,
+)
+from pypsa_app.backend.utils.validation import ExternalHttpUrl
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
 
-@router.post("/", response_model=NetworkResponse, status_code=201)
+def _iter_upload_file(file: UploadFile, chunk_size: int = 8192) -> Iterator[bytes]:
+    while chunk := file.file.read(chunk_size):
+        yield chunk
+
+
+@router.post("/", response_model=TaskQueuedResponse, status_code=202)
 def upload_network(
     file: UploadFile,
-    db: Session = Depends(get_db),
     user: User = Depends(require_permission(Permission.NETWORKS_MODIFY)),
-) -> Network:
-    """Upload a network file (.nc) and create a database record."""
+) -> dict:
+    """Accept a .nc upload and enqueue import as a background task."""
     if not file.filename or not file.filename.endswith(".nc"):
         raise HTTPException(400, "Only .nc (NetCDF) files are accepted")
 
-    # Sanitize path
     safe_filename = PurePosixPath(file.filename).name
     if not safe_filename or not safe_filename.endswith(".nc"):
         raise HTTPException(400, "Invalid filename")
     safe_filename = safe_filename[:255]
 
     max_bytes = settings.max_upload_size_mb * 1024 * 1024
-
-    # Write to temp file with enforced size limit
-    user_dir = settings.networks_path / str(user.id)
-    user_dir.mkdir(parents=True, exist_ok=True)
-    tmp = user_dir / f"_upload_{_uuid.uuid4().hex}.tmp"
-
-    bytes_written = 0
-    with tmp.open("wb") as f:
-        while chunk := file.file.read(8192):
-            bytes_written += len(chunk)
-            if bytes_written > max_bytes:
-                tmp.unlink(missing_ok=True)
-                raise HTTPException(
-                    413, f"File too large. Maximum: {settings.max_upload_size_mb} MB"
-                )
-            f.write(chunk)
-
+    tmp = make_temp_path(user.id)
     try:
-        network = import_network_file(tmp, safe_filename, user.id, db)
-        db.commit()
-        db.refresh(network)
-
-        logger.info(
-            "Network uploaded",
-            extra={
-                "network_id": str(network.id),
-                "network_filename": safe_filename,
-                "user": user.username,
-            },
-        )
-        return network
-    finally:
+        stream_to_file_with_limit(_iter_upload_file(file), tmp, max_bytes)
+    except ValueError as exc:
         tmp.unlink(missing_ok=True)
+        raise HTTPException(413, str(exc)) from exc
+    except Exception:
+        tmp.unlink(missing_ok=True)
+        raise
+
+    return queue_task(
+        import_network_from_file_task,
+        tmp_path=str(tmp),
+        original_filename=safe_filename,
+        user_id=str(user.id),
+    )
+
+
+@router.post("/from-url", response_model=TaskQueuedResponse, status_code=202)
+def create_network_from_url(
+    url: ExternalHttpUrl = Body(..., embed=True),
+    user: User = Depends(require_permission(Permission.NETWORKS_MODIFY)),
+) -> dict:
+    """Enqueue a task to download ``url`` and import it as a network."""
+    url_str = str(url)
+    if url.scheme not in {"http", "https"}:
+        raise HTTPException(400, "URL must use http or https")
+    if not url_str.lower().endswith(".nc"):
+        raise HTTPException(400, "URL must point to a .nc file")
+
+    return queue_task(
+        import_network_from_url_task,
+        url=url_str,
+        user_id=str(user.id),
+    )
 
 
 def _build_network_field_map(user: User, db: Session) -> FieldMap:
