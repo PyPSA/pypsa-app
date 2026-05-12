@@ -1,10 +1,12 @@
 import { renderComponent } from '$lib/components/ui/data-table/render-helpers.js';
-import { formatDate } from '$lib/utils.js';
+import DateTime from '$lib/components/DateTime.svelte';
 import UserCell from '$lib/components/cells/UserCell.svelte';
 import BadgeCell from '$lib/components/cells/BadgeCell.svelte';
 import ActionsCell from '$lib/components/cells/ActionsCell.svelte';
-import { Check, Settings } from 'lucide-svelte';
+import Check from '@lucide/svelte/icons/check';
+import Settings from '@lucide/svelte/icons/settings';
 import type { ColumnDef } from '@tanstack/table-core';
+import { byDate } from '$lib/utils.js';
 import type { User } from '$lib/types.js';
 
 interface UserColumnsHelpers {
@@ -56,26 +58,18 @@ export const createColumns = (helpers: UserColumnsHelpers): ColumnDef<User, unkn
 			accessorKey: 'created_at',
 			header: 'Created',
 			enableSorting: true,
-			sortingFn: (rowA, rowB) => {
-				const a = rowA.original.created_at ? new Date(rowA.original.created_at).getTime() : 0;
-				const b = rowB.original.created_at ? new Date(rowB.original.created_at).getTime() : 0;
-				return a - b;
-			},
+			sortingFn: byDate<User>((r) => r.created_at),
 			cell: (info) => {
-				return formatDate(info.getValue() as string);
+				return renderComponent(DateTime, { value: info.getValue() as string });
 			}
 		},
 		{
 			accessorKey: 'last_login',
 			header: 'Last Login',
 			enableSorting: true,
-			sortingFn: (rowA, rowB) => {
-				const a = rowA.original.last_login ? new Date(rowA.original.last_login).getTime() : 0;
-				const b = rowB.original.last_login ? new Date(rowB.original.last_login).getTime() : 0;
-				return a - b;
-			},
+			sortingFn: byDate<User>((r) => r.last_login),
 			cell: (info) => {
-				return formatDate(info.getValue() as string);
+				return renderComponent(DateTime, { value: info.getValue() as string });
 			}
 		},
 		{

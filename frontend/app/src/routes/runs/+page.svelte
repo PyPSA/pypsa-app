@@ -4,21 +4,26 @@
 	import { browser } from '$app/environment';
 	import { page } from '$app/stores';
 	import { runs } from '$lib/api/client.js';
-	import { formatRelativeTime, saveTablePref, buildOwnerOptions } from '$lib/utils.js';
-	import { restoreTableState, buildTableURL, filtersToAPI, clampPage } from '$lib/table-url-state.js';
+	import { saveTablePref, buildOwnerOptions, loadTablePrefs, clampPage } from '$lib/utils.js';
 	import { RUN_FINAL_STATUSES } from '$lib/types.js';
 	import type { RunSummary, User, BackendPublic, ApiError, Visibility } from '$lib/types.js';
-	import type { FilterState, FilterCategory } from '$lib/components/ui/filter-dialog';
+	import type { FilterCategory } from '$lib/components/ui/filter-dialog';
+	import type { FilterAst } from '$lib/filters/ast';
+	import { emptyAnd, isEmpty as astIsEmpty } from '$lib/filters/ast';
+	import { parse as parseDsl, serialize as serializeDsl } from '$lib/filters/dsl';
 	import type { SortingState, VisibilityState } from '@tanstack/table-core';
-	import FilterBar from '$lib/components/FilterBar.svelte';
+	import DataTable from '$lib/components/DataTable.svelte';
 	import StatusBadge from './cells/StatusBadge.svelte';
-	import { Play } from 'lucide-svelte';
+	import * as Avatar from '$lib/components/ui/avatar';
+	import Play from '@lucide/svelte/icons/play';
+	import Plus from '@lucide/svelte/icons/plus';
+	import Button from '$lib/components/ui/button/button.svelte';
 	import { toast } from 'svelte-sonner';
-	import PaginatedTable from '$lib/components/PaginatedTable.svelte';
 	import { createColumns } from './components/columns.js';
+	import CreateRunDialog from './components/CreateRunDialog.svelte';
 	import { authStore } from '$lib/stores/auth.svelte.js';
 	import EmptyState from '$lib/components/EmptyState.svelte';
-	import TableSkeleton from '$lib/components/TableSkeleton.svelte';
+	import { TableSkeleton } from '$lib/components/skeletons';
 
 	// Data state
 	let runsList = $state<RunSummary[]>([]);
@@ -27,9 +32,12 @@
 	let cancellingId = $state<string | null>(null);
 	let removingId = $state<string | null>(null);
 	let updatingVisibilityId = $state<string | null>(null);
+	let createOpen = $state(false);
 
-	const FILTER_KEYS = ['statuses', 'workflows', 'owners', 'git_refs', 'configfiles', 'backends'] as const;
-	let filters = $state({ statuses: new Set<string>(), workflows: new Set<string>(), owners: new Set<string>(), git_refs: new Set<string>(), configfiles: new Set<string>(), backends: new Set<string>() });
+	// Filter categories use the singular field names that match the backend
+	// AST/DSL (e.g. `status`, not `statuses`). The `?q=` URL param carries
+	// the DSL string.
+	let filter = $state<FilterAst>(emptyAnd());
 	let availableStatuses = $state<string[]>([]);
 	let availableWorkflows = $state<string[]>([]);
 	let availableOwners = $state<User[]>([]);
@@ -42,7 +50,8 @@
 	let pageSize = $state(25);
 
 	// Table state
-	let sorting = $state<SortingState>([]);
+	const defaultSorting: SortingState = [{ id: 'created_at', desc: true }];
+	let sorting = $state<SortingState>([...defaultSorting]);
 	const defaultColumnVisibility: VisibilityState = { jobs: false, backend: false };
 	let columnVisibility = $state<VisibilityState>({ ...defaultColumnVisibility });
 
@@ -71,9 +80,7 @@
 	});
 
 	// View state for conditional rendering
-	const hasActiveFilters = $derived(
-		Object.values(filters).some(s => s.size > 0)
-	);
+	const hasActiveFilters = $derived(!astIsEmpty(filter));
 	const viewState = $derived.by(() => {
 		if (loading) return 'loading';
 		if (runsList.length === 0 && hasActiveFilters) return 'no-matches';
@@ -81,15 +88,15 @@
 		return 'data';
 	});
 
-	const ownerOptions = $derived(buildOwnerOptions(availableOwners, authStore.user?.id));
+	const ownerOptions = $derived(buildOwnerOptions(availableOwners, authStore.user?.username));
 
 	const filterCategories = $derived<FilterCategory[]>([
-		{ key: 'statuses', label: 'Status', options: availableStatuses.map(s => ({ id: s, label: s })) },
-		{ key: 'workflows', label: 'Workflow', options: availableWorkflows.map(w => ({ id: w, label: w })) },
-		{ key: 'owners', label: 'Owner', options: ownerOptions, condition: authStore.authEnabled && !!authStore.user },
-		{ key: 'git_refs', label: 'Branch', options: availableGitRefs.map(r => ({ id: r, label: r })) },
-		{ key: 'configfiles', label: 'Config', options: availableConfigfiles.map(c => ({ id: c, label: c })) },
-		{ key: 'backends', label: 'Backend', options: availableBackends.map(b => ({ id: b.id, label: b.name })) },
+		{ key: 'status', label: 'Status', hideChipPrefix: true, options: availableStatuses.map(s => ({ id: s, label: s })) },
+		{ key: 'workflow', label: 'Workflow', description: 'Repository URL', options: availableWorkflows.map(w => ({ id: w, label: w })) },
+		{ key: 'owner', label: 'Owner', description: 'Who created it', hideChipPrefix: true, options: ownerOptions, condition: authStore.authEnabled && !!authStore.user },
+		{ key: 'git_ref', label: 'Branch', description: 'Git branch or tag', options: availableGitRefs.map(r => ({ id: r, label: r })) },
+		{ key: 'configfile', label: 'Config', description: 'Config file path', options: availableConfigfiles.map(c => ({ id: c, label: c })) },
+		{ key: 'backend', label: 'Backend', description: 'Execution backend', options: availableBackends.map(b => ({ id: b.name, label: b.name })) },
 	]);
 
 	function canEditRun(run: RunSummary): boolean {
@@ -101,7 +108,6 @@
 	const columns = $derived.by(() => {
 		const authEnabled = authStore.authEnabled ?? false;
 		return createColumns({
-			formatRelativeTime,
 			handleCancel,
 			handleRemove,
 			handleRerun,
@@ -115,15 +121,35 @@
 		});
 	});
 
-	onMount(async () => {
-		const state = restoreTableState($page.url.searchParams, 'runs', FILTER_KEYS);
-		currentPage = state.page;
-		pageSize = state.pageSize;
-		if (state.columnVisibility) columnVisibility = state.columnVisibility;
-		for (const key of FILTER_KEYS) {
-			filters[key] = state.filters[key] ?? new Set();
+	const VALID_PAGE_SIZES = [10, 25, 50, 100];
+
+	function restoreFromUrl() {
+		const params = $page.url.searchParams;
+
+		const prefs = loadTablePrefs('runs');
+		pageSize = (prefs.pageSize && VALID_PAGE_SIZES.includes(prefs.pageSize)) ? prefs.pageSize : 25;
+		if (prefs.columnVisibility) columnVisibility = prefs.columnVisibility;
+
+		const urlPage = params.get('page');
+		if (urlPage) {
+			const parsed = parseInt(urlPage);
+			if (!isNaN(parsed) && parsed > 0) currentPage = parsed;
+		}
+		const urlSize = params.get('size');
+		if (urlSize) {
+			const parsed = parseInt(urlSize);
+			if (!isNaN(parsed) && VALID_PAGE_SIZES.includes(parsed)) pageSize = parsed;
 		}
 
+		const q = params.get('q');
+		if (q) {
+			const result = parseDsl(q);
+			if (result.errors.length === 0) filter = result.ast;
+		}
+	}
+
+	onMount(async () => {
+		restoreFromUrl();
 		await loadRuns();
 	});
 
@@ -131,10 +157,13 @@
 		if (!silent) loading = true;
 		try {
 			const skip = (currentPage - 1) * pageSize;
-			const apiFilters = filtersToAPI<{ statuses: string[]; workflows: string[]; owners: string[]; git_refs: string[]; configfiles: string[]; backends: string[] }>(filters, FILTER_KEYS);
+			// API sends JSON-encoded AST; the URL carries the DSL string.
+			const filterQ = astIsEmpty(filter) ? undefined : JSON.stringify(filter);
 
+			const sort_by = sorting[0]?.id;
+			const sort_dir = sorting[0] ? (sorting[0].desc ? 'desc' : 'asc') : undefined;
 			const response = await runs.list(skip, pageSize,
-				Object.keys(apiFilters).length > 0 ? apiFilters : undefined
+				{ sort_by, sort_dir, filter_q: filterQ }
 			);
 
 			runsList = response.data;
@@ -162,8 +191,19 @@
 
 	async function updateURL() {
 		if (!browser) return;
-		const url = buildTableURL(new URL(window.location.href), currentPage, pageSize, filters, FILTER_KEYS);
+		const url = new URL(window.location.href);
+		url.searchParams.set('page', currentPage.toString());
+		url.searchParams.set('size', pageSize.toString());
+		const dsl = astIsEmpty(filter) ? '' : serializeDsl(filter);
+		if (dsl) url.searchParams.set('q', dsl);
+		else url.searchParams.delete('q');
 		await goto(url.toString(), { replaceState: true, keepFocus: true, noScroll: true });
+	}
+
+	function handleSortingChange(newSorting: SortingState) {
+		sorting = newSorting;
+		currentPage = 1;
+		loadRuns();
 	}
 
 	async function handlePageChange(page: number) {
@@ -181,10 +221,8 @@
 		await loadRuns();
 	}
 
-	async function handleFilterChange(newFilters: FilterState) {
-		for (const key of FILTER_KEYS) {
-			filters[key] = newFilters[key] ?? new Set();
-		}
+	async function handleFilterChange(ast: FilterAst) {
+		filter = ast;
 		currentPage = 1;
 		await updateURL();
 		await loadRuns();
@@ -248,47 +286,55 @@
 
 <div class="min-h-screen">
 	<div class="max-w-[80rem] mx-auto py-8">
-		<!-- Filter bar always visible (except during initial load) -->
-		{#if viewState !== 'loading' && viewState !== 'empty'}
-			<FilterBar
-				{filterCategories}
-				{filters}
-				{columns}
-				{columnVisibility}
-				onFilterChange={handleFilterChange}
-				onColumnVisibilityChange={handleColumnVisibilityChange}
-			>
-				{#snippet renderOption({ category, option })}
-					{#if category.key === 'statuses'}
-						<StatusBadge status={option.id} />
-					{:else}
-						<span class="truncate">{option.label}</span>
-					{/if}
-				{/snippet}
-			</FilterBar>
-		{/if}
-
+		<div class="flex justify-end mb-4">
+			<Button size="sm" onclick={() => (createOpen = true)}>
+				<Plus class="size-4" /> Create Run
+			</Button>
+		</div>
 		<!-- Content based on view state -->
 		{#if viewState === 'loading'}
 			<TableSkeleton rows={pageSize > 10 ? 10 : pageSize} />
 		{:else if viewState === 'empty'}
 			<EmptyState icon={Play} title="No Runs" description="No workflow runs yet." />
-		{:else if viewState === 'no-matches'}
-			<EmptyState icon={Play} title="No Matching Runs" description="No runs match the current filters." />
 		{:else}
-			<PaginatedTable
-				mode="server"
+			<DataTable
 				data={runsList}
 				columns={columns as any}
 				totalItems={totalRuns}
 				{currentPage}
 				{pageSize}
 				bind:sorting
+				{defaultSorting}
 				bind:columnVisibility
+				onSortingChange={handleSortingChange}
+				{filterCategories}
+				{filter}
+				onFilterAstChange={handleFilterChange}
+				onColumnVisibilityChange={handleColumnVisibilityChange}
 				onPageChange={handlePageChange}
 				onPageSizeChange={handlePageSizeChange}
 				onRowClick={(run: RunSummary) => goto(`/runs/${run.id}`)}
-			/>
+			>
+				{#snippet renderOption({ category, option })}
+					{#if category.key === 'status'}
+						<StatusBadge status={option.id} />
+					{:else if category.key === 'owner'}
+						<span class="inline-flex items-center gap-1.5">
+							<Avatar.Root class="h-5 w-5">
+								{#if option.avatarUrl}
+									<Avatar.Image src={option.avatarUrl} alt={option.label} />
+								{/if}
+								<Avatar.Fallback class="text-[10px]">{option.label.slice(0, 2).toUpperCase()}</Avatar.Fallback>
+							</Avatar.Root>
+							<span class="truncate">{option.label}</span>
+						</span>
+					{:else}
+						<span class="truncate">{option.label}</span>
+					{/if}
+				{/snippet}
+			</DataTable>
 		{/if}
 	</div>
 </div>
+
+<CreateRunDialog bind:open={createOpen} onCreated={() => loadRuns()} />

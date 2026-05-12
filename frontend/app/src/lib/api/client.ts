@@ -12,14 +12,18 @@ import type {
 	HealthStatus,
 	ApiError,
 	ApiKey,
-	NetworkFilters,
 	NetworkUpdate,
+	NetworkListMeta,
+	RunListMeta,
 	OutputFile,
 	Visibility,
 	PaginatedResponse,
 	Workflow,
 	PublicRunResponse,
+	ComponentDataResponse,
+	UserStatsResponse,
 } from "$lib/types.js";
+import type { ReportState } from "$lib/stores/reportStore.svelte.js";
 
 const API_BASE = '/api/v1';
 
@@ -41,8 +45,8 @@ async function request<T>(endpoint: string, options: RequestInit = {}, cancellat
 
 	const { headers: optHeaders, ...restOptions } = options;
 	const headers: Record<string, string> = options.body instanceof FormData
-		? { ...(optHeaders as Record<string, string>) }
-		: { 'Content-Type': 'application/json', ...(optHeaders as Record<string, string>) };
+		? { 'Accept': 'application/json', ...(optHeaders as Record<string, string>) }
+		: { 'Accept': 'application/json', 'Content-Type': 'application/json', ...(optHeaders as Record<string, string>) };
 
 	const config: RequestInit = {
 		...restOptions,
@@ -104,12 +108,16 @@ export const auth = {
 
 // Networks API
 export const networks = {
-	async list(skip = 0, limit = 100, owners: string[] | null = null): Promise<PaginatedResponse<Network>> {
-		const params = new URLSearchParams({ skip: String(skip), limit: String(limit) });
-		if (owners && owners.length > 0) {
-			owners.forEach(owner => params.append('owners', owner));
-		}
-		return request<PaginatedResponse<Network>>(`/networks/?${params}`);
+	async list(
+		skip = 0,
+		limit = 100,
+		options: { sort_by?: string; sort_dir?: string; filter_q?: string } = {}
+	): Promise<PaginatedResponse<Network, NetworkListMeta>> {
+		const params = new URLSearchParams({ offset: String(skip), limit: String(limit) });
+		if (options.sort_by) params.set('sort_by', options.sort_by);
+		if (options.sort_dir) params.set('sort_dir', options.sort_dir);
+		if (options.filter_q) params.set('filter_q', options.filter_q);
+		return request<PaginatedResponse<Network, NetworkListMeta>>(`/networks/?${params}`);
 	},
 	async get(id: string): Promise<Network> {
 		return request<Network>(`/networks/${id}`, {}, `network-${id}`);
@@ -117,10 +125,35 @@ export const networks = {
 	async getSummary(id: string): Promise<Record<string, unknown>> {
 		return request<Record<string, unknown>>(`/networks/${id}/summary`, {}, `network-summary-${id}`);
 	},
-	async upload(file: File): Promise<Network> {
+	async upload(file: File): Promise<{ task_id: string }> {
 		const formData = new FormData();
 		formData.append('file', file);
-		return request<Network>('/networks/', { method: 'POST', body: formData });
+		return request<{ task_id: string }>('/networks/', { method: 'POST', body: formData });
+	},
+	async fromUrl(url: string): Promise<{ task_id: string }> {
+		return request<{ task_id: string }>('/networks/from-url', {
+			method: 'POST',
+			body: JSON.stringify({ url }),
+		});
+	},
+	async pollImport(taskId: string, timeoutMs = 15 * 60_000): Promise<{ network_id: string; filename?: string; size?: number }> {
+		const start = Date.now();
+		let delay = 200;
+		while (Date.now() - start < timeoutMs) {
+			await new Promise(r => setTimeout(r, delay));
+			const status = await request<TaskStatus>(`/tasks/status/${taskId}`);
+			if (status.state === 'SUCCESS' && status.result) {
+				if (status.result.status === 'error') {
+					throw new Error(status.result.error || 'Network import failed');
+				}
+				return status.result.data as unknown as { network_id: string; filename?: string; size?: number };
+			}
+			if (status.state === 'FAILURE') {
+				throw new Error(status.error || 'Network import failed');
+			}
+			delay = Math.min(delay * 1.5, 2000);
+		}
+		throw new Error('Network import timed out');
 	},
 	async reset(): Promise<void> {
 		return request<void>('/networks/reset', { method: 'DELETE' });
@@ -133,6 +166,33 @@ export const networks = {
 			method: 'PATCH',
 			body: JSON.stringify({ visibility })
 		});
+	},
+	async getReports(networkId: string): Promise<ReportState | null> {
+		return request<ReportState | null>(`/networks/${networkId}/reports`);
+	},
+	async saveReports(networkId: string, state: ReportState): Promise<void> {
+		await request<ReportState>(`/networks/${networkId}/reports`, {
+			method: 'PUT',
+			body: JSON.stringify(state),
+		});
+	},
+	async getComponentData(
+		networkId: string,
+		component: string,
+		options: { offset?: number; limit?: number; sort_by?: string; sort_dir?: string; search?: string } = {}
+	): Promise<ComponentDataResponse> {
+		const params = new URLSearchParams();
+		if (options.offset !== undefined) params.set('offset', String(options.offset));
+		if (options.limit !== undefined) params.set('limit', String(options.limit));
+		if (options.sort_by) params.set('sort_by', options.sort_by);
+		if (options.sort_dir) params.set('sort_dir', options.sort_dir);
+		if (options.search) params.set('search', options.search);
+		const qs = params.toString();
+		return request<ComponentDataResponse>(
+			`/networks/${networkId}/components/${encodeURIComponent(component)}${qs ? `?${qs}` : ''}`,
+			{},
+			`component-data-${networkId}-${component}`
+		);
 	}
 };
 
@@ -188,14 +248,40 @@ export const plots = {
 		return request<TaskStatus>(`/tasks/status/${taskId}`);
 	},
 
-	/** Poll task status until completion with exponential backoff */
-	async pollTaskStatus(taskId: string, maxAttempts = 30): Promise<PlotResponse> {
+	async generateExplore(
+		networkIds: string | string[],
+		options: {
+			bus_carrier?: string[];
+			query?: string;
+			branch_components?: string[];
+			geometry?: boolean;
+		} = {}
+	): Promise<Record<string, unknown>> {
+		const idsArray = Array.isArray(networkIds) ? networkIds : [networkIds];
+		const cacheKey = idsArray.length === 1 ? idsArray[0] : idsArray.sort().join(',');
+		const paramsKey = JSON.stringify(options);
+
+		const response = await request<{ task_id?: string; data?: Record<string, unknown> }>('/plots/explore', {
+			method: 'POST',
+			body: JSON.stringify({
+				network_ids: idsArray,
+				...options,
+			})
+		}, `explore-${cacheKey}-${paramsKey}`);
+
+		if (response.task_id) {
+			const result = await this.pollTaskStatus(response.task_id);
+			return result.plot_data as unknown as Record<string, unknown>;
+		}
+		return response.data ?? response as unknown as Record<string, unknown>;
+	},
+
+	async pollTaskStatus(taskId: string, maxAttempts = 30, timeoutMs = 120_000): Promise<PlotResponse> {
 		let attempts = 0;
 		let delay = 200; // Start with 200ms
+		const deadline = Date.now() + timeoutMs;
 
-		while (attempts < maxAttempts) {
-			await new Promise(resolve => setTimeout(resolve, delay));
-
+		while (attempts < maxAttempts && Date.now() < deadline) {
 			const status = await this.getStatus(taskId);
 
 			if (status.state === 'SUCCESS' && status.result) {
@@ -228,6 +314,7 @@ export const plots = {
 				throw new Error(status.error || 'Plot generation failed');
 			}
 
+			await new Promise(resolve => setTimeout(resolve, delay));
 			// Exponential backoff with max 2 seconds
 			delay = Math.min(delay * 1.5, 2000);
 			attempts++;
@@ -243,15 +330,13 @@ export const runs = {
 	async list(
 		skip = 0,
 		limit = 100,
-		filters?: { statuses?: string[]; workflows?: string[]; owners?: string[]; git_refs?: string[]; configfiles?: string[]; backends?: string[] }
-	): Promise<PaginatedResponse<RunSummary>> {
-		const params = new URLSearchParams({ skip: String(skip), limit: String(limit) });
-		if (filters) {
-			for (const [key, values] of Object.entries(filters)) {
-				values?.forEach((v: string) => params.append(key, v));
-			}
-		}
-		return request<PaginatedResponse<RunSummary>>(`/runs/?${params}`);
+		options: { sort_by?: string; sort_dir?: string; filter_q?: string } = {}
+	): Promise<PaginatedResponse<RunSummary, RunListMeta>> {
+		const params = new URLSearchParams({ offset: String(skip), limit: String(limit) });
+		if (options.sort_by) params.set('sort_by', options.sort_by);
+		if (options.sort_dir) params.set('sort_dir', options.sort_dir);
+		if (options.filter_q) params.set('filter_q', options.filter_q);
+		return request<PaginatedResponse<RunSummary, RunListMeta>>(`/runs/?${params}`);
 	},
 	async get(id: string): Promise<Run> {
 		return request<Run>(`/runs/${id}`, {}, `run-${id}`);
@@ -262,7 +347,18 @@ export const runs = {
 	async backends(): Promise<BackendPublic[]> {
 		return request<BackendPublic[]>('/runs/backends');
 	},
-	async create(body: { workflow: string; configfile?: string; snakemake_args?: string[]; extra_files?: Record<string, string>; cache?: { key: string; dirs: string[] }; import_networks?: string[]; backend_id?: string }): Promise<Run> {
+	async create(body: {
+		workflow: string;
+		git_ref?: string;
+		configfile?: string;
+		snakemake_args?: string[];
+		extra_files?: Record<string, string>;
+		cache?: { key: string; dirs: string[] };
+		import_networks?: string[];
+		backend_id?: string;
+		visibility?: Visibility;
+		callback_url?: string;
+	}): Promise<Run> {
 		return request<Run>('/runs/', { method: 'POST', body: JSON.stringify(body) });
 	},
 	async rerun(run: Run): Promise<Run> {
@@ -332,10 +428,16 @@ export const health = {
 
 // Admin API
 export const admin = {
-	async listUsers(skip = 0, limit = 100, role: string | null = null): Promise<PaginatedResponse<User>> {
-		let url = `/admin/users?skip=${skip}&limit=${limit}`;
-		if (role) url += `&role=${role}`;
-		return request<PaginatedResponse<User>>(url);
+	async listUsers(
+		skip = 0,
+		limit = 100,
+		options: { sort_by?: string; sort_dir?: string; filter_q?: string } = {}
+	): Promise<PaginatedResponse<User>> {
+		const params = new URLSearchParams({ offset: String(skip), limit: String(limit) });
+		if (options.sort_by) params.set('sort_by', options.sort_by);
+		if (options.sort_dir) params.set('sort_dir', options.sort_dir);
+		if (options.filter_q) params.set('filter_q', options.filter_q);
+		return request<PaginatedResponse<User>>(`/admin/users?${params}`);
 	},
 
 	async approveUser(userId: string): Promise<User> {
@@ -360,11 +462,16 @@ export const admin = {
 		return request<void>(`/admin/users/${userId}`, { method: 'DELETE' });
 	},
 
-	async listNetworks(skip = 0, limit = 100, filters: NetworkFilters = {}): Promise<PaginatedResponse<Network>> {
-		let url = `/admin/networks?skip=${skip}&limit=${limit}`;
-		if (filters.visibility) url += `&visibility=${filters.visibility}`;
-		if (filters.owner) url += `&owner=${filters.owner}`;
-		return request<PaginatedResponse<Network>>(url);
+	async listNetworks(
+		skip = 0,
+		limit = 100,
+		options: { sort_by?: string; sort_dir?: string; filter_q?: string } = {}
+	): Promise<PaginatedResponse<Network>> {
+		const params = new URLSearchParams({ offset: String(skip), limit: String(limit) });
+		if (options.sort_by) params.set('sort_by', options.sort_by);
+		if (options.sort_dir) params.set('sort_dir', options.sort_dir);
+		if (options.filter_q) params.set('filter_q', options.filter_q);
+		return request<PaginatedResponse<Network>>(`/admin/networks?${params}`);
 	},
 
 	async updateNetwork(networkId: string, updates: NetworkUpdate): Promise<Network> {
@@ -378,11 +485,16 @@ export const admin = {
 		return request<void>(`/admin/networks/${networkId}`, { method: 'DELETE' });
 	},
 
-	async listRuns(skip = 0, limit = 100, filters: { visibility?: string; owner?: string } = {}): Promise<PaginatedResponse<RunSummary>> {
-		let url = `/admin/runs?skip=${skip}&limit=${limit}`;
-		if (filters.visibility) url += `&visibility=${filters.visibility}`;
-		if (filters.owner) url += `&owner=${filters.owner}`;
-		return request<PaginatedResponse<RunSummary>>(url);
+	async listRuns(
+		skip = 0,
+		limit = 100,
+		options: { sort_by?: string; sort_dir?: string; filter_q?: string } = {}
+	): Promise<PaginatedResponse<RunSummary>> {
+		const params = new URLSearchParams({ offset: String(skip), limit: String(limit) });
+		if (options.sort_by) params.set('sort_by', options.sort_by);
+		if (options.sort_dir) params.set('sort_dir', options.sort_dir);
+		if (options.filter_q) params.set('filter_q', options.filter_q);
+		return request<PaginatedResponse<RunSummary>>(`/admin/runs?${params}`);
 	},
 
 	async updateRun(runId: string, updates: { visibility?: Visibility; user_id?: string }): Promise<Run> {
@@ -404,6 +516,10 @@ export const admin = {
 		return request<Backend[]>('/admin/backends');
 	},
 
+	async getBackend(backendId: string): Promise<Backend> {
+		return request<Backend>(`/admin/backends/${backendId}`);
+	},
+
 	async listBackendUsers(backendId: string): Promise<User[]> {
 		return request<User[]>(`/admin/backends/${backendId}/users`);
 	},
@@ -417,6 +533,33 @@ export const admin = {
 
 	async unassignUserFromBackend(backendId: string, userId: string): Promise<void> {
 		return request<void>(`/admin/backends/${backendId}/users/${userId}`, { method: 'DELETE' });
+	},
+
+	async getUser(userId: string): Promise<User> {
+		return request<User>(`/admin/users/${userId}`);
+	},
+
+	async listUserBackends(userId: string): Promise<Backend[]> {
+		return request<Backend[]>(`/admin/users/${userId}/backends`);
+	},
+
+	async assignBackendToUser(userId: string, backendId: string): Promise<void> {
+		return request<void>(`/admin/users/${userId}/backends`, {
+			method: 'POST',
+			body: JSON.stringify({ backend_id: backendId })
+		});
+	},
+
+	async unassignBackendFromUser(userId: string, backendId: string): Promise<void> {
+		return request<void>(`/admin/users/${userId}/backends/${backendId}`, { method: 'DELETE' });
+	},
+
+	async listUserApiKeys(userId: string): Promise<ApiKey[]> {
+		return request<ApiKey[]>(`/admin/users/${userId}/api-keys`);
+	},
+
+	async getUserStats(userId: string): Promise<UserStatsResponse> {
+		return request<UserStatsResponse>(`/admin/users/${userId}/stats`);
 	}
 };
 

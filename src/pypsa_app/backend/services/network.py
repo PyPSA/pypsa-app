@@ -202,9 +202,7 @@ class NetworkService:
         """Extract dimensions payload for timesteps, periods, scenarios."""
         snapshots = network.snapshots
         if isinstance(snapshots, pd.MultiIndex):
-            level = (
-                "timestep" if "timestep" in snapshots.names else snapshots.names[-1]
-            )
+            level = "timestep" if "timestep" in snapshots.names else snapshots.names[-1]
             timesteps_idx = snapshots.get_level_values(level).unique()
         else:
             timesteps_idx = snapshots

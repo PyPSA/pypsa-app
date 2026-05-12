@@ -6,7 +6,7 @@
 	import { RUN_FINAL_STATUSES } from '$lib/types.js';
 	import WorkflowDag from '../../components/WorkflowDag.svelte';
 	import RulePanel from '../../components/RulePanel.svelte';
-	import { Loader2 } from 'lucide-svelte';
+	import Loader2 from '@lucide/svelte/icons/loader-2';
 	import { breadcrumbStore } from '$lib/stores/breadcrumb.svelte.js';
 	import { sidebarStore } from '$lib/stores/sidebar.svelte.js';
 

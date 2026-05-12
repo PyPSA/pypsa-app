@@ -1,7 +1,9 @@
 <script lang="ts">
-	import {
-		GitBranch, FolderArchive, Terminal, Settings2, ChevronRight
-	} from 'lucide-svelte';
+	import GitBranch from '@lucide/svelte/icons/git-branch';
+	import FolderArchive from '@lucide/svelte/icons/folder-archive';
+	import Terminal from '@lucide/svelte/icons/terminal';
+	import Settings2 from '@lucide/svelte/icons/settings-2';
+	import ChevronRight from '@lucide/svelte/icons/chevron-right';
 	let {
 		showWorkflow = false,
 		showFiles = false,

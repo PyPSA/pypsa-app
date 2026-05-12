@@ -26,9 +26,7 @@ def _get_admin_emails(db: Session) -> list[str]:
     return [
         a.email
         for a in db.scalars(
-            select(User).where(
-                User.role == UserRole.ADMIN, User.email.isnot(None)
-            )
+            select(User).where(User.role == UserRole.ADMIN, User.email.isnot(None))
         )
         if a.email
     ]

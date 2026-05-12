@@ -65,9 +65,7 @@ def name_to_id[M](
     """Return a coercer that resolves `model.<name_attr>` to its `id`."""
 
     def coerce(s: str) -> Any:
-        obj = db.scalars(
-            select(model).where(getattr(model, name_attr) == s)
-        ).first()
+        obj = db.scalars(select(model).where(getattr(model, name_attr) == s)).first()
         if obj is None:
             msg = f"Unknown {label}: {s}"
             raise ValueError(msg)

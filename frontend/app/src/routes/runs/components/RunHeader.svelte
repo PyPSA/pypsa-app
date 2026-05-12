@@ -1,9 +1,12 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
 	import type { RunStatus, RunNetwork } from '$lib/types.js';
-	import { formatDate } from '$lib/utils.js';
+	import DateTime from '$lib/components/DateTime.svelte';
 	import StatusCell from '../cells/status-cell.svelte';
-	import { GitBranch, Clock, Calendar, Server } from 'lucide-svelte';
+	import GitBranch from '@lucide/svelte/icons/git-branch';
+	import Clock from '@lucide/svelte/icons/clock';
+	import Calendar from '@lucide/svelte/icons/calendar';
+	import Server from '@lucide/svelte/icons/server';
 
 	interface RunLike {
 		id: string;
@@ -21,7 +24,6 @@
 		configDisplay: string | null;
 		workflowDisplay: string | null;
 		duration: string | null;
-		createdDisplay: string;
 		isTerminal: boolean;
 		progress?: { total: number; done: number; pct: number } | null;
 		actions?: Snippet;
@@ -34,7 +36,6 @@
 		configDisplay,
 		workflowDisplay,
 		duration,
-		createdDisplay,
 		isTerminal,
 		progress = null,
 		actions,
@@ -86,7 +87,7 @@
 		{/if}
 		<div class="flex items-center gap-1.5">
 			<Calendar class="h-3.5 w-3.5" />
-			<span title={formatDate(run.created_at)}>{createdDisplay}</span>
+			<DateTime value={run.created_at} />
 		</div>
 		<div class="h-4 w-px bg-border"></div>
 		<div class="flex items-center gap-1.5">

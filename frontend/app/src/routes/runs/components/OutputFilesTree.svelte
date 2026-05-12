@@ -2,7 +2,20 @@
 	import type { OutputFile, Workflow } from '$lib/types.js';
 	import { runs } from '$lib/api/client.js';
 	import { formatFileSize } from '$lib/utils.js';
-	import { File, FileCode, FileTerminal, FileCog, FileBraces, FileSpreadsheet, FileBox, FileText, FileImage, FileArchive, Folder, FolderOpen, ChevronRight, Loader2 } from 'lucide-svelte';
+	import File from '@lucide/svelte/icons/file';
+	import FileCode from '@lucide/svelte/icons/file-code';
+	import FileTerminal from '@lucide/svelte/icons/file-terminal';
+	import FileCog from '@lucide/svelte/icons/file-cog';
+	import FileBraces from '@lucide/svelte/icons/file-braces';
+	import FileSpreadsheet from '@lucide/svelte/icons/file-spreadsheet';
+	import FileBox from '@lucide/svelte/icons/file-box';
+	import FileText from '@lucide/svelte/icons/file-text';
+	import FileImage from '@lucide/svelte/icons/file-image';
+	import FileArchive from '@lucide/svelte/icons/file-archive';
+	import Folder from '@lucide/svelte/icons/folder';
+	import FolderOpen from '@lucide/svelte/icons/folder-open';
+	import ChevronRight from '@lucide/svelte/icons/chevron-right';
+	import Loader2 from '@lucide/svelte/icons/loader-2';
 	import { toast } from 'svelte-sonner';
 
 	const EXT_ICONS: Record<string, typeof File> = {

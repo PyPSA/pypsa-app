@@ -1,5 +1,6 @@
 <script lang="ts">
-	import { ScanSearch, Upload } from 'lucide-svelte';
+	import ScanSearch from '@lucide/svelte/icons/scan-search';
+	import Upload from '@lucide/svelte/icons/upload';
 	import {
 		SidebarGroup,
 		SidebarGroupLabel,

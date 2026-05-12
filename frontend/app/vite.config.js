@@ -13,6 +13,6 @@ export default defineConfig({
 		}
 	},
 	ssr: {
-		noExternal: ['bits-ui', 'mode-watcher']
+		noExternal: ['bits-ui', 'mode-watcher', '@deck.gl/core', '@deck.gl/layers', '@deck.gl/carto', 'maplibre-gl']
 	}
 });

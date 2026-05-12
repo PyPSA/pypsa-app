@@ -1,13 +1,14 @@
 <script lang="ts">
 	import { page } from '$app/stores';
-	import { Database, Play } from 'lucide-svelte';
+	import Database from '@lucide/svelte/icons/database';
+	import Play from '@lucide/svelte/icons/play';
 	import * as Sidebar from '$lib/components/ui/sidebar';
 	import { features } from '$lib/stores/features.svelte.js';
 
 	const allNavItems = [
 		{
 			title: 'Networks',
-			url: '/database',
+			url: '/networks',
 			icon: Database
 		},
 		{

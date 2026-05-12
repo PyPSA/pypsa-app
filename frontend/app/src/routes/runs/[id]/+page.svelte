@@ -3,12 +3,23 @@
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
 	import { runs, publicApi } from '$lib/api/client.js';
-	import { formatRelativeTime, formatDuration } from '$lib/utils.js';
+	import { formatDuration } from '$lib/utils.js';
 	import { RUN_FINAL_STATUSES, RUN_SETTLED_STATUSES } from '$lib/types.js';
 	import type { Run, ApiError, OutputFile, RunNetwork, Workflow, PublicRunResponse } from '$lib/types.js';
 	import { Button } from '$lib/components/ui/button';
-	import { Skeleton } from '$lib/components/ui/skeleton';
-	import { Terminal, RotateCw, X, Trash2, Loader2, MoreVertical, Settings2, ChevronRight, ExternalLink, FolderArchive, Globe, LockKeyhole } from 'lucide-svelte';
+	import { RunDetailSkeleton } from '$lib/components/skeletons';
+	import Terminal from '@lucide/svelte/icons/terminal';
+	import RotateCw from '@lucide/svelte/icons/rotate-cw';
+	import X from '@lucide/svelte/icons/x';
+	import Trash2 from '@lucide/svelte/icons/trash-2';
+	import Loader2 from '@lucide/svelte/icons/loader-2';
+	import MoreVertical from '@lucide/svelte/icons/more-vertical';
+	import Settings2 from '@lucide/svelte/icons/settings-2';
+	import ChevronRight from '@lucide/svelte/icons/chevron-right';
+	import ExternalLink from '@lucide/svelte/icons/external-link';
+	import FolderArchive from '@lucide/svelte/icons/folder-archive';
+	import Globe from '@lucide/svelte/icons/globe';
+	import LockKeyhole from '@lucide/svelte/icons/lock-keyhole';
 	import { authStore } from '$lib/stores/auth.svelte.js';
 	import { breadcrumbStore } from '$lib/stores/breadcrumb.svelte.js';
 	import OutputFilesTree from '../components/OutputFilesTree.svelte';
@@ -45,6 +56,7 @@
 	let outputsOpen = $state(false);
 	let outputsLoading = $state(false);
 	let outputsUnavailable = $state(false);
+	let outputsError = $state<string | null>(null);
 	let workflow = $state<Workflow | null>(null);
 
 	let eventSource: EventSource | null = null;
@@ -125,12 +137,7 @@
 		return formatDuration(displayRun?.started_at, displayRun?.completed_at);
 	});
 
-	const createdDisplay = $derived.by(() => {
-		if (!isTerminal) tick; // force re-evaluation for active runs
-		return formatRelativeTime(displayRun?.created_at);
-	});
-
-	const workflowDisplay = $derived.by(() => {
+const workflowDisplay = $derived.by(() => {
 		if (!displayRun) return null;
 		let source = displayRun.workflow;
 		if (source.startsWith('https://github.com/')) {
@@ -377,18 +384,7 @@
 		{#if isPublicMode}
 			<!-- ==================== PUBLIC MODE ==================== -->
 			{#if publicLoading}
-				<div class="bg-card rounded-lg border border-border p-6 mb-4">
-					<div class="flex items-center gap-4 mb-4">
-						<Skeleton class="h-6 w-20 rounded-full" />
-						<Skeleton class="h-5 w-64" />
-					</div>
-					<div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-						<Skeleton class="h-4 w-32" />
-						<Skeleton class="h-4 w-24" />
-						<Skeleton class="h-4 w-28" />
-						<Skeleton class="h-4 w-20" />
-					</div>
-				</div>
+				<RunDetailSkeleton />
 			{:else if publicNotFound}
 				<NotFound />
 			{:else if publicError}
@@ -401,7 +397,6 @@
 					{configDisplay}
 					{workflowDisplay}
 					{duration}
-					{createdDisplay}
 					isTerminal={!!isTerminal}
 					progress={publicProgress}
 				/>
@@ -414,27 +409,13 @@
 		{:else}
 			<!-- ==================== AUTHENTICATED MODE ==================== -->
 			{#if loading && !run}
-				<!-- Loading skeleton -->
-				<div class="bg-card rounded-lg border border-border p-6 mb-4">
-					<div class="flex items-center gap-4 mb-4">
-						<Skeleton class="h-6 w-20 rounded-full" />
-						<Skeleton class="h-5 w-64" />
-					</div>
-					<div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-						<Skeleton class="h-4 w-32" />
-						<Skeleton class="h-4 w-24" />
-						<Skeleton class="h-4 w-28" />
-						<Skeleton class="h-4 w-20" />
-					</div>
-				</div>
-				<Skeleton class="h-96 w-full rounded-lg" />
+				<RunDetailSkeleton showContentArea />
 			{:else if run}
 				<RunHeader
 					{run}
 					{configDisplay}
 					{workflowDisplay}
 					{duration}
-					{createdDisplay}
 					isTerminal={!!isTerminal}
 					progress={authProgress}
 				>
@@ -504,7 +485,7 @@
 						<div class="flex items-center gap-1.5">
 							{#each run.networks as network, i}
 								{#if i > 0}<span>,</span>{/if}
-								<a href="/database/network?id={network.id}" class="underline hover:text-foreground">
+								<a href="/networks/{network.id}" class="underline hover:text-foreground">
 									{network.filename}
 								</a>
 							{/each}
@@ -529,6 +510,8 @@
 							<span class="text-sm font-medium">Files</span>
 							{#if outputsLoading}
 								<Loader2 class="h-3.5 w-3.5 animate-spin text-muted-foreground" />
+							{:else if outputsError}
+								<span class="text-xs text-destructive">{outputsError}</span>
 							{:else if outputsUnavailable}
 								<span class="text-xs text-muted-foreground">no longer available</span>
 							{:else if outputFiles && outputFiles.length > 0}

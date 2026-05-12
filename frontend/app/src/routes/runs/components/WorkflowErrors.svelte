@@ -1,7 +1,9 @@
 <script lang="ts">
 	import type { WorkflowError } from '$lib/types.js';
 	import * as Alert from '$lib/components/ui/alert';
-	import { AlertTriangle, ChevronDown, ChevronRight } from 'lucide-svelte';
+	import AlertTriangle from '@lucide/svelte/icons/alert-triangle';
+	import ChevronDown from '@lucide/svelte/icons/chevron-down';
+	import ChevronRight from '@lucide/svelte/icons/chevron-right';
 
 	let { errors }: { errors: WorkflowError[] } = $props();
 

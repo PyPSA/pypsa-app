@@ -11,16 +11,15 @@
 	import * as Tooltip from '$lib/components/ui/tooltip';
 	import Badge from '$lib/components/ui/badge/badge.svelte';
 
-	// Check if we're on the network detail page
-	const isNetworkPage = $derived($page.url.pathname === '/database/network');
+	// Match network detail page + any nested sub-route (e.g. /data, /report/foo).
+	const isNetworkPage = $derived(/^\/networks\/[^/]+(\/.*)?$/.test($page.url.pathname));
 
 	// Version info
 	interface VersionData {
-		backend: string;
-		frontendApp: string;
-		frontendMap: string;
+		app: string;
 		pypsa: string;
 	}
+	const VERSION_CACHE_KEY = 'pypsa-version-v2';
 	let versionData = $state<VersionData | null>(null);
 
 	// Format version for display (remove .post1. and git hash)
@@ -32,7 +31,7 @@
 	onMount(async () => {
 		// Try to load from localStorage first for instant display
 		try {
-			const cached = localStorage.getItem('pypsa-version');
+			const cached = localStorage.getItem(VERSION_CACHE_KEY);
 			if (cached) {
 				versionData = JSON.parse(cached);
 			}
@@ -44,14 +43,12 @@
 		try {
 			const data = await version.get();
 			versionData = {
-				backend: data.backend_version as string,
-				frontendApp: data.frontend_app_version as string,
-				frontendMap: data.frontend_map_version as string,
+				app: data.backend_version as string,
 				pypsa: data.pypsa_version as string
 			};
 
 			// Cache for future use
-			localStorage.setItem('pypsa-version', JSON.stringify(versionData));
+			localStorage.setItem(VERSION_CACHE_KEY, JSON.stringify(versionData));
 		} catch (err) {
 			console.error('Failed to fetch version:', err);
 		}
@@ -64,23 +61,23 @@
 			<Sidebar.MenuItem>
 				<Sidebar.MenuButton size="lg">
 					{#snippet child({ props }: { props: Record<string, unknown> })}
-						<a href="/database" class="flex items-center gap-2" {...props}>
+						<a href="/networks" class="flex items-center gap-2" {...props}>
 							<img src="/pypsa-logo.svg" alt="PyPSA Logo" class="h-8 w-8 shrink-0 object-contain" />
 							<div class="flex flex-1 items-center gap-2 text-left text-sm leading-tight">
 								<span class="truncate font-semibold">PyPSA App</span>
-								{#if versionData?.backend}
+								{#if versionData?.app}
 									<Tooltip.Root>
 										<Tooltip.Trigger>
 											<Badge variant="default">
-												v{formatVersion(versionData.backend)}
+												v{formatVersion(versionData.app)}
 											</Badge>
 										</Tooltip.Trigger>
-										<Tooltip.Content side="bottom" class="bg-popover text-popover-foreground">
-											<div class="space-y-1 text-xs">
-												<div><strong>Backend:</strong> {versionData.backend}</div>
-												<div><strong>Frontend App:</strong> {versionData.frontendApp}</div>
-												<div><strong>Frontend Map:</strong> {versionData.frontendMap}</div>
-												<div><strong>PyPSA:</strong> {versionData.pypsa}</div>
+										<Tooltip.Content side="bottom">
+											<div class="grid grid-cols-[auto_auto] gap-x-3 gap-y-1 text-xs">
+												<span class="text-muted-foreground">PyPSA App</span>
+												<span class="font-mono">{versionData.app}</span>
+												<span class="text-muted-foreground">PyPSA</span>
+												<span class="font-mono">{versionData.pypsa}</span>
 											</div>
 										</Tooltip.Content>
 									</Tooltip.Root>

@@ -1,5 +1,8 @@
 <script lang="ts">
-	import { LogOut, User, ChevronsUpDown, LogIn } from 'lucide-svelte';
+	import LogOut from '@lucide/svelte/icons/log-out';
+	import User from '@lucide/svelte/icons/user';
+	import ChevronsUpDown from '@lucide/svelte/icons/chevrons-up-down';
+	import LogIn from '@lucide/svelte/icons/log-in';
 	import { authStore } from '$lib/stores/auth.svelte.js';
 	import { goto } from '$app/navigation';
 	import * as Avatar from '$lib/components/ui/avatar';

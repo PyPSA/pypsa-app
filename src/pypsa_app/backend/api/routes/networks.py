@@ -165,9 +165,7 @@ def list_networks(
             owners_query = owners_query.where(Network.user_id == user.id)
     owner_ids = db.scalars(owners_query).all()
     if owner_ids:
-        all_owners = db.scalars(
-            select(User).where(User.id.in_(owner_ids))
-        ).all()
+        all_owners = db.scalars(select(User).where(User.id.in_(owner_ids))).all()
 
     return NetworkListResponse(
         data=networks,
@@ -259,9 +257,7 @@ def get_component_data(
         mask = (
             df.astype(str)
             .apply(
-                lambda col: col.str.contains(
-                    search, case=False, regex=False, na=False
-                )
+                lambda col: col.str.contains(search, case=False, regex=False, na=False)
             )
             .any(axis=1)
         )

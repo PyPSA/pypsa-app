@@ -1,19 +1,23 @@
 import { renderComponent } from '$lib/components/ui/data-table/render-helpers.js';
-import { formatDate, formatDuration } from '$lib/utils.js';
+import { formatDate, formatDuration, byDate } from '$lib/utils.js';
+import DateTime from '$lib/components/DateTime.svelte';
 import StatusCell from '../cells/status-cell.svelte';
 import TextWithTitleCell from '../cells/text-with-title-cell.svelte';
 import WorkflowCell from '../cells/workflow-cell.svelte';
 import JobsCell from '../cells/jobs-cell.svelte';
 import ActionsCell from '$lib/components/cells/ActionsCell.svelte';
 import VisibilityCell from '$lib/components/cells/VisibilityCell.svelte';
-import { X, Trash2, RotateCw, LockKeyhole, Globe } from 'lucide-svelte';
+import X from '@lucide/svelte/icons/x';
+import Trash2 from '@lucide/svelte/icons/trash-2';
+import RotateCw from '@lucide/svelte/icons/rotate-cw';
+import LockKeyhole from '@lucide/svelte/icons/lock-keyhole';
+import Globe from '@lucide/svelte/icons/globe';
 import OwnerCell from '$lib/components/OwnerCell.svelte';
 import type { ColumnDef } from '@tanstack/table-core';
 import { RUN_SETTLED_STATUSES } from '$lib/types.js';
 import type { RunSummary, Visibility } from '$lib/types.js';
 
 interface RunsColumnsHelpers {
-	formatRelativeTime: (dateString: string | null | undefined) => string;
 	handleCancel: (id: string) => void;
 	handleRemove: (id: string) => void;
 	handleRerun: (run: RunSummary) => void;
@@ -28,7 +32,6 @@ interface RunsColumnsHelpers {
 
 export const createColumns = (helpers: RunsColumnsHelpers): ColumnDef<RunSummary, unknown>[] => {
 	const {
-		formatRelativeTime,
 		handleCancel,
 		handleRemove,
 		handleRerun,
@@ -96,19 +99,12 @@ export const createColumns = (helpers: RunsColumnsHelpers): ColumnDef<RunSummary
 			accessorKey: 'created_at',
 			header: 'Created',
 			enableSorting: true,
-			sortingFn: (rowA, rowB) => {
-				const a = new Date(rowA.original.created_at).getTime();
-				const b = new Date(rowB.original.created_at).getTime();
-				return a - b;
-			},
+			sortingFn: byDate<RunSummary>((r) => r.created_at),
 			cell: (info) => {
 				const val = info.getValue() as string;
 				// Read tick to force re-render every second while run is active
 				if (!info.row.original.completed_at) getTick();
-				return renderComponent(TextWithTitleCell, {
-					text: formatRelativeTime(val),
-					title: formatDate(val)
-				});
+				return renderComponent(DateTime, { value: val });
 			}
 		},
 		{
@@ -117,7 +113,7 @@ export const createColumns = (helpers: RunsColumnsHelpers): ColumnDef<RunSummary
 			enableSorting: false,
 			cell: (info) => {
 				const run = info.row.original;
-				return run.backend.name || '\u2014';
+				return run.backend?.name || '\u2014';
 			}
 		},
 		// Only shown when auth is enabled

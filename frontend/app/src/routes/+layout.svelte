@@ -7,7 +7,6 @@
 	import favicon from '$lib/assets/favicon.svg';
 	import { authStore } from '$lib/stores/auth.svelte.js';
 	import { initFeatures } from '$lib/stores/features.svelte.js';
-	import { filtersPanelCollapsed } from '$lib/stores/networkPageStore';
 	import { breadcrumbStore } from '$lib/stores/breadcrumb.svelte.js';
 	import { sidebarStore } from '$lib/stores/sidebar.svelte.js';
 	import AppSidebar from '$lib/components/AppSidebar.svelte';
@@ -17,14 +16,16 @@
 	import { Toaster } from 'svelte-sonner';
 	import * as Sidebar from '$lib/components/ui/sidebar';
 	import * as Breadcrumb from '$lib/components/ui/breadcrumb';
-	import { ExternalLink, PanelRight, X } from 'lucide-svelte';
+	import ExternalLink from '@lucide/svelte/icons/external-link';
+	import X from '@lucide/svelte/icons/x';
 	import { version } from '$lib/api/client.js';
 	import Badge from '$lib/components/ui/badge/badge.svelte';
 
 	let { children, toolbar }: { children?: Snippet; toolbar?: Snippet } = $props();
 
-	// Check if current path is an individual run detail page
+	// Check if current path is an individual run or network detail page
 	const isRunDetailPage = $derived(/^\/runs\/[^/]+$/.test($page.url.pathname));
+	const isNetworkDetailPage = $derived(/^\/networks\/[^/]+/.test($page.url.pathname));
 
 	// Client-side auth guard
 	$effect(() => {
@@ -63,7 +64,7 @@
 	const pageInfo = $derived.by(() => {
 		const path = $page.url.pathname;
 		if (path === '/') return { name: 'Home', url: '/' };
-		if (path === '/database' || path.startsWith('/database/')) return { name: 'Networks', url: '/database' };
+		if (path === '/networks' || path.startsWith('/networks/')) return { name: 'Networks', url: '/networks' };
 		if (path === '/runs' || path.startsWith('/runs/')) return { name: 'Runs', url: '/runs' };
 		if (path.startsWith('/admin')) return { name: 'Admin', url: '/admin' };
 		if (path === '/login') return { name: 'Login', url: '/login' };
@@ -81,9 +82,6 @@
 		$page.url.pathname !== '/login' && $page.url.pathname !== '/pending-approval' && !isPublicView
 	);
 
-	// Determine if we should show the filters toggle button (only on network page)
-	const showFiltersToggle = $derived($page.url.pathname.startsWith('/database/network'));
-
 	// Version info for public header
 	let publicVersion = $state<string | null>(null);
 
@@ -92,7 +90,7 @@
 		return v.replace(/\.post\d+\./, '.').split('+')[0];
 	}
 
-	let bannerDismissed = $state(false);
+	let bannerDismissed = $state(typeof window !== 'undefined' && localStorage.getItem('dev-banner-dismissed') === 'true');
 	let bannerHeight = $state(0);
 
 	function dismissBanner() {
@@ -102,7 +100,6 @@
 	}
 
 	onMount(async () => {
-		bannerDismissed = localStorage.getItem('dev-banner-dismissed') === 'true';
 		// Check if there's a saved sidebar state in cookie
 		const cookies = document.cookie.split(';');
 		const sidebarCookie = cookies.find(c => c.trim().startsWith('sidebar:state='));
@@ -152,11 +149,7 @@
 		</div>
 	{/if}
 
-	{#if authStore.loading}
-		<div class="flex flex-1 items-center justify-center">
-			<div class="h-8 w-8 animate-spin rounded-full border-4 border-muted border-t-foreground"></div>
-		</div>
-	{:else if showSidebar}
+	{#if authStore.loading || showSidebar}
 		<Sidebar.Provider bind:open={sidebarStore.open} class="flex-1">
 			<AppSidebar />
 			<Sidebar.Inset class="overflow-auto">
@@ -191,17 +184,6 @@
 					<div class="ml-auto flex items-center gap-2">
 						{#if toolbar}
 							{@render toolbar()}
-						{/if}
-						{#if showFiltersToggle}
-							<Button
-								variant="ghost"
-								size="icon"
-								class="h-7 w-7"
-								onclick={() => $filtersPanelCollapsed = !$filtersPanelCollapsed}
-								title={$filtersPanelCollapsed ? 'Show filters' : 'Hide filters'}
-							>
-								<PanelRight class="h-4 w-4" />
-							</Button>
 						{/if}
 						<DarkModeToggle />
 					</div>

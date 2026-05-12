@@ -12,6 +12,5 @@ class ListMeta(BaseModel):
     count: int
 
 
-
 class MessageResponse(BaseModel):
     message: str

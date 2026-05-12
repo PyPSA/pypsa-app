@@ -2,7 +2,8 @@
 	import type { Component } from 'svelte';
 	import { Button } from '$lib/components/ui/button';
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
-	import { MoreVertical, Loader2 } from 'lucide-svelte';
+	import MoreVertical from '@lucide/svelte/icons/more-vertical';
+	import Loader2 from '@lucide/svelte/icons/loader-2';
 
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	interface Action {

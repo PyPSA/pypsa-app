@@ -1,9 +1,10 @@
 import { renderComponent } from '$lib/components/ui/data-table/render-helpers.js';
-import { formatDate } from '$lib/utils.js';
+import DateTime from '$lib/components/DateTime.svelte';
 import BadgeCell from '$lib/components/cells/BadgeCell.svelte';
 import ActionsCell from '$lib/components/cells/ActionsCell.svelte';
-import { Users } from 'lucide-svelte';
+import Users from '@lucide/svelte/icons/users';
 import type { ColumnDef } from '@tanstack/table-core';
+import { byDate } from '$lib/utils.js';
 import type { Backend } from '$lib/types.js';
 
 interface BackendColumnsHelpers {
@@ -47,13 +48,9 @@ export const createColumns = (helpers: BackendColumnsHelpers): ColumnDef<Backend
 			accessorKey: 'created_at',
 			header: 'Created',
 			enableSorting: true,
-			sortingFn: (rowA, rowB) => {
-				const a = new Date(rowA.original.created_at).getTime();
-				const b = new Date(rowB.original.created_at).getTime();
-				return a - b;
-			},
+			sortingFn: byDate<Backend>((r) => r.created_at),
 			cell: (info) => {
-				return formatDate(info.getValue() as string);
+				return renderComponent(DateTime, { value: info.getValue() as string });
 			}
 		},
 		{

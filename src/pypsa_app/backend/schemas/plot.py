@@ -36,7 +36,8 @@ class ExploreRequest(BaseModel):
     @field_validator("branch_components")
     @classmethod
     def validate_branch_components(
-        cls, v: list[str] | None,
+        cls,
+        v: list[str] | None,
     ) -> list[str] | None:
         if v is None:
             return v

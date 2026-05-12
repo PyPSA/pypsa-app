@@ -61,9 +61,7 @@ def _sync_backends() -> None:
         # Populate registry (needs DB ids for new backends)
         backend_registry.clear()
         for backend in db.scalars(
-            select(SnakedispatchBackend).where(
-                SnakedispatchBackend.is_active.is_(True)
-            )
+            select(SnakedispatchBackend).where(SnakedispatchBackend.is_active.is_(True))
         ).all():
             backend_registry.register(backend.id, backend.name, backend.url)
 
@@ -95,9 +93,7 @@ def _ensure_system_user() -> None:
         raise RuntimeError(msg)
     db = SessionLocal()
     try:
-        system_user = db.scalars(
-            select(User).where(User.username == "system")
-        ).first()
+        system_user = db.scalars(select(User).where(User.username == "system")).first()
         if not system_user:
             system_user = User(username="system", role=UserRole.ADMIN)
             db.add(system_user)

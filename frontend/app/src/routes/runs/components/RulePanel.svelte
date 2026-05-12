@@ -4,7 +4,10 @@
 	import { runs } from '$lib/api/client.js';
 	import { getJobLogPath } from '$lib/utils.js';
 	import * as Table from '$lib/components/ui/table';
-	import { ChevronRight, Terminal, ExternalLink, RotateCw } from 'lucide-svelte';
+	import ChevronRight from '@lucide/svelte/icons/chevron-right';
+	import Terminal from '@lucide/svelte/icons/terminal';
+	import ExternalLink from '@lucide/svelte/icons/external-link';
+	import RotateCw from '@lucide/svelte/icons/rotate-cw';
 
 	let { rule, runId }: { rule: WorkflowRule; runId: string } = $props();
 

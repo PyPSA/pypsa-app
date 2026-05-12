@@ -8,6 +8,7 @@ from pypsa_app.backend.services.network import NetworkService
 
 logger = logging.getLogger(__name__)
 
+
 def fix_carrier_colors(network: Any) -> None:
     """Replace matplotlib single-char color shorthands that Plotly.js doesn't accept."""
     if hasattr(network, "carriers") and "color" in network.carriers.columns:

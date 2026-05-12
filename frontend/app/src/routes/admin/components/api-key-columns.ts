@@ -1,8 +1,9 @@
 import { renderComponent } from '$lib/components/ui/data-table/render-helpers.js';
-import { formatDate } from '$lib/utils.js';
+import DateTime from '$lib/components/DateTime.svelte';
 import ActionsCell from '$lib/components/cells/ActionsCell.svelte';
-import { Trash2 } from 'lucide-svelte';
+import Trash2 from '@lucide/svelte/icons/trash-2';
 import type { ColumnDef } from '@tanstack/table-core';
+import { byDate } from '$lib/utils.js';
 import type { ApiKey } from '$lib/types.js';
 
 interface ApiKeyColumnsHelpers {
@@ -42,39 +43,27 @@ export const createColumns = (helpers: ApiKeyColumnsHelpers): ColumnDef<ApiKey, 
 			accessorKey: 'created_at',
 			header: 'Created',
 			enableSorting: true,
-			sortingFn: (rowA, rowB) => {
-				const a = new Date(rowA.original.created_at).getTime();
-				const b = new Date(rowB.original.created_at).getTime();
-				return a - b;
-			},
+			sortingFn: byDate<ApiKey>((r) => r.created_at),
 			cell: (info) => {
-				return formatDate(info.getValue() as string);
+				return renderComponent(DateTime, { value: info.getValue() as string });
 			}
 		},
 		{
 			accessorKey: 'last_used_at',
 			header: 'Last Used',
 			enableSorting: true,
-			sortingFn: (rowA, rowB) => {
-				const a = rowA.original.last_used_at ? new Date(rowA.original.last_used_at).getTime() : 0;
-				const b = rowB.original.last_used_at ? new Date(rowB.original.last_used_at).getTime() : 0;
-				return a - b;
-			},
+			sortingFn: byDate<ApiKey>((r) => r.last_used_at),
 			cell: (info) => {
-				return formatDate(info.getValue() as string);
+				return renderComponent(DateTime, { value: info.getValue() as string });
 			}
 		},
 		{
 			accessorKey: 'expires_at',
 			header: 'Expires',
 			enableSorting: true,
-			sortingFn: (rowA, rowB) => {
-				const a = rowA.original.expires_at ? new Date(rowA.original.expires_at).getTime() : 0;
-				const b = rowB.original.expires_at ? new Date(rowB.original.expires_at).getTime() : 0;
-				return a - b;
-			},
+			sortingFn: byDate<ApiKey>((r) => r.expires_at),
 			cell: (info) => {
-				return formatDate(info.getValue() as string);
+				return renderComponent(DateTime, { value: info.getValue() as string });
 			}
 		},
 		{

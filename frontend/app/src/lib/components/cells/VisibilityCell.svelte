@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { Button } from '$lib/components/ui/button';
-	import { Globe, LockKeyhole } from 'lucide-svelte';
+	import Globe from '@lucide/svelte/icons/globe';
+	import LockKeyhole from '@lucide/svelte/icons/lock-keyhole';
 	import * as Tooltip from '$lib/components/ui/tooltip';
 	import type { Visibility } from '$lib/types.js';
 

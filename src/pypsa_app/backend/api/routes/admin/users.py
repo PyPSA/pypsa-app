@@ -136,7 +136,10 @@ def get_user_stats(
     )
 
     candidates = [
-        user.last_login, max_network_created, max_run_created, max_api_key_used,
+        user.last_login,
+        max_network_created,
+        max_run_created,
+        max_api_key_used,
     ]
     last_activity = max((c for c in candidates if c is not None), default=None)
 

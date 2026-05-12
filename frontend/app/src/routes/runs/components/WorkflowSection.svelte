@@ -4,7 +4,11 @@
 	import type { Workflow, WorkflowRule, ApiError } from '$lib/types.js';
 	import { getJobLogPath } from '$lib/utils.js';
 	import RulePanel from './RulePanel.svelte';
-	import { ChevronRight, GitBranch, Layers, Network, Terminal } from 'lucide-svelte';
+	import ChevronRight from '@lucide/svelte/icons/chevron-right';
+	import GitBranch from '@lucide/svelte/icons/git-branch';
+	import Layers from '@lucide/svelte/icons/layers';
+	import Network from '@lucide/svelte/icons/network';
+	import Terminal from '@lucide/svelte/icons/terminal';
 	import * as Table from '$lib/components/ui/table';
 
 	let { runId, isTerminal, isFailedRun = false }: { runId: string; isTerminal: boolean; isFailedRun?: boolean } = $props();

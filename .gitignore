@@ -3,7 +3,7 @@ dev
 todo.md
 
 # Data
-data
+/data/
 
 # setuptools-scm version
 src/pypsa_app/backend/_version_info.py

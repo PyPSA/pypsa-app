@@ -33,23 +33,45 @@ export interface Carrier {
 	nice_name?: string;
 }
 
+export interface TimestepsInfo {
+	count: number;
+	start?: string;
+	end?: string;
+	freq?: string;
+}
+
+export interface PeriodsInfo {
+	count: number;
+	values: (number | string)[];
+	truncated?: boolean;
+}
+
+export interface ScenariosInfo {
+	count: number;
+	names: string[];
+	truncated?: boolean;
+}
+
+export interface DimensionsInfo {
+	timesteps: TimestepsInfo;
+	periods: PeriodsInfo;
+	scenarios: ScenariosInfo;
+}
+
 export interface Network {
 	id: string;
 	name?: string;
 	filename: string;
-	file_path: string;
 	file_size?: number;
 	visibility: Visibility;
 	owner: User;
 	source_run_id?: string;
-	dimensions?: Record<string, number>;
-	dimensions_count?: number;
+	dimensions?: DimensionsInfo;
 	components?: Record<string, number>;
 	components_count?: number;
 	tags?: (string | NetworkTag)[];
 	update_history?: string[];
 	created_at?: string;
-	updated_at?: string;
 }
 
 export type Visibility = "public" | "private";
@@ -172,31 +194,36 @@ export interface HealthStatus {
 	[key: string]: unknown;
 }
 
-export interface NetworkFilters {
-	visibility?: string;
-	owner?: string;
-}
-
 export interface NetworkUpdate {
 	visibility?: Visibility;
 	user_id?: string;
 }
 
-// Paginated response type
+// Paginated response types
 
-export interface PaginatedResponse<T> {
+export interface ListMeta {
+	total: number;
+	offset: number;
+	limit: number;
+	count: number;
+}
+
+export interface NetworkListMeta extends ListMeta {
+	owners?: User[];
+}
+
+export interface RunListMeta extends ListMeta {
+	statuses?: string[];
+	workflows?: string[];
+	owners?: User[];
+	git_refs?: string[];
+	configfiles?: string[];
+	backends?: BackendPublic[];
+}
+
+export interface PaginatedResponse<T, M extends ListMeta = ListMeta> {
 	data: T[];
-	meta: {
-		total: number;
-		skip: number;
-		limit: number;
-		owners?: User[];
-		statuses?: string[];
-		workflows?: string[];
-		git_refs?: string[];
-		configfiles?: string[];
-		backends?: BackendPublic[];
-	};
+	meta: M;
 }
 
 // Store types
@@ -273,7 +300,29 @@ export interface Workflow {
 	errors: WorkflowError[];
 }
 
+// Component data response
+
+export interface ComponentDataResponse {
+	component: string;
+	columns: string[];
+	dtypes: Record<string, string>;
+	index: string[];
+	data: unknown[][];
+	total: number;
+	offset: number;
+	limit: number;
+}
+
 // API error type
+
+export interface UserStatsResponse {
+	networks_count: number;
+	runs_total: number;
+	runs_by_status: Record<string, number>;
+	runs_by_backend: Record<string, number>;
+	total_storage_bytes: number;
+	last_activity: string | null;
+}
 
 export interface ApiError extends Error {
 	status?: number;

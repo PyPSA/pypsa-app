@@ -1,9 +1,22 @@
 import { browser } from '$app/environment';
 import type { VisibilityState } from '@tanstack/table-core';
+import { toast } from 'svelte-sonner';
 import type { NetworkTag, TagType, TagColor, User } from "./types.js";
 import type { FilterOption } from '$lib/components/ui/filter-dialog';
 
 export { cn } from "$lib/lib/utils.js";
+
+/**
+ * Copy text to clipboard with success/error toast.
+ */
+export async function copyToClipboard(text: string): Promise<void> {
+	try {
+		await navigator.clipboard.writeText(text);
+		toast.success('Copied to clipboard');
+	} catch {
+		toast.error('Failed to copy to clipboard');
+	}
+}
 
 /**
  * Load persisted table preferences (pageSize, columnVisibility) from localStorage.
@@ -33,17 +46,28 @@ export function saveTablePref(prefix: string, key: 'pageSize' | 'columnVisibilit
 }
 
 /**
+ * Correct page if it exceeds total pages; returns null if no change needed.
+ */
+export function clampPage(page: number, pageSize: number, total: number): number | null {
+	const totalPages = Math.ceil(total / pageSize);
+	if (page > totalPages && totalPages > 0) {
+		return totalPages;
+	}
+	return null;
+}
+
+/**
  * Build owner filter options with the current user listed first.
  */
-export function buildOwnerOptions(availableOwners: User[], currentUserId?: string): FilterOption[] {
+export function buildOwnerOptions(availableOwners: User[], currentUsername?: string): FilterOption[] {
 	const opts: FilterOption[] = [];
-	const currentUserInOwners = availableOwners.find(o => o.id === currentUserId);
+	const currentUserInOwners = availableOwners.find(o => o.username === currentUsername);
 	if (currentUserInOwners) {
-		opts.push({ id: currentUserInOwners.id, label: currentUserInOwners.username, avatarUrl: currentUserInOwners.avatar_url });
+		opts.push({ id: currentUserInOwners.username, label: currentUserInOwners.username, avatarUrl: currentUserInOwners.avatar_url });
 	}
 	for (const owner of availableOwners) {
-		if (owner.id !== currentUserId) {
-			opts.push({ id: owner.id, label: owner.username, avatarUrl: owner.avatar_url });
+		if (owner.username !== currentUsername) {
+			opts.push({ id: owner.username, label: owner.username, avatarUrl: owner.avatar_url });
 		}
 	}
 	return opts;
@@ -57,7 +81,7 @@ export function formatFileSize(bytes: number | null | undefined): string {
 	return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
 }
 
-function parseUTCDate(dateString: string): Date {
+export function parseUTCDate(dateString: string): Date {
 	return new Date(dateString.endsWith('Z') ? dateString : dateString + 'Z');
 }
 
@@ -99,11 +123,49 @@ export function formatRelativeTime(dateString: string | null | undefined): strin
 	if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)}m ago`;
 	if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)}h ago`;
 	if (diffInSeconds < 604800) return `${Math.floor(diffInSeconds / 86400)}d ago`;
-	return date.toLocaleDateString();
+	if (diffInSeconds < 2592000) return `${Math.floor(diffInSeconds / 604800)}w ago`;
+	if (diffInSeconds < 31536000) return `${Math.floor(diffInSeconds / 2592000)}mo ago`;
+	return `${Math.floor(diffInSeconds / 31536000)}y ago`;
+}
+
+export function formatRelativeTimeDetailed(dateString: string | null | undefined): string {
+	if (!dateString) return '—';
+	const date = parseUTCDate(dateString);
+	const now = new Date();
+	const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
+
+	if (diffInSeconds < 60) return 'just now';
+	if (diffInSeconds < 3600) {
+		const minutes = Math.floor(diffInSeconds / 60);
+		return `${minutes} ${minutes === 1 ? 'minute' : 'minutes'} ago`;
+	}
+	if (diffInSeconds < 86400) {
+		const hours = Math.floor(diffInSeconds / 3600);
+		const mins = Math.floor((diffInSeconds % 3600) / 60);
+		const hLabel = hours === 1 ? 'hour' : 'hours';
+		if (mins === 0) return `${hours} ${hLabel} ago`;
+		return `${hours} ${hLabel}, ${mins} ${mins === 1 ? 'minute' : 'minutes'} ago`;
+	}
+	const days = Math.floor(diffInSeconds / 86400);
+	const hours = Math.floor((diffInSeconds % 86400) / 3600);
+	const dLabel = days === 1 ? 'day' : 'days';
+	if (hours === 0) return `${days} ${dLabel} ago`;
+	return `${days} ${dLabel}, ${hours} ${hours === 1 ? 'hour' : 'hours'} ago`;
 }
 
 export function formatDurationMs(ms: number): string {
 	return formatSeconds(Math.round(ms / 1000));
+}
+
+/** tanstack-table sortingFn that sorts rows by a nullable ISO date field. */
+export function byDate<T>(getField: (row: T) => string | null | undefined) {
+	return (rowA: { original: T }, rowB: { original: T }) => {
+		const a = getField(rowA.original);
+		const b = getField(rowB.original);
+		const ta = a ? new Date(a).getTime() : 0;
+		const tb = b ? new Date(b).getTime() : 0;
+		return ta - tb;
+	};
 }
 
 export function formatNumber(num: number): string {
@@ -111,13 +173,57 @@ export function formatNumber(num: number): string {
 	return num.toString();
 }
 
-export function getDirectoryPath(fullPath: string | null | undefined): string {
-	if (!fullPath) return '';
-	const parts = fullPath.split('/networks/');
-	const relativePath = parts.length > 1 ? parts[parts.length - 1] : fullPath;
-	const lastSlashIndex = relativePath.lastIndexOf('/');
-	if (lastSlashIndex === -1) return '';
-	return relativePath.substring(0, lastSlashIndex + 1);
+/** Format ISO date as `YYYY-MM-DD`. */
+export function formatStripDateFull(iso: string): string {
+	const d = parseUTCDate(iso);
+	if (isNaN(d.getTime())) return iso;
+	const pad = (n: number) => n.toString().padStart(2, '0');
+	return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`;
+}
+
+/** Format ISO date as `YYYY-MM`. */
+export function formatStripDateShort(iso: string): string {
+	const d = parseUTCDate(iso);
+	if (isNaN(d.getTime())) return iso;
+	const pad = (n: number) => n.toString().padStart(2, '0');
+	return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}`;
+}
+
+const PANDAS_FREQ_MAP: Record<string, string> = {
+	h: '1h',
+	H: '1h',
+	D: '1d',
+	W: 'weekly',
+	ME: 'monthly',
+	M: 'monthly',
+	MS: 'monthly',
+	QE: 'quarterly',
+	Q: 'quarterly',
+	QS: 'quarterly',
+	YS: 'yearly',
+	YE: 'yearly',
+	Y: 'yearly',
+	A: 'yearly',
+	AS: 'yearly',
+};
+
+/** Map a pandas freq alias to a human label. Returns null for null/undefined input. */
+export function formatPandasFreq(freq: string | undefined | null): string | null {
+	if (!freq) return null;
+	if (PANDAS_FREQ_MAP[freq]) return PANDAS_FREQ_MAP[freq];
+	const m = freq.match(/^(\d+)([A-Za-z]+)$/);
+	if (m) {
+		const n = m[1];
+		const base = m[2];
+		const mapped = PANDAS_FREQ_MAP[base];
+		if (mapped) return `${n}${mapped.replace(/^1/, '')}`;
+		return `${n}${base.toLowerCase()}`;
+	}
+	return freq;
+}
+
+export function slugify(name: string): string {
+	return name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 }
 
 export function getJobLogPath(job: { log?: string; files?: { file_type: string; path: string }[] }): string | null {

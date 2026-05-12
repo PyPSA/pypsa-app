@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { Badge } from '$lib/components/ui/badge';
-	import { LoaderCircle } from 'lucide-svelte';
+	import LoaderCircle from '@lucide/svelte/icons/loader-circle';
 
 	type BadgeVariant = 'default' | 'secondary' | 'destructive' | 'outline';
 

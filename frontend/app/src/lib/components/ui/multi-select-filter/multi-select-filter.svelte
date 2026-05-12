@@ -1,5 +1,6 @@
 <script lang="ts">
-	import { ChevronDown, X } from 'lucide-svelte';
+	import ChevronDown from '@lucide/svelte/icons/chevron-down';
+	import X from '@lucide/svelte/icons/x';
 	import { Button } from '$lib/components/ui/button';
 	import * as Popover from '$lib/components/ui/popover';
 	import { Checkbox } from '$lib/components/ui/checkbox';
@@ -18,7 +19,7 @@
 		id: string;
 		label: string;
 		avatarUrl?: string;
-		icon?: typeof import('lucide-svelte').X;
+		icon?: typeof import('@lucide/svelte/icons/x').default;
 	}
 
 	let {
