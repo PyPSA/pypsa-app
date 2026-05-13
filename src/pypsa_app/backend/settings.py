@@ -255,6 +255,11 @@ class Settings(BaseSettings):
                 "Local mode is a single-user dashboard deployment."
             )
             raise ValueError(msg)
+        if self.local_mode and self.snakedispatch_backends:
+            msg = (
+                "SNAKEDISPATCH_BACKENDS is not yet implemented in LOCAL_MODE."
+            )
+            raise ValueError(msg)
         return self
 
     @model_validator(mode="after")

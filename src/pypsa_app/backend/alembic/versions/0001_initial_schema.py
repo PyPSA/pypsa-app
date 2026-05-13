@@ -248,3 +248,8 @@ def downgrade() -> None:
     op.drop_table("user_oauth_providers")
     op.drop_table("users")
     op.drop_table("snakedispatch_backends")
+
+    # Postgres: drop ENUM types so re-upgrade does not hit DuplicateObject
+    if op.get_bind().dialect.name == "postgresql":
+        for enum_name in ("network_visibility", "run_status", "user_role"):
+            op.execute(f"DROP TYPE IF EXISTS {enum_name}")

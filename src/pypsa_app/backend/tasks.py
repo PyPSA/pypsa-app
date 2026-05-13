@@ -220,6 +220,7 @@ def import_run_outputs_task(self: Any, job_id: str) -> None:  # noqa: PLR0915
                     db,
                     source_run_id=run.job_id,
                     visibility=run.visibility,
+                    source_path=output_path,
                 )
                 logger.info(
                     "Imported network from run output",

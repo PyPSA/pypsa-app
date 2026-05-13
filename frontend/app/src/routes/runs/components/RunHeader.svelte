@@ -7,6 +7,8 @@
 	import Clock from '@lucide/svelte/icons/clock';
 	import Calendar from '@lucide/svelte/icons/calendar';
 	import Server from '@lucide/svelte/icons/server';
+	import Network from '@lucide/svelte/icons/network';
+	import ChevronRight from '@lucide/svelte/icons/chevron-right';
 
 	interface RunLike {
 		id: string;
@@ -28,7 +30,6 @@
 		progress?: { total: number; done: number; pct: number } | null;
 		actions?: Snippet;
 		extraChips?: Snippet;
-		networks?: Snippet;
 	}
 
 	let {
@@ -40,7 +41,6 @@
 		progress = null,
 		actions,
 		extraChips,
-		networks,
 	}: Props = $props();
 </script>
 
@@ -97,17 +97,6 @@
 		{#if extraChips}
 			{@render extraChips()}
 		{/if}
-		{#if networks}
-			{@render networks()}
-		{:else if run.networks.length > 0}
-			<div class="h-4 w-px bg-border"></div>
-			<div class="flex items-center gap-1.5">
-				{#each run.networks as network, i}
-					{#if i > 0}<span>,</span>{/if}
-					<span>{network.name || network.id.slice(0, 8)}</span>
-				{/each}
-			</div>
-		{/if}
 		{#if run.owner}
 			<div class="flex items-center gap-1.5 ml-auto">
 				{#if run.owner.avatar_url}
@@ -117,6 +106,25 @@
 			</div>
 		{/if}
 	</div>
+
+	<!-- Row 3: Output networks list -->
+	{#if run.networks.length > 0}
+		<div class="mt-4">
+			<p class="text-[10px] uppercase tracking-wider font-medium text-muted-foreground mb-2">Output networks</p>
+			<div class="flex flex-col">
+				{#each run.networks as network}
+					<a
+						href="/networks/{network.id}"
+						class="flex items-center gap-1.5 -mx-1.5 px-1.5 py-0.5 rounded hover:bg-accent transition-colors"
+					>
+						<Network class="h-3 w-3 text-muted-foreground shrink-0" />
+						<span class="font-mono text-xs flex-1 truncate">{network.source_path ?? network.filename}</span>
+						<ChevronRight class="h-3 w-3 text-muted-foreground shrink-0" />
+					</a>
+				{/each}
+			</div>
+		</div>
+	{/if}
 
 	<!-- Progress bar -->
 	{#if !isTerminal && progress}

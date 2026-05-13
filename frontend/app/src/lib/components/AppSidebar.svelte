@@ -1,18 +1,13 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { page } from '$app/stores';
 	import { version } from '$lib/api/client.js';
 	import { authStore } from '$lib/stores/auth.svelte.js';
 	import NavMain from './sidebar/NavMain.svelte';
 	import NavAdmin from './sidebar/NavAdmin.svelte';
 	import NavUser from './sidebar/NavUser.svelte';
-	import NavNetworksList from './sidebar/NavNetworksList.svelte';
 	import * as Sidebar from '$lib/components/ui/sidebar';
 	import * as Tooltip from '$lib/components/ui/tooltip';
 	import Badge from '$lib/components/ui/badge/badge.svelte';
-
-	// Match network detail page + any nested sub-route (e.g. /data, /report/foo).
-	const isNetworkPage = $derived(/^\/networks\/[^/]+(\/.*)?$/.test($page.url.pathname));
 
 	// Version info
 	interface VersionData {
@@ -93,9 +88,6 @@
 	<Sidebar.Content class="flex flex-col overflow-hidden">
 		<NavMain />
 		<NavAdmin />
-		{#if isNetworkPage}
-			<NavNetworksList />
-		{/if}
 	</Sidebar.Content>
 
 	{#if !authStore.loading && authStore.isAuthenticated}

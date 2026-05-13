@@ -44,6 +44,7 @@ class RunNetworkSummary(BaseModel):
     id: uuid.UUID
     name: str | None = None
     filename: str
+    source_path: str | None = None
 
 
 class RunCreate(BaseModel):

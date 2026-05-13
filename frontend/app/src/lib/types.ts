@@ -102,6 +102,7 @@ export interface RunNetwork {
 	id: string;
 	name: string | null;
 	filename: string;
+	source_path?: string | null;
 }
 
 export interface UserPublic {
