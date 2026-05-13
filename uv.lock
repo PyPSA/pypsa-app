@@ -13,7 +13,7 @@ resolution-markers = [
 ]
 
 [options]
-exclude-newer = "2026-05-05T16:06:41.153419917Z"
+exclude-newer = "0001-01-01T00:00:00Z" # This has no effect and is included for backwards compatibility when using relative exclude-newer values.
 exclude-newer-span = "P7D"
 
 [[package]]
@@ -1907,7 +1907,7 @@ full = [
 requires-dist = [
     { name = "alembic", specifier = ">=1.18" },
     { name = "authlib", specifier = ">=1.7,<2" },
-    { name = "celery", extras = ["redis"], marker = "extra == 'full'", specifier = ">=5.6,<6" },
+    { name = "celery", extras = ["redis"], marker = "extra == 'full'", specifier = ">=5.6.3,<6" },
     { name = "click", specifier = ">=8.3" },
     { name = "coverage", marker = "extra == 'dev'", specifier = ">=7.6,<8" },
     { name = "fastapi", specifier = ">=0.136" },
