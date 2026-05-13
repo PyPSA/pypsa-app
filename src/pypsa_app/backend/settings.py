@@ -256,9 +256,7 @@ class Settings(BaseSettings):
             )
             raise ValueError(msg)
         if self.local_mode and self.snakedispatch_backends:
-            msg = (
-                "SNAKEDISPATCH_BACKENDS is not yet implemented in LOCAL_MODE."
-            )
+            msg = "SNAKEDISPATCH_BACKENDS is not yet implemented in LOCAL_MODE."
             raise ValueError(msg)
         return self
 
