@@ -233,6 +233,7 @@ class Network(Base):
     # File information
     filename: Mapped[str] = mapped_column(String(255))
     file_path: Mapped[str] = mapped_column(Text, unique=True, index=True)
+    source_path: Mapped[str | None] = mapped_column(Text)
     file_size: Mapped[int | None] = mapped_column(BigInteger)
     file_hash: Mapped[str | None] = mapped_column(String(64))
     # External: file lives outside data_dir (LOCAL_MODE only); do not unlink on delete

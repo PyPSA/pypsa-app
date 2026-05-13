@@ -328,6 +328,7 @@ def import_network_file(  # noqa: PLR0913
     visibility: Visibility = Visibility.PRIVATE,
     *,
     is_external: bool = False,
+    source_path: str | None = None,
 ) -> Network:
     """Import a network file and create a DB record.
 
@@ -383,6 +384,7 @@ def import_network_file(  # noqa: PLR0913
         filename=original_filename,
         file_path=str(dest),
         is_external=is_external,
+        source_path=source_path,
     )
     _apply_network_metadata(network, dest, file_hash)
     db.add(network)
