@@ -22,7 +22,7 @@ jobs:
         git merge-base --is-ancestor "$GITHUB_SHA" origin/main \
           || { echo "Tag $GITHUB_REF_NAME is not on main"; exit 1; }
 
-    - uses: actions/setup-node@v4
+    - uses: actions/setup-node@v6
       with:
         node-version: 22
         cache: npm
