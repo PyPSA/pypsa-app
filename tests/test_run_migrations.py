@@ -21,9 +21,7 @@ def test_run_migrations_upgrades_fresh_db_and_stamps_version(
             sa.text("SELECT version_num FROM alembic_version")
         ).scalar()
         app_row = conn.execute(
-            sa.text(
-                "SELECT id, last_app_version FROM app_info WHERE id = 1"
-            )
+            sa.text("SELECT id, last_app_version FROM app_info WHERE id = 1")
         ).one()
 
     assert version == "0005"
@@ -37,9 +35,7 @@ def test_run_migrations_refuses_when_db_is_at_unknown_revision(
     run_migrations()
 
     with db_engine.begin() as conn:
-        conn.execute(
-            sa.text("UPDATE alembic_version SET version_num = '9999'")
-        )
+        conn.execute(sa.text("UPDATE alembic_version SET version_num = '9999'"))
 
     with pytest.raises(DatabaseVersionMismatchError, match="9999"):
         run_migrations()

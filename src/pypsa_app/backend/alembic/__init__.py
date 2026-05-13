@@ -28,7 +28,9 @@ def run_migrations() -> None:
         with engine.connect() as conn:
             insp = inspect(conn)
             if insp.has_table("alembic_version"):
-                before = conn.execute(text("SELECT version_num FROM alembic_version")).scalar()
+                before = conn.execute(
+                    text("SELECT version_num FROM alembic_version")
+                ).scalar()
                 if before and before not in known:
                     wrote = None
                     if insp.has_table("app_info"):
@@ -48,7 +50,9 @@ def run_migrations() -> None:
         command.upgrade(cfg, "head")
 
         with engine.begin() as conn:
-            after = conn.execute(text("SELECT version_num FROM alembic_version")).scalar()
+            after = conn.execute(
+                text("SELECT version_num FROM alembic_version")
+            ).scalar()
             if after != before and inspect(conn).has_table("app_info"):
                 conn.execute(
                     text(

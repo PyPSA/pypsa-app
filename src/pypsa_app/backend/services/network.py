@@ -301,9 +301,7 @@ def _calculate_file_hash(file_path: Path) -> str:
     return sha256_hash.hexdigest()
 
 
-def _apply_network_metadata(
-    network: Network, file_path: Path, file_hash: str
-) -> None:
+def _apply_network_metadata(network: Network, file_path: Path, file_hash: str) -> None:
     """Read the file at file_path and copy its metadata onto network."""
     service = NetworkService(file_path, use_cache=False)
     info = service.extract_database_info()
@@ -400,9 +398,7 @@ def register_network_in_place(
     if not file_path.is_file() or file_path.suffix != ".nc":
         msg = f"Expected an existing .nc file, got: {file_path}"
         raise ValueError(msg)
-    return import_network_file(
-        file_path, file_path.name, user_id, db, is_external=True
-    )
+    return import_network_file(file_path, file_path.name, user_id, db, is_external=True)
 
 
 def load_service(

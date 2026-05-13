@@ -42,6 +42,22 @@
       font-size: 0.85rem;
       color: #999;
     }
+    .status-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      margin-top: 1rem;
+      font-size: 0.9rem;
+      color: #2993b5;
+      text-decoration: none;
+    }
+    .status-link:hover {
+      text-decoration: underline;
+    }
+    .status-link svg {
+      width: 0.85em;
+      height: 0.85em;
+    }
   </style>
 </head>
 <body>
@@ -65,6 +81,10 @@
     <h1>Service temporarily unavailable</h1>
     <p>PyPSA App is currently undergoing maintenance. We'll be back shortly.</p>
     <p class="hint">This page will automatically retry in 30 seconds.</p>
+    <a class="status-link" href="https://status.pypsa.org" target="_blank" rel="noopener">
+      Check status.pypsa.org
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 17L17 7"/><path d="M7 7h10v10"/></svg>
+    </a>
   </div>
 </body>
 </html>

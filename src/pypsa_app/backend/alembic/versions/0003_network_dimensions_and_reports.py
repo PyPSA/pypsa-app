@@ -23,6 +23,7 @@ def _decode(value: object) -> object:
             return value
     return value
 
+
 # revision identifiers, used by Alembic.
 revision: str = "0003"
 down_revision: str | None = "0002"
@@ -76,7 +77,9 @@ def upgrade() -> None:
         history = _decode(raw)
         if not isinstance(history, list):
             continue
-        cleaned = [v.removesuffix("+00:00") if isinstance(v, str) else v for v in history]
+        cleaned = [
+            v.removesuffix("+00:00") if isinstance(v, str) else v for v in history
+        ]
         if cleaned != history:
             bind.execute(
                 sa.text(
