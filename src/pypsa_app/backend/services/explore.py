@@ -57,7 +57,8 @@ def _build_explore_defaults(n: Any) -> dict[str, Any]:
         )
 
     try:
-        supported_branches = {"Line", "Link", "Transformer", "Process"}
+        # TODO: re-add "Process" once PyPSA PydeckPlotter supports process_* kwargs
+        supported_branches = {"Line", "Link", "Transformer"}
         for c in n.branch_components:
             if c not in supported_branches:
                 continue

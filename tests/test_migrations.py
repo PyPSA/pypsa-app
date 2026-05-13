@@ -100,18 +100,16 @@ def test_0002_backfills_visibility_on_existing_runs(
 
     with alembic_engine.connect() as conn:
         visibility = conn.execute(
-            sa.text(
-                "SELECT visibility FROM runs WHERE job_id = :id"
-            ).bindparams(sa.bindparam("id", type_=sa.Uuid())),
+            sa.text("SELECT visibility FROM runs WHERE job_id = :id").bindparams(
+                sa.bindparam("id", type_=sa.Uuid())
+            ),
             {"id": run_id},
         ).scalar_one()
 
     assert visibility == "private"
 
 
-def test_0002_downgrade_drops_visibility_column(
-    alembic_runner, alembic_engine
-) -> None:
+def test_0002_downgrade_drops_visibility_column(alembic_runner, alembic_engine) -> None:
     alembic_runner.migrate_up_to("0002")
     alembic_runner.migrate_down_one()
 
@@ -218,9 +216,9 @@ def test_0003_downgrade_collapses_dimensions(
 
     with alembic_engine.connect() as conn:
         row = conn.execute(
-            sa.text(
-                "SELECT dimensions_count FROM networks WHERE id = :id"
-            ).bindparams(sa.bindparam("id", type_=sa.Uuid())),
+            sa.text("SELECT dimensions_count FROM networks WHERE id = :id").bindparams(
+                sa.bindparam("id", type_=sa.Uuid())
+            ),
             {"id": network_id},
         ).one()
 
@@ -258,9 +256,9 @@ def test_0004_backfills_is_external_on_existing_networks(
 
     with alembic_engine.connect() as conn:
         is_external = conn.execute(
-            sa.text(
-                "SELECT is_external FROM networks WHERE id = :id"
-            ).bindparams(sa.bindparam("id", type_=sa.Uuid())),
+            sa.text("SELECT is_external FROM networks WHERE id = :id").bindparams(
+                sa.bindparam("id", type_=sa.Uuid())
+            ),
             {"id": network_id},
         ).scalar_one()
 
@@ -292,9 +290,7 @@ def test_0005_creates_app_info_table(alembic_runner, alembic_engine) -> None:
     assert {"id", "last_app_version", "last_migrated_at"}.issubset(columns)
 
 
-def test_0005_downgrade_drops_app_info_table(
-    alembic_runner, alembic_engine
-) -> None:
+def test_0005_downgrade_drops_app_info_table(alembic_runner, alembic_engine) -> None:
     alembic_runner.migrate_up_to("0005")
     alembic_runner.migrate_down_one()
 

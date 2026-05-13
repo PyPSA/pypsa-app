@@ -18,7 +18,8 @@ logger = logging.getLogger(__name__)
 def _check_exists(path: Path) -> None:
     """Raise 404 if path does not exist."""
     if not path.exists():
-        # Local mode: show absolute path so user can find/restore. Server mode: basename only.
+        # Local mode: show absolute path so user can find/restore.
+        # Server mode: basename only.
         if settings.local_mode:
             detail = f"Network file is no longer at the original location: {path}"
         else:

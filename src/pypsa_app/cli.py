@@ -25,7 +25,10 @@ def _require_frontend_built() -> None:
 
 
 class _MainGroup(click.Group):
-    """Route bare invocation and leading file path to `open`. Registered subcommands resolve normally."""
+    """Route bare invocation and leading file path to `open`.
+
+    Registered subcommands resolve normally.
+    """
 
     def parse_args(self, ctx: click.Context, args: list[str]) -> list[str]:
         if not args:
@@ -115,9 +118,7 @@ def serve(
 @click.option(
     "--port", default=4743, type=int, help="Port to bind to", show_default=True
 )
-@click.option(
-    "--no-open", is_flag=True, help="Do not open the dashboard in a browser"
-)
+@click.option("--no-open", is_flag=True, help="Do not open the dashboard in a browser")
 def open_cmd(file: Path | None, port: int, no_open: bool) -> None:
     """Open the local single-user dashboard, optionally registering a `.nc` file.
 
@@ -168,9 +169,7 @@ def open_cmd(file: Path | None, port: int, no_open: bool) -> None:
         # before the browser races for it.
         threading.Timer(2.5, lambda: webbrowser.open(url)).start()
 
-    uvicorn.run(
-        "pypsa_app.backend.main:app", host="127.0.0.1", port=port, reload=False
-    )
+    uvicorn.run("pypsa_app.backend.main:app", host="127.0.0.1", port=port, reload=False)
 
 
 @main.command()
