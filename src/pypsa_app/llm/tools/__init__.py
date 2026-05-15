@@ -65,8 +65,10 @@ class ToolRegistry:
 
 def build_default_registry(http: httpx.AsyncClient) -> ToolRegistry:
     """Build a :class:`ToolRegistry` populated with all default tools."""
-    return ToolRegistry([
-        ListNetworksTool(http),
-        GetNetworkDetailTool(http),
-        GetNetworkStatisticsTool(http),
-    ])
+    return ToolRegistry(
+        [
+            ListNetworksTool(http),
+            GetNetworkDetailTool(http),
+            GetNetworkStatisticsTool(http),
+        ]
+    )

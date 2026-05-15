@@ -24,9 +24,8 @@ class SPAStaticFiles(StaticFiles):
                 # Unmatched /api/v1/* paths must return JSON 404, not the SPA shell —
                 # otherwise SPA fetch callers crash parsing HTML as JSON.
                 request_path = scope.get("path", "") or f"/{path}"
-                if (
-                    request_path == API_V1_PREFIX
-                    or request_path.startswith(f"{API_V1_PREFIX}/")
+                if request_path == API_V1_PREFIX or request_path.startswith(
+                    f"{API_V1_PREFIX}/"
                 ):
                     return JSONResponse(
                         status_code=HTTPStatus.NOT_FOUND,

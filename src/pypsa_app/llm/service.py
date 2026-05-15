@@ -12,7 +12,6 @@ import httpx
 import litellm.exceptions
 
 from pypsa_app.llm.client import extract_reasoning, extract_text
-from pypsa_app.llm.prompts import build_system_prompt
 from pypsa_app.llm.events import (
     ReasoningMessageContent,
     RunError,
@@ -26,6 +25,7 @@ from pypsa_app.llm.events import (
     Usage,
     to_sse,
 )
+from pypsa_app.llm.prompts import build_system_prompt
 from pypsa_app.llm.tools.base import ToolContext
 
 if TYPE_CHECKING:
@@ -97,23 +97,13 @@ def _process_delta(
     # ── text deltas ───────────────────────────────
     text: str = extract_text(delta)
     if text:
-        events.append(
-            to_sse(
-                TextMessageContent(
-                    message_id=message_id, delta=text
-                )
-            )
-        )
+        events.append(to_sse(TextMessageContent(message_id=message_id, delta=text)))
 
     # ── reasoning deltas ──────────────────────────
     reasoning: str = extract_reasoning(delta)
     if reasoning:
         events.append(
-            to_sse(
-                ReasoningMessageContent(
-                    message_id=message_id, delta=reasoning
-                )
-            )
+            to_sse(ReasoningMessageContent(message_id=message_id, delta=reasoning))
         )
 
     return events
@@ -149,16 +139,16 @@ def _expand_messages(messages: list[ChatMessage]) -> list[dict[str, object]]:
                     "tool_calls": tool_calls_payload,
                 }
             )
-            for tr in m.tool_results or []:
-                expanded.append(
-                    {
-                        "role": "tool",
-                        "tool_call_id": tr.tool_call_id,
-                        "content": json.dumps(
-                            tr.result if not tr.is_error else {"error": tr.error}
-                        ),
-                    }
-                )
+            expanded.extend(
+                {
+                    "role": "tool",
+                    "tool_call_id": tr.tool_call_id,
+                    "content": json.dumps(
+                        tr.result if not tr.is_error else {"error": tr.error}
+                    ),
+                }
+                for tr in m.tool_results or []
+            )
             continue
         expanded.append({"role": m.role, "content": m.content})
     return expanded
@@ -241,13 +231,9 @@ class ChatService:
                     openai_messages, tools=tool_schemas
                 ):
                     delta = chunk.choices[0].delta
-                    finish_reason = getattr(
-                        chunk.choices[0], "finish_reason", None
-                    )
+                    finish_reason = getattr(chunk.choices[0], "finish_reason", None)
 
-                    for sse_bytes in _process_delta(
-                        delta, index_buffers, message_id
-                    ):
+                    for sse_bytes in _process_delta(delta, index_buffers, message_id):
                         yield sse_bytes
 
                     # ── client-disconnect check ───────────
@@ -257,9 +243,7 @@ class ChatService:
                     if disconnected:
                         _cancel_on_disconnect(run_id)
             except Exception as exc:
-                code, log_msg, is_critical = self._provider_error_code(
-                    exc
-                )
+                code, log_msg, is_critical = self._provider_error_code(exc)
                 if is_critical:
                     logger.exception(
                         log_msg,
@@ -270,9 +254,7 @@ class ChatService:
                         log_msg,
                         extra={"run_id": run_id, "error": str(exc)},
                     )
-                yield to_sse(
-                    RunError(run_id=run_id, code=code, message=str(exc))
-                )
+                yield to_sse(RunError(run_id=run_id, code=code, message=str(exc)))
                 return
 
             if finish_reason == "tool_calls":
@@ -311,9 +293,7 @@ class ChatService:
                 ),
             }
         )
-        async for evt_bytes in self._stream_summary(
-            run_id, openai_messages
-        ):
+        async for evt_bytes in self._stream_summary(run_id, openai_messages):
             yield evt_bytes
 
     async def health(self) -> dict[str, object]:
@@ -356,9 +336,7 @@ class ChatService:
                 text = extract_text(delta)
                 if text:
                     yield to_sse(
-                        TextMessageContent(
-                            message_id=summary_message_id, delta=text
-                        )
+                        TextMessageContent(message_id=summary_message_id, delta=text)
                     )
                 reasoning = extract_reasoning(delta)
                 if reasoning:
@@ -370,16 +348,10 @@ class ChatService:
         except Exception as exc:
             code, log_msg, is_critical = self._provider_error_code(exc)
             if is_critical:
-                logger.exception(
-                    log_msg, extra={"run_id": run_id, "error_code": code}
-                )
+                logger.exception(log_msg, extra={"run_id": run_id, "error_code": code})
             else:
-                logger.warning(
-                    log_msg, extra={"run_id": run_id, "error": str(exc)}
-                )
-            yield to_sse(
-                RunError(run_id=run_id, code=code, message=str(exc))
-            )
+                logger.warning(log_msg, extra={"run_id": run_id, "error": str(exc)})
+            yield to_sse(RunError(run_id=run_id, code=code, message=str(exc)))
             return
 
         yield to_sse(
@@ -441,9 +413,7 @@ class ChatService:
 
             yield to_sse(ToolCallEnd(tool_call_id=tcid, args=args))
 
-            tool_result = await self._tools.invoke(
-                buf["name"], args, tool_ctx
-            )
+            tool_result = await self._tools.invoke(buf["name"], args, tool_ctx)
             yield to_sse(
                 ToolCallResult(
                     tool_call_id=tcid,
