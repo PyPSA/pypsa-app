@@ -8,3 +8,4 @@ class VersionResponse(BaseModel):
     pypsa_version: str
     local_mode: bool
     runs_enabled: bool
+    chat_enabled: bool = False

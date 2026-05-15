@@ -7,8 +7,10 @@ from http import HTTPStatus
 
 from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException
-from starlette.responses import Response
+from starlette.responses import JSONResponse, Response
 from starlette.types import Scope
+
+from pypsa_app.backend.settings import API_V1_PREFIX
 
 
 class SPAStaticFiles(StaticFiles):
@@ -19,7 +21,18 @@ class SPAStaticFiles(StaticFiles):
             return await super().get_response(path, scope)
         except HTTPException as ex:
             if ex.status_code == HTTPStatus.NOT_FOUND:
-                # Return index.html for all non-file routes
-                # This allows SvelteKit's client-side router to handle the route
+                # Unmatched /api/v1/* paths must return JSON 404, not the SPA shell —
+                # otherwise SPA fetch callers crash parsing HTML as JSON.
+                request_path = scope.get("path", "") or f"/{path}"
+                if (
+                    request_path == API_V1_PREFIX
+                    or request_path.startswith(f"{API_V1_PREFIX}/")
+                ):
+                    return JSONResponse(
+                        status_code=HTTPStatus.NOT_FOUND,
+                        content={"detail": "Not Found"},
+                    )
+                # Return index.html for non-API routes so SvelteKit's client-side
+                # router can handle them.
                 return await super().get_response("index.html", scope)
             raise

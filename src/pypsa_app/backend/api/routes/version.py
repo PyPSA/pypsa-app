@@ -18,4 +18,5 @@ async def get_version() -> dict:
         "pypsa_version": pypsa.__version__,
         "local_mode": settings.local_mode,
         "runs_enabled": bool(settings.resolved_backends),
+        "chat_enabled": settings.llm.chat_enabled,
     }

@@ -27,8 +27,14 @@ from pypsa_app.backend.permissions import (
     can_modify,
     has_permission,
 )
+from pypsa_app.backend.settings import Settings, settings
 
 logger = logging.getLogger(__name__)
+
+
+def get_settings() -> Settings:
+    """FastAPI dependency that provides the application Settings."""
+    return settings
 
 
 def get_db() -> Generator[Session]:
