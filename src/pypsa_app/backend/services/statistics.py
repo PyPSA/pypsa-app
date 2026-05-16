@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 
 def get_statistics(file_paths: list[str], statistic: str, parameters: dict) -> dict:
-    """Get statistics from network files (handles single or multiple networks)"""
+    """Get statistics from network files (handles single or multiple networks)."""
     service = load_service(file_paths, use_cache=True)
     stats_data = getattr(service.n.statistics, statistic)(**parameters)
 

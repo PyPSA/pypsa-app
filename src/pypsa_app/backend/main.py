@@ -37,6 +37,7 @@ from pypsa_app.backend.services.backend_registry import backend_registry
 from pypsa_app.backend.services.run import SnakedispatchError
 from pypsa_app.backend.services.sync import run_sync_loop
 from pypsa_app.backend.settings import API_V1_PREFIX, settings
+from pypsa_app.llm.api.routes import router as llm_router
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
@@ -285,6 +286,7 @@ app.include_router(version.router, prefix=f"{API_V1_PREFIX}/version", tags=["ver
 app.include_router(tasks.router, prefix=f"{API_V1_PREFIX}/tasks", tags=["tasks"])
 if settings.resolved_backends:
     app.include_router(runs.router, prefix=f"{API_V1_PREFIX}/runs", tags=["runs"])
+app.include_router(llm_router, prefix=API_V1_PREFIX, tags=["chat"])
 
 
 # Health check endpoint
