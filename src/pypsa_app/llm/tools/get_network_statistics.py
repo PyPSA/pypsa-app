@@ -19,7 +19,6 @@ from pypsa_app.llm.tools.base import Tool, ToolContext, ToolResult
 from pypsa_app.llm.tools.http_client import cookies_for
 
 _UNITS: dict[str, str] = {
-    "summary": "MW (power components) or MWh (stores/storage_units)",
     "installed_capacity": "MW (power) or MWh (stores/storage_units)",
     "optimal_capacity": "MW (power) or MWh (stores/storage_units)",
     "expanded_capacity": "MW (power) or MWh (stores/storage_units)",
@@ -66,9 +65,6 @@ _OPTIONAL_PARAMS: tuple[str, ...] = (
     "bus_carrier",
 )
 
-_STATISTIC_ENUM: list[str] = sorted(ALLOWED_STATISTICS | {"summary"})
-
-
 class GetNetworkStatisticsTool(Tool):
     """Invoke one PyPSA stats method through the async statistics endpoint."""
 
@@ -82,8 +78,7 @@ class GetNetworkStatisticsTool(Tool):
         "- Costs: capex, installed_capex, expanded_capex, fom, opex, system_cost\n"
         "- Energy flows: supply, withdrawal, transmission, energy_balance\n"
         "- Performance: capacity_factor, curtailment\n"
-        "- Economic: revenue, market_value, prices\n"
-        "- Overview: summary (n.statistics() — multi-column overview)\n\n"
+        "- Economic: revenue, market_value, prices\n\n"
         "All results are aggregated over time. `groupby` controls the "
         "dimension (carrier/bus/country); `groupby_time` controls temporal "
         "aggregation (sum/mean/max/min). Methods that depend on optimisation "
@@ -99,7 +94,7 @@ class GetNetworkStatisticsTool(Tool):
             },
             "statistic": {
                 "type": "string",
-                "enum": _STATISTIC_ENUM,
+                "enum": sorted(ALLOWED_STATISTICS),
                 "description": "Which PyPSA stats method to invoke.",
             },
             "groupby": {
