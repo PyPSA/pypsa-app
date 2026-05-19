@@ -46,7 +46,7 @@
 		"gridstack": "12.6.0",
 		"js-yaml": "4.1.1",
 		"maplibre-gl": "5.24.0",
-		"marked": "17.0.6",
+		"marked": "18.0.3",
 		"mode-watcher": "1.1.0",
 		"plotly.js-dist": "3.5.1",
 		"svelte-sonner": "1.1.1"
