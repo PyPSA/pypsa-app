@@ -30,12 +30,13 @@
 	const id = $props.id();
 
 	let loading = $state(false);
-	// Demo credentials mirror DEMO_EMAIL/DEMO_PASSWORD in src/pypsa_app/backend/auth/password.py
 	let email = $state('');
 	let password = $state('');
 	let showPassword = $state(false);
 	let errorMsg = $state<string | null>(null);
 
+	// Mirror DEMO_EMAIL/DEMO_PASSWORD in src/pypsa_app/backend/auth/password.py.
+	// One-shot latch so a user clearing the field is not overwritten.
 	let demoPrefilled = false;
 	$effect(() => {
 		if (features.demoMode && !demoPrefilled) {
