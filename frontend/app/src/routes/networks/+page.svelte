@@ -16,6 +16,7 @@
 	import DataTable from '$lib/components/DataTable.svelte';
 	import { createColumns } from './components/columns.js';
 	import { authStore } from '$lib/stores/auth.svelte.js';
+	import { features } from '$lib/stores/features.svelte.js';
 	import EmptyState from '$lib/components/EmptyState.svelte';
 	import { TableSkeleton } from '$lib/components/skeletons';
 	import type { Network as NetworkType, User, NetworkUpdate, ApiError, Visibility } from '$lib/types.js';
@@ -330,7 +331,9 @@
 <div class="min-h-screen">
 	<div class="max-w-[80rem] mx-auto py-8">
 		<!-- Actions Bar (Scan + Upload) -->
-		<ActionsBar onUpload={handleUpload} />
+		{#if !features.demoMode}
+			<ActionsBar onUpload={handleUpload} />
+		{/if}
 
 		<!-- Content based on view state -->
 		{#if viewState === 'loading'}

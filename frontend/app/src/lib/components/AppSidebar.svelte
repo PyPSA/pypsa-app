@@ -2,6 +2,7 @@
 	import { onMount } from 'svelte';
 	import { version } from '$lib/api/client.js';
 	import { authStore } from '$lib/stores/auth.svelte.js';
+	import { features } from '$lib/stores/features.svelte.js';
 	import NavMain from './sidebar/NavMain.svelte';
 	import NavAdmin from './sidebar/NavAdmin.svelte';
 	import NavUser from './sidebar/NavUser.svelte';
@@ -58,7 +59,7 @@
 					{#snippet child({ props }: { props: Record<string, unknown> })}
 						<a href="/networks" class="flex items-center gap-2" {...props}>
 							<img src="/pypsa-logo.svg" alt="PyPSA Logo" class="h-8 w-8 shrink-0 object-contain" />
-							<div class="flex flex-1 items-center gap-2 text-left text-sm leading-tight">
+							<div class="flex flex-1 items-center gap-1 text-left text-sm leading-tight">
 								<span class="truncate font-semibold">PyPSA App</span>
 								{#if versionData?.app}
 									<Tooltip.Root>
@@ -76,6 +77,9 @@
 											</div>
 										</Tooltip.Content>
 									</Tooltip.Root>
+								{/if}
+								{#if features.demoMode}
+									<Badge class="bg-[#D10A49] text-white">Demo</Badge>
 								{/if}
 							</div>
 						</a>

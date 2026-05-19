@@ -5,6 +5,9 @@ todo.md
 # Data
 /data/
 
+# Demo seeding
+/demo/
+
 # setuptools-scm version
 src/pypsa_app/backend/_version_info.py
 
@@ -80,8 +83,10 @@ htmlcov/
 
 # Docker
 compose/compose.prod.yaml
+compose/compose.demo.yaml
 compose/.env
 compose/.env.dev
+compose/.env.demo
 
 # Alembic
 alembic/versions/*.pyc

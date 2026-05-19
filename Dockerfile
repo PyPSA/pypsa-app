@@ -23,8 +23,11 @@ COPY pyproject.toml uv.lock MANIFEST.in ./
 COPY src/ src/
 COPY .git/ .git/
 
-# Sync dependencies with uv
-RUN uv sync --frozen --extra full --no-dev
+# Skip setuptools_scm git lookup when .git is unavailable
+ARG SETUPTOOLS_SCM_PRETEND_VERSION_FOR_PYPSA_APP=
+RUN if [ -n "${SETUPTOOLS_SCM_PRETEND_VERSION_FOR_PYPSA_APP}" ]; then \
+        export SETUPTOOLS_SCM_PRETEND_VERSION_FOR_PYPSA_APP="${SETUPTOOLS_SCM_PRETEND_VERSION_FOR_PYPSA_APP}"; \
+    fi && uv sync --frozen --extra full --no-dev
 
 # Stage 2: Runtime stage (pypsa-app backend)
 FROM python:3.13-slim@sha256:d49c1ff87eb98eac346fc250f52925f726eb913c43a92854246dd03c9692ad67 AS backend

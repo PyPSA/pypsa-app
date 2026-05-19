@@ -9,7 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from pypsa_app.backend.api.deps import get_db, require_permission
-from pypsa_app.backend.auth import hash_api_key
+from pypsa_app.backend.auth.authenticate import hash_api_key
 from pypsa_app.backend.models import ApiKey, Permission, User, UserRole
 from pypsa_app.backend.schemas.api_key import ApiKeyCreate, ApiKeyResponse
 

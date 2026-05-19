@@ -1,11 +1,14 @@
 """Application configuration using environment variables"""
 
+import logging
 from pathlib import Path
 from typing import Self
 
 from platformdirs import user_data_dir
 from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+logger = logging.getLogger(__name__)
 
 API_V1_PREFIX = "/api/v1"
 SESSION_COOKIE_NAME = "pypsa_session"
@@ -39,7 +42,15 @@ class Settings(BaseSettings):
         description=(
             "Single-user local-dashboard deployment (the bare `pypsa-app` CLI). "
             "Enables zero-copy in-place network registration. "
-            "Incompatible with ENABLE_AUTH=true."
+            "Incompatible with any authentication."
+        ),
+        json_schema_extra={"category": "Application"},
+    )
+    demo_mode: bool = Field(
+        default=False,
+        description=(
+            "Public read-only demo deployment. Disables all write endpoints, "
+            "uses a shared 'demo' user."
         ),
         json_schema_extra={"category": "Application"},
     )
@@ -72,33 +83,52 @@ class Settings(BaseSettings):
     )
 
     # Authentication
-    enable_auth: bool = Field(
-        default=False,
-        description="Enable GitHub OAuth authentication",
-        json_schema_extra={"category": "Authentication"},
-    )
-    github_client_id: str | None = Field(
+    auth_github_client_id: str | None = Field(
         default=None,
         description="GitHub OAuth app client ID (create at https://github.com/settings/developers)",
-        json_schema_extra={"category": "Authentication", "depends_on": "enable_auth"},
+        json_schema_extra={"category": "Authentication"},
     )
-    github_client_secret: str | None = Field(
+    auth_github_client_secret: str | None = Field(
         default=None,
         description="GitHub OAuth app client secret",
-        json_schema_extra={"category": "Authentication", "depends_on": "enable_auth"},
+        json_schema_extra={"category": "Authentication"},
+    )
+    auth_password_enabled: bool = Field(
+        default=False,
+        description="Enable password based login",
+        json_schema_extra={"category": "Authentication"},
     )
     session_secret_key: str = Field(
         default="dev-secret-key-change-in-production",
         description=(
             "Secret key for session cookies (generate with: openssl rand -base64 32)"
         ),
-        json_schema_extra={"category": "Authentication", "depends_on": "enable_auth"},
+        json_schema_extra={"category": "Authentication"},
     )
     session_ttl: int = Field(
         default=604800,
         description="Session time-to-live in seconds (default: 7 days)",
-        json_schema_extra={"category": "Authentication", "depends_on": "enable_auth"},
+        json_schema_extra={"category": "Authentication"},
     )
+
+    @property
+    def enabled_oauth_providers(self) -> list[str]:
+        from pypsa_app.backend.auth.providers import OAUTH_PROVIDERS  # noqa: PLC0415
+
+        return [
+            p
+            for p in OAUTH_PROVIDERS
+            if getattr(self, f"auth_{p}_client_id", None) is not None
+        ]
+
+    @property
+    def auth_oauth_enabled(self) -> bool:
+        return bool(self.enabled_oauth_providers)
+
+    @property
+    def auth_enabled(self) -> bool:
+        """True if any auth provider is active."""
+        return self.auth_oauth_enabled or self.auth_password_enabled
 
     # Networks
     max_upload_size_mb: int = Field(
@@ -242,6 +272,21 @@ class Settings(BaseSettings):
     )
 
     @model_validator(mode="after")
+    def validate_oauth_credential_pairs(self) -> Self:
+        from pypsa_app.backend.auth.providers import OAUTH_PROVIDERS  # noqa: PLC0415
+
+        for pid in OAUTH_PROVIDERS:
+            cid = getattr(self, f"auth_{pid}_client_id", None)
+            sec = getattr(self, f"auth_{pid}_client_secret", None)
+            if bool(cid) != bool(sec):
+                msg = (
+                    f"AUTH_{pid.upper()}_CLIENT_ID and "
+                    f"AUTH_{pid.upper()}_CLIENT_SECRET must both be set or unset."
+                )
+                raise ValueError(msg)
+        return self
+
+    @model_validator(mode="after")
     def resolve_database_url(self) -> Self:
         if self.database_url == _DEFAULT_DATABASE_URL_SENTINEL:
             self.database_url = f"sqlite:///{self.data_dir_path}/pypsa-app.db"
@@ -249,29 +294,56 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def validate_local_mode(self) -> Self:
-        if self.local_mode and self.enable_auth:
-            msg = (
-                "LOCAL_MODE and ENABLE_AUTH cannot both be true. "
-                "Local mode is a single-user dashboard deployment."
-            )
+        if not self.local_mode:
+            return self
+        if self.auth_enabled:
+            msg = "LOCAL_MODE is incompatible with any authentication."
             raise ValueError(msg)
-        if self.local_mode and self.snakedispatch_backends:
+        if self.snakedispatch_backends:
             msg = "SNAKEDISPATCH_BACKENDS is not yet implemented in LOCAL_MODE."
             raise ValueError(msg)
         return self
 
     @model_validator(mode="after")
+    def validate_demo_mode(self) -> Self:
+        if not self.demo_mode:
+            return self
+        if self.auth_oauth_enabled:
+            msg = "DEMO_MODE is incompatible with OAuth credentials."
+            raise ValueError(msg)
+        if self.local_mode:
+            msg = "DEMO_MODE and LOCAL_MODE are mutually exclusive."
+            raise ValueError(msg)
+        if self.snakedispatch_backends:
+            msg = (
+                "DEMO_MODE does not support SNAKEDISPATCH_BACKENDS "
+                "(no compute backend)."
+            )
+            raise ValueError(msg)
+        if not self.auth_password_enabled:
+            msg = "DEMO_MODE requires AUTH_PASSWORD_ENABLED=true."
+            raise ValueError(msg)
+        return self
+
+    @model_validator(mode="after")
+    def validate_password_auth(self) -> Self:
+        if self.auth_password_enabled and not self.demo_mode:
+            msg = "AUTH_PASSWORD_ENABLED is only supported with DEMO_MODE."
+            raise ValueError(msg)
+        return self
+
+    @model_validator(mode="after")
     def validate_auth_settings(self) -> Self:
-        if self.enable_auth and self.database_url.startswith("sqlite"):
+        if self.auth_enabled and self.database_url.startswith("sqlite"):
             msg = (
                 "Authentication requires PostgreSQL. "
                 "SQLite does not support the features needed for multi-user auth. "
-                "Either set ENABLE_AUTH=false or use a PostgreSQL DATABASE_URL."
+                "Use a PostgreSQL DATABASE_URL or disable authentication."
             )
             raise ValueError(msg)
 
         if (
-            self.enable_auth
+            self.auth_enabled
             and self.session_secret_key == "dev-secret-key-change-in-production"  # noqa: S105
         ):
             msg = "Must set a secure SESSION_SECRET_KEY when authentication is enabled"

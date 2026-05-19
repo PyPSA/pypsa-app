@@ -107,15 +107,29 @@ async function request<T>(endpoint: string, options: RequestInit = {}, cancellat
 }
 
 // Auth API
+export interface AuthProviderInfo {
+	id: string;
+	name: string;
+	type: string;
+	login_url?: string;
+	icon?: string;
+}
+
 export const auth = {
 	async me(): Promise<User> {
 		return request<User>('/auth/me');
 	},
+	async providers(): Promise<{ providers: AuthProviderInfo[] }> {
+		return request<{ providers: AuthProviderInfo[] }>('/auth/providers');
+	},
+	async passwordLogin(email: string, password: string): Promise<void> {
+		return request<void>('/auth/login/password', {
+			method: 'POST',
+			body: JSON.stringify({ email, password }),
+		});
+	},
 	logout(): void {
 		window.location.href = '/api/v1/auth/logout';
-	},
-	login(): void {
-		window.location.href = '/api/v1/auth/login';
 	}
 };
 

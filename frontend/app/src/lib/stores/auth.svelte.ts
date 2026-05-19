@@ -1,4 +1,4 @@
-import { auth } from '$lib/api/client.js';
+import { auth, type AuthProviderInfo } from '$lib/api/client.js';
 import type { User, ApiError, Permission } from '$lib/types.js';
 
 class AuthStore {
@@ -6,36 +6,38 @@ class AuthStore {
 	loading: boolean = $state(true);
 	error: string | null = $state(null);
 	authEnabled: boolean | null = $state(null);
+	providers: AuthProviderInfo[] = $state([]);
 
 	async init(): Promise<void> {
 		this.loading = true;
 		this.error = null;
 
 		try {
-			const response = await auth.me();
-			this.user = response;
-			this.authEnabled = true;
-		} catch (err) {
-			const apiErr = err as ApiError;
-			if (apiErr.status === 400) {
-				this.authEnabled = false;
-				this.user = null;
-				this.error = null;
-			} else if (apiErr.status === 401) {
-				this.authEnabled = true;
-				this.user = null;
-				this.error = null;
-			} else {
-				console.error('Failed to fetch user:', err);
-				this.error = apiErr.message;
+			const { providers } = await auth.providers();
+			this.providers = providers;
+			this.authEnabled = providers.length > 0;
+
+			if (this.authEnabled) {
+				try {
+					const response = await auth.me();
+					this.user = response;
+				} catch (err) {
+					const apiErr = err as ApiError;
+					if (apiErr.status === 400 || apiErr.status === 401) {
+						this.user = null;
+					} else {
+						console.error('Failed to fetch user:', err);
+						this.error = apiErr.message;
+					}
+				}
 			}
+		} catch (err) {
+			console.error('Failed to fetch auth providers:', err);
+			this.authEnabled = false;
+			this.error = (err as Error).message;
 		} finally {
 			this.loading = false;
 		}
-	}
-
-	login(): void {
-		auth.login();
 	}
 
 	async logout(): Promise<void> {

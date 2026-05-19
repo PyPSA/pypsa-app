@@ -135,7 +135,6 @@ def open_cmd(file: Path | None, port: int, no_open: bool) -> None:
     # Settings read the environment at first instantiation, so these have to
     # be set before any pypsa_app.backend import that touches settings.
     os.environ["LOCAL_MODE"] = "true"
-    os.environ["ENABLE_AUTH"] = "false"
     os.environ["BASE_URL"] = f"http://127.0.0.1:{port}"
 
     _require_frontend_built()

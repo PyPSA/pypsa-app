@@ -6,6 +6,8 @@
 	import { admin, apiKeys } from '$lib/api/client.js';
 	import Trash2 from '@lucide/svelte/icons/trash-2';
 	import Plus from '@lucide/svelte/icons/plus';
+	import Check from '@lucide/svelte/icons/check';
+	import X from '@lucide/svelte/icons/x';
 	import DateTime from '$lib/components/DateTime.svelte';
 	import Button from '$lib/components/ui/button/button.svelte';
 	import * as Avatar from '$lib/components/ui/avatar';
@@ -50,6 +52,18 @@
 	});
 
 	const isSelf = $derived(user?.id === authStore.user?.id);
+
+	type PermGroup = { name: string; perms: { full: string; action: string }[] };
+
+	const groupedPermissions = $derived.by<PermGroup[]>(() => {
+		const map = new Map<string, { full: string; action: string }[]>();
+		for (const full of allPermissions) {
+			const [ns, action = full] = full.split(':', 2);
+			if (!map.has(ns)) map.set(ns, []);
+			map.get(ns)!.push({ full, action });
+		}
+		return Array.from(map, ([name, perms]) => ({ name, perms }));
+	});
 
 	$effect(() => {
 		if (userId) loadAll();
@@ -305,19 +319,32 @@
 					{/if}
 				</dd>
 			</dl>
-			<div class="space-y-1 pt-2">
-				<p class="text-xs text-muted-foreground">Permissions</p>
-				<div class="flex flex-wrap gap-1">
-					{#each allPermissions as perm}
-						{@const hasPerm = user.permissions?.includes(perm)}
-						<code
-							class="rounded px-1.5 py-0.5 text-xs {hasPerm
-								? 'bg-muted'
-								: 'bg-muted/30 text-muted-foreground line-through'}"
-							>{perm}</code
-						>
-					{/each}
-				</div>
+		</section>
+
+		<section class="space-y-2 rounded-md border p-4">
+			<h2 class="text-sm font-semibold">Permissions</h2>
+			<div class="grid grid-cols-[repeat(auto-fit,minmax(160px,1fr))] gap-x-4 gap-y-3">
+				{#each groupedPermissions as group (group.name)}
+					<div class="space-y-1">
+						<p class="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+							{group.name}
+						</p>
+						<ul class="space-y-0.5">
+							{#each group.perms as perm (perm.full)}
+								{@const granted = user.permissions?.includes(perm.full)}
+								<li class="flex items-center gap-2 text-xs">
+									{#if granted}
+										<Check class="size-3.5 text-emerald-600 dark:text-emerald-500" />
+										<span>{perm.action}</span>
+									{:else}
+										<X class="size-3.5 text-muted-foreground/60" />
+										<span class="text-muted-foreground/70">{perm.action}</span>
+									{/if}
+								</li>
+							{/each}
+						</ul>
+					</div>
+				{/each}
 			</div>
 		</section>
 
@@ -328,7 +355,9 @@
 					<dt class="text-muted-foreground">Networks</dt>
 					<dd>
 						<a href={filterUrl('/networks', [{ field: 'owner', values: [user.username] }])} class="underline-offset-2 hover:underline">{stats.networks_count}</a>
-						<span class="text-muted-foreground">({formatFileSize(stats.total_storage_bytes)})</span>
+						{#if stats.networks_count > 0}
+							<span class="text-muted-foreground">({formatFileSize(stats.total_storage_bytes)})</span>
+						{/if}
 					</dd>
 					<dt class="text-muted-foreground">Runs</dt>
 					<dd>
