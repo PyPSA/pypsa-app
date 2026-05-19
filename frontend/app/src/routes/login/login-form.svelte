@@ -2,6 +2,7 @@
 	import { goto } from '$app/navigation';
 	import { toast } from 'svelte-sonner';
 	import { auth, type AuthProviderInfo } from '$lib/api/client.js';
+	import { authStore } from '$lib/stores/auth.svelte.js';
 	import { features } from '$lib/stores/features.svelte.js';
 	import {
 		FieldGroup,
@@ -68,6 +69,7 @@
 		errorMsg = null;
 		try {
 			await auth.passwordLogin(email, password);
+			await authStore.refreshUser();
 			goto('/networks');
 		} catch (err) {
 			errorMsg = (err as Error).message || 'Invalid credentials';

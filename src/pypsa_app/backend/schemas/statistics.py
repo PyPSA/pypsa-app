@@ -5,7 +5,7 @@ from pydantic import BaseModel, Field, field_validator
 from pypsa_app.backend.utils.allowlists import ALLOWED_STATISTICS
 
 
-class StatisticsRequest(BaseModel):
+class StatisticsParams(BaseModel):
     """Request for statistics data
 
     For single network: Maps to Network.statistics.<statistic>(<parameters>)

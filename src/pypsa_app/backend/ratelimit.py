@@ -71,11 +71,20 @@ def rate_limit_exceeded_handler(
             "limit": str(exc.detail),
         },
     )
-    response = JSONResponse(
-        status_code=429,
-        content={"detail": f"Rate limit exceeded. Retry after {exc.detail}."},
-    )
     limit_info = getattr(request.state, "view_rate_limit", None)
+    headers: dict[str, str] = {}
+    # slowapi only exposes its rate-limit headers by mutating a Response
     if limit_info is not None:
-        response = request.app.state.limiter._inject_headers(response, limit_info)
-    return response
+        probe = Response()
+        request.app.state.limiter._inject_headers(probe, limit_info)
+        headers = {
+            k: v for k, v in probe.headers.items() if k.lower() != "content-length"
+        }
+
+    retry_after = headers.get("retry-after")
+    msg = (
+        f"Too many requests. Try again in {retry_after} seconds."
+        if retry_after
+        else "Too many requests. Please slow down."
+    )
+    return JSONResponse(status_code=429, content={"detail": msg}, headers=headers)

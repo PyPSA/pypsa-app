@@ -1,13 +1,13 @@
 import logging
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Request, Response
 from sqlalchemy.orm import Session
 
 from pypsa_app.backend.api.deps import get_db, get_networks, require_permission
 from pypsa_app.backend.api.utils.task_utils import queue_task
 from pypsa_app.backend.models import Permission, User
 from pypsa_app.backend.ratelimit import limiter
-from pypsa_app.backend.schemas.plot import ExploreRequest, PlotRequest
+from pypsa_app.backend.schemas.plot import ExploreRequest, PlotParams
 from pypsa_app.backend.schemas.task import TaskQueuedResponse
 from pypsa_app.backend.settings import settings
 from pypsa_app.backend.tasks import get_explore_task, get_plot_task
@@ -20,7 +20,8 @@ logger = logging.getLogger(__name__)
 @limiter.limit(settings.ratelimit_expensive)
 def generate_plot(
     request: Request,
-    body: PlotRequest,
+    response: Response,
+    body: PlotParams,
     db: Session = Depends(get_db),
     user: User = Depends(require_permission(Permission.NETWORKS_VIEW)),
 ) -> dict:
@@ -41,6 +42,7 @@ def generate_plot(
 @limiter.limit(settings.ratelimit_expensive)
 def generate_explore(
     request: Request,
+    response: Response,
     body: ExploreRequest,
     db: Session = Depends(get_db),
     user: User = Depends(require_permission(Permission.NETWORKS_VIEW)),

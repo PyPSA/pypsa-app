@@ -155,7 +155,7 @@ def test_429_threshold_and_headers(monkeypatch: pytest.MonkeyPatch) -> None:
     codes = [r.status_code for r in responses]
     assert codes == [200] * limit + [429], codes
     last = responses[-1]
-    assert last.json()["detail"].startswith("Rate limit exceeded.")
+    assert last.json()["detail"].startswith("Too many requests.")
     assert "retry-after" in {h.lower() for h in last.headers}
     assert any(h.lower().startswith("x-ratelimit-") for h in last.headers)
 
