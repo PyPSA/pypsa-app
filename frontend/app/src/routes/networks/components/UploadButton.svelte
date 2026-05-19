@@ -3,12 +3,15 @@
 	import ChevronDown from '@lucide/svelte/icons/chevron-down';
 	import FileUp from '@lucide/svelte/icons/file-up';
 	import LinkIcon from '@lucide/svelte/icons/link';
+	import FolderInput from '@lucide/svelte/icons/folder-input';
 	import LoaderCircle from '@lucide/svelte/icons/loader-circle';
 	import { Button } from '$lib/components/ui/button';
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
 	import { networks } from '$lib/api/client.js';
+	import { features } from '$lib/stores/features.svelte.js';
 	import { toast } from 'svelte-sonner';
 	import UrlImportDialog from './UrlImportDialog.svelte';
+	import RegisterPathDialog from './RegisterPathDialog.svelte';
 
 	interface UploadButtonProps {
 		variant?: 'default' | 'link' | 'destructive' | 'secondary' | 'outline' | 'ghost';
@@ -27,6 +30,7 @@
 	let importing = $state(false);
 	let fileInput: HTMLInputElement;
 	let urlOpen = $state(false);
+	let pathOpen = $state(false);
 
 	async function handleFileSelected(e: Event) {
 		const input = e.target as HTMLInputElement;
@@ -72,18 +76,30 @@
 		{/snippet}
 	</DropdownMenu.Trigger>
 	<DropdownMenu.Content align="end">
-		<DropdownMenu.Item onclick={() => fileInput.click()} disabled={importing}>
-			<FileUp class="h-4 w-4 mr-2" />
-			From file
-		</DropdownMenu.Item>
-		<DropdownMenu.Item onclick={() => (urlOpen = true)} disabled={importing}>
-			<LinkIcon class="h-4 w-4 mr-2" />
-			From URL
-		</DropdownMenu.Item>
+		{#if features.localMode}
+			<DropdownMenu.Item onclick={() => (pathOpen = true)} disabled={importing}>
+				<FolderInput class="h-4 w-4 mr-2" />
+				From path
+			</DropdownMenu.Item>
+		{:else}
+			<DropdownMenu.Item onclick={() => fileInput.click()} disabled={importing}>
+				<FileUp class="h-4 w-4 mr-2" />
+				From file
+			</DropdownMenu.Item>
+			<DropdownMenu.Item onclick={() => (urlOpen = true)} disabled={importing}>
+				<LinkIcon class="h-4 w-4 mr-2" />
+				From URL
+			</DropdownMenu.Item>
+		{/if}
 	</DropdownMenu.Content>
 </DropdownMenu.Root>
 
 <UrlImportDialog
 	bind:open={urlOpen}
+	onSuccess={() => onUpload?.()}
+/>
+
+<RegisterPathDialog
+	bind:open={pathOpen}
 	onSuccess={() => onUpload?.()}
 />

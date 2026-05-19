@@ -6,6 +6,10 @@ updates:
     interval: "weekly"
   cooldown:
     default-days: 7
+  groups:
+    github-actions:
+      patterns: ["*"]
+      update-types: ["minor", "patch"]
 
 - package-ecosystem: "uv"
   directory: "/"
@@ -14,6 +18,10 @@ updates:
   cooldown:
     default-days: 7
     semver-major-days: 14
+  groups:
+    python:
+      patterns: ["*"]
+      update-types: ["minor", "patch"]
 
 - package-ecosystem: "npm"
   directory: "/frontend/app"
@@ -22,6 +30,10 @@ updates:
   cooldown:
     default-days: 7
     semver-major-days: 14
+  groups:
+    npm:
+      patterns: ["*"]
+      update-types: ["minor", "patch"]
 
 - package-ecosystem: "docker"
   directory: "/"
@@ -29,3 +41,7 @@ updates:
     interval: "weekly"
   cooldown:
     default-days: 7
+  groups:
+    docker:
+      patterns: ["*"]
+      update-types: ["minor", "patch"]
