@@ -27,7 +27,7 @@ dependencies = [
     "pypsa>=1.2,<2",
     "pandas>=3.0,<4",
     "click>=8.3",
-    "authlib>=1.7,<2",
+    "authlib>=1.7.2,<2",
     "itsdangerous>=2.2",
     "httpx>=0.28,<1",
     "python-multipart>=0.0.27",
@@ -79,6 +79,10 @@ version_scheme = "no-guess-dev"
 
 [tool.uv]
 exclude-newer = "7 days"
+
+[tool.check-wheel-contents]
+# Alembic migrations are loaded by file path, not imported
+ignore = "W004"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

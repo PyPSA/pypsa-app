@@ -149,6 +149,12 @@ export const networks = {
 			body: JSON.stringify({ url }),
 		});
 	},
+	async registerPath(absolutePath: string): Promise<Network> {
+		return request<Network>('/networks/register-path', {
+			method: 'POST',
+			body: JSON.stringify({ absolute_path: absolutePath }),
+		});
+	},
 	async pollImport(taskId: string, timeoutMs = 15 * 60_000): Promise<{ network_id: string; filename?: string; size?: number }> {
 		const start = Date.now();
 		let delay = 200;

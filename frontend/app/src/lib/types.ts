@@ -102,6 +102,7 @@ export interface RunNetwork {
 	id: string;
 	name: string | null;
 	filename: string;
+	source_path?: string | null;
 }
 
 export interface UserPublic {
@@ -188,6 +189,9 @@ export interface PlotRequest {
 
 export interface VersionInfo {
 	version: string;
+	pypsa_version?: string;
+	local_mode?: boolean;
+	runs_enabled?: boolean;
 	[key: string]: unknown;
 }
 
