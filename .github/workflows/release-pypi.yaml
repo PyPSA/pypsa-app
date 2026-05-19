@@ -22,24 +22,7 @@ jobs:
         git merge-base --is-ancestor "$GITHUB_SHA" origin/main \
           || { echo "Tag $GITHUB_REF_NAME is not on main"; exit 1; }
 
-    - uses: actions/setup-node@v4
-      with:
-        node-version: 22
-        cache: npm
-        cache-dependency-path: frontend/app/package-lock.json
-
-    - name: Build SvelteKit frontend
-      working-directory: frontend/app
-      run: |
-        npm ci
-        npm run build
-
-    - uses: hynek/build-and-inspect-python-package@v2
-
-    - name: Verify frontend is bundled in the wheel
-      run: |
-        unzip -l dist/pypsa_app-*.whl | grep -q "static/app/index.html" \
-          || { echo "wheel missing built frontend (static/app/index.html)"; exit 1; }
+    - uses: ./.github/actions/build-package
 
   release:
     name: Create GitHub release

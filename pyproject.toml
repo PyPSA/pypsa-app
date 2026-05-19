@@ -80,6 +80,10 @@ version_scheme = "no-guess-dev"
 [tool.uv]
 exclude-newer = "7 days"
 
+[tool.check-wheel-contents]
+# Alembic migrations are loaded by file path, not imported
+ignore = "W004"
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
