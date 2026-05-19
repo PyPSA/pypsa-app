@@ -24,7 +24,7 @@ def test_run_migrations_upgrades_fresh_db_and_stamps_version(
             sa.text("SELECT id, last_app_version FROM app_info WHERE id = 1")
         ).one()
 
-    assert version == "0005"
+    assert version == "0006"
     assert app_row.id == 1
     assert app_row.last_app_version == __version__
 

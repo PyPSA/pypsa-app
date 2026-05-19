@@ -479,19 +479,6 @@ const workflowDisplay = $derived.by(() => {
 						</div>
 					{/if}
 				{/snippet}
-				{#snippet networks()}
-					{#if run && run.networks.length > 0}
-						<div class="h-4 w-px bg-border"></div>
-						<div class="flex items-center gap-1.5">
-							{#each run.networks as network, i}
-								{#if i > 0}<span>,</span>{/if}
-								<a href="/networks/{network.id}" class="underline hover:text-foreground">
-									{network.filename}
-								</a>
-							{/each}
-						</div>
-					{/if}
-				{/snippet}
 			</RunHeader>
 
 				<!-- Workflow -->
