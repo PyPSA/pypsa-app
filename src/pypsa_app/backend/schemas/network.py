@@ -87,6 +87,12 @@ class NetworkAdminUpdate(NetworkUpdate):
     user_id: UUID | None = None
 
 
+class NetworkRegisterPathRequest(BaseModel):
+    """Body for in-place .nc registration by absolute path (LOCAL_MODE only)."""
+
+    absolute_path: str
+
+
 class ReportCard(BaseModel):
     id: str
     type: str

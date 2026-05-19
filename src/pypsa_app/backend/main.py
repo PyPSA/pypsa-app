@@ -19,6 +19,8 @@ from pypsa_app.backend.api.routes import (
     auth,
     cache,
     networks,
+    networks_local,
+    networks_remote,
     plots,
     public,
     runs,
@@ -264,6 +266,14 @@ app.include_router(admin.router, prefix=f"{API_V1_PREFIX}/admin", tags=["admin"]
 app.include_router(
     networks.router, prefix=f"{API_V1_PREFIX}/networks", tags=["networks"]
 )
+if settings.local_mode:
+    app.include_router(
+        networks_local.router, prefix=f"{API_V1_PREFIX}/networks", tags=["networks"]
+    )
+else:
+    app.include_router(
+        networks_remote.router, prefix=f"{API_V1_PREFIX}/networks", tags=["networks"]
+    )
 app.include_router(plots.router, prefix=f"{API_V1_PREFIX}/plots", tags=["plots"])
 app.include_router(
     statistics.router,

@@ -19,10 +19,11 @@ runs:
       npm run build
 
   - name: Build and inspect Python package
+    id: baipp
     uses: hynek/build-and-inspect-python-package@ebd3b6c6d32b78607276633a23bdd4481bd23ca8  # v2.18.0
 
   - name: Verify frontend bundled in wheel
     shell: bash
     run: |
-      unzip -l dist/pypsa_app-*.whl | grep -q "static/app/index.html" \
+      unzip -l "${{ steps.baipp.outputs.dist }}"/pypsa_app-*.whl | grep -q "static/app/index.html" \
         || { echo "wheel missing built frontend (static/app/index.html)"; exit 1; }

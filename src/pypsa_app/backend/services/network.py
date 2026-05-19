@@ -328,6 +328,7 @@ def import_network_file(  # noqa: PLR0913
     visibility: Visibility = Visibility.PRIVATE,
     *,
     is_external: bool = False,
+    source_path: str | None = None,
 ) -> Network:
     """Import a network file and create a DB record.
 
@@ -383,6 +384,7 @@ def import_network_file(  # noqa: PLR0913
         filename=original_filename,
         file_path=str(dest),
         is_external=is_external,
+        source_path=source_path,
     )
     _apply_network_metadata(network, dest, file_hash)
     db.add(network)
@@ -395,7 +397,7 @@ def register_network_in_place(
 ) -> Network:
     """Register a .nc file at its current location without copying it."""
     file_path = file_path.resolve(strict=True)
-    if not file_path.is_file() or file_path.suffix != ".nc":
+    if not file_path.is_file() or file_path.suffix.lower() != ".nc":
         msg = f"Expected an existing .nc file, got: {file_path}"
         raise ValueError(msg)
     return import_network_file(file_path, file_path.name, user_id, db, is_external=True)
