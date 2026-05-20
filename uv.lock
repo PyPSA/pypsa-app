@@ -13,7 +13,7 @@ resolution-markers = [
 ]
 
 [options]
-exclude-newer = "2026-05-12T21:02:34.636004062Z"
+exclude-newer = "0001-01-01T00:00:00Z" # This has no effect and is included for backwards compatibility when using relative exclude-newer values.
 exclude-newer-span = "P7D"
 
 [[package]]
@@ -1764,7 +1764,7 @@ requires-dist = [
     { name = "pandas", specifier = ">=3.0,<4" },
     { name = "platformdirs", specifier = ">=4" },
     { name = "psycopg2-binary", marker = "extra == 'full'", specifier = ">=2.9" },
-    { name = "pydantic", extras = ["email"], specifier = ">=2.13,<3" },
+    { name = "pydantic", extras = ["email"], specifier = ">=2.13.4,<3" },
     { name = "pydantic-settings", specifier = ">=2.14,<3" },
     { name = "pypsa", specifier = ">=1.2,<2" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=9.0,<10" },
