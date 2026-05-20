@@ -64,8 +64,8 @@ jobs:
         provenance: mode=max
         sbom: true
 
-  deploy-to-dev:
-    name: Deploy to dev
+  wait-for-deploy:
+    name: Wait for dev deploy
     runs-on: ubuntu-latest
     needs: push-image
     if: github.ref == 'refs/heads/main'
@@ -74,12 +74,25 @@ jobs:
       url: ${{ vars.APP_URL }}
 
     steps:
-    - name: Deploy via SSH
-      uses: appleboy/ssh-action@823bd89e131d8d508129f9443cad5855e9ba96f0  # v1.2.4
-      with:
-        host: ${{ secrets.SSH_HOST }}
-        username: ${{ secrets.SSH_USER }}
-        key: ${{ secrets.SSH_PRIVATE_KEY }}
-        port: ${{ secrets.SSH_PORT || 22 }}
-        fingerprint: ${{ secrets.SSH_HOST_FINGERPRINT }}
-        script: deploy dev
+    - name: Poll /api/v1/version for new short SHA
+      env:
+        TARGET_SHA: ${{ github.sha }}
+        APP_URL: ${{ vars.APP_URL }}
+        CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID_DEPLOY }}
+        CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET_DEPLOY }}
+      run: |
+        set -eu
+        SHORT="${TARGET_SHA:0:7}"
+        for i in $(seq 1 80); do
+          ver=$(curl -sS \
+            -H "CF-Access-Client-Id: $CF_ACCESS_CLIENT_ID" \
+            -H "CF-Access-Client-Secret: $CF_ACCESS_CLIENT_SECRET" \
+            "$APP_URL/api/v1/version/" | jq -r '.version // empty' || true)
+          if [[ "$ver" == *"g${SHORT}"* ]]; then
+            echo "Deployed: $ver"
+            exit 0
+          fi
+          echo "want g${SHORT}, got ${ver:-<none>}"
+          sleep 15
+        done
+        exit 1
