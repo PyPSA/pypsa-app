@@ -1,11 +1,11 @@
 from pydantic import BaseModel, Field, field_validator
 
-from pypsa_app.backend.schemas.statistics import StatisticsRequest
+from pypsa_app.backend.schemas.statistics import StatisticsParams
 from pypsa_app.backend.utils.allowlists import ALLOWED_CHART_TYPES
 
 
-class PlotRequest(StatisticsRequest):
-    """Request schema for plot generation (extends StatisticsRequest with plot_type)"""
+class PlotParams(StatisticsParams):
+    """Request schema for plot generation (extends StatisticsParams with plot_type)"""
 
     plot_type: str = Field(..., description="Plot method (e.g., 'bar', 'area', 'line')")
 

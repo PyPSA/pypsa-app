@@ -5,9 +5,11 @@
 	import { page } from '$app/stores';
 	import { admin } from '$lib/api/client.js';
 	import Plus from '@lucide/svelte/icons/plus';
+	import Users from '@lucide/svelte/icons/users';
 	import Button from '$lib/components/ui/button/button.svelte';
 	import * as Dialog from '$lib/components/ui/dialog';
 	import DataTable from '$lib/components/DataTable.svelte';
+	import EmptyState from '$lib/components/EmptyState.svelte';
 	import type { FilterCategory } from '$lib/components/widgets/filter-dialog';
 	import type { FilterAst } from '$lib/filters/ast';
 	import { emptyAnd, isEmpty as astIsEmpty } from '$lib/filters/ast';
@@ -188,7 +190,11 @@
 {#if loading}
 	<TableSkeleton rows={5} columns={6} />
 {:else if users.length === 0}
-	<p class="text-muted-foreground">No users found.</p>
+	<EmptyState
+		icon={Users}
+		title="No Users"
+		description="No users match the current filter."
+	/>
 {:else}
 	<DataTable
 		data={users}

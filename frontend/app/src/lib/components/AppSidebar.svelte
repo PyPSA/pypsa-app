@@ -2,12 +2,14 @@
 	import { onMount } from 'svelte';
 	import { version } from '$lib/api/client.js';
 	import { authStore } from '$lib/stores/auth.svelte.js';
+	import { features } from '$lib/stores/features.svelte.js';
 	import NavMain from './sidebar/NavMain.svelte';
 	import NavAdmin from './sidebar/NavAdmin.svelte';
 	import NavUser from './sidebar/NavUser.svelte';
 	import * as Sidebar from '$lib/components/ui/sidebar';
 	import * as Tooltip from '$lib/components/ui/tooltip';
 	import Badge from '$lib/components/ui/badge/badge.svelte';
+	import TriangleAlert from '@lucide/svelte/icons/triangle-alert';
 
 	// Version info
 	interface VersionData {
@@ -89,6 +91,31 @@
 		<NavMain />
 		<NavAdmin />
 	</Sidebar.Content>
+
+	{#if features.demoMode}
+		<div
+			class="mx-2 mb-2 space-y-1.5 rounded-lg border px-3 py-2.5 text-xs leading-relaxed shadow-sm group-data-[collapsible=icon]:hidden"
+			style="border-color: rgb(209 10 73 / 0.4); background: linear-gradient(to bottom right, rgb(209 10 73 / 0.1), rgb(209 10 73 / 0.04)); color: #D10A49;"
+		>
+			<div class="flex items-center gap-1.5 font-semibold">
+				<TriangleAlert class="h-3.5 w-3.5 shrink-0" />
+				<span>Demo instance</span>
+			</div>
+			<p class="opacity-90">
+				This is a public demo instance. Data shown is synthetic and may not be coherent. Uploads
+				to this instance are disabled. You can host your own instance or run the app in local
+				mode.
+				<a
+					href="https://github.com/PyPSA/pypsa-app"
+					target="_blank"
+					rel="noopener noreferrer"
+					class="font-medium underline underline-offset-2 transition-opacity hover:opacity-80"
+				>
+					Learn more
+				</a>.
+			</p>
+		</div>
+	{/if}
 
 	{#if !authStore.loading && authStore.isAuthenticated}
 		<Sidebar.Footer>

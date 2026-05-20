@@ -1,6 +1,7 @@
 import yaml from 'js-yaml';
 import overviewYaml from '$lib/reports/overview.yaml?raw';
 import { networks } from '$lib/api/client.js';
+import { features } from '$lib/stores/features.svelte.js';
 
 interface CardBase {
 	id: string;
@@ -260,6 +261,7 @@ function createReportStore() {
 	}
 
 	function schedule(networkId: string, payload: ReportState) {
+		if (features.demoMode) return;
 		if (!initialized) { initialized = true; return; }
 		pendingNetworkId = networkId;
 		pendingPayload = payload;

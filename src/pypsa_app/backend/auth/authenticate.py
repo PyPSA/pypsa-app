@@ -19,7 +19,7 @@ _auth_disabled_user: User | None = None
 
 def set_auth_disabled_user(user: User) -> None:
     """Store a pre created system user for auth disabled mode."""
-    if settings.enable_auth:
+    if settings.auth_enabled:
         msg = "Cannot set auth-disabled user when authentication is enabled"
         raise RuntimeError(msg)
     global _auth_disabled_user  # noqa: PLW0603
@@ -32,7 +32,7 @@ def ensure_system_user(db: Session) -> User:
     Only callable when authentication is disabled. The returned user is also
     registered as the implicit caller for auth-disabled requests.
     """
-    if settings.enable_auth:
+    if settings.auth_enabled:
         msg = "Cannot create system user when authentication is enabled"
         raise RuntimeError(msg)
     system_user = db.scalars(select(User).where(User.username == "system")).first()
@@ -43,6 +43,17 @@ def ensure_system_user(db: Session) -> User:
         db.refresh(system_user)
     set_auth_disabled_user(system_user)
     return system_user
+
+
+def ensure_demo_user(db: Session) -> User:
+    """Return the shared demo user, creating it if missing."""
+    demo_user = db.scalars(select(User).where(User.username == "demo")).first()
+    if not demo_user:
+        demo_user = User(username="demo", role=UserRole.ADMIN)
+        db.add(demo_user)
+        db.commit()
+        db.refresh(demo_user)
+    return demo_user
 
 
 def hash_api_key(token: str) -> str:
@@ -79,6 +90,11 @@ def _authenticate_api_key(token: str, db: Session) -> User | None:
 
 def resolve_current_user(request: Request, db: Session) -> User | None:
     """Return authenticated user or None, never blocking requests."""
+    # Reuse the user already resolved by the rate limit middleware
+    cached = getattr(request.state, "user", None) if hasattr(request, "state") else None
+    if cached is not None:
+        return cached
+
     if _auth_disabled_user is not None:
         return _auth_disabled_user
 

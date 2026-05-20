@@ -13,6 +13,8 @@
 	import type { NetworkWithFacets } from '../types.js';
 	import type { GridStack as GridStackType } from 'gridstack';
 	import Trash2 from '@lucide/svelte/icons/trash-2';
+	import LayoutGrid from '@lucide/svelte/icons/layout-grid';
+	import EmptyState from '$lib/components/EmptyState.svelte';
 	import 'gridstack/dist/gridstack.min.css';
 
 	interface NetworkFacets {
@@ -491,9 +493,11 @@
 	</div>
 
 	{#if resolvedCards.length === 0}
-		<div class="grid-empty-state flex items-center justify-center rounded-lg border-2 border-dashed border-muted-foreground/30 p-12 text-muted-foreground">
-			<p class="text-sm">No cards yet. Add a plot, map, or note to get started.</p>
-		</div>
+		<EmptyState
+			icon={LayoutGrid}
+			title="No Cards"
+			description="Add a plot, map, or note to get started."
+		/>
 	{/if}
 </div>
 {/if}
@@ -620,10 +624,5 @@
 	/* Hide grid until gridstack has positioned items */
 	:global(.grid-stack.grid-stack--hidden) {
 		visibility: hidden;
-	}
-
-	/* C2: Empty state */
-	.grid-empty-state {
-		min-height: 200px;
 	}
 </style>

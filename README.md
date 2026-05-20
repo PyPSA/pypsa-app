@@ -24,6 +24,9 @@ and custom integrations.
 > [!TIP]
 > There is a prototype deployed under [`https://app-dev.pypsa.org/`](https://app-dev.pypsa.org/). If you would like to have access, reach out to [@lkstrp](https://github.com/lkstrp/).
 
+> [!TIP]
+> A public read-only demo runs at [`https://demo.pypsa.org/`](https://demo.pypsa.org/), where uploads and runs are disabled and data is synthetic.
+
 ### Roadmap
 
 - [ ] Upload Networks via interface
