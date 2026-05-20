@@ -41,7 +41,7 @@
 		"@deck.gl/layers": "9.3.2",
 		"@tailwindcss/typography": "0.5.19",
 		"@tanstack/svelte-table": "9.0.0-alpha.10",
-		"dompurify": "3.4.2",
+		"dompurify": "3.4.3",
 		"elkjs": "0.11.1",
 		"gridstack": "12.6.0",
 		"js-yaml": "4.1.1",
