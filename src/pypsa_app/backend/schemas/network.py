@@ -50,6 +50,10 @@ class NetworkResponse(BaseModel):
     owner: UserPublicResponse
     source_run_id: UUID | None = None
 
+    # Optimisation state (from pypsa.Network.is_solved / .objective)
+    is_solved: bool = False
+    objective: float | None = None
+
     # Model properties
     tags: list[str | dict] | None = None
 

@@ -9,3 +9,4 @@ class VersionResponse(BaseModel):
     local_mode: bool
     demo_mode: bool
     runs_enabled: bool
+    chat_enabled: bool = False

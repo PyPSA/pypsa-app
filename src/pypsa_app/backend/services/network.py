@@ -176,6 +176,10 @@ class NetworkService:
             else {}
         )
 
+        info["is_solved"] = bool(getattr(self.n, "is_solved", False))
+        objective = getattr(self.n, "objective", None)
+        info["objective"] = float(objective) if objective is not None else None
+
         facets = {}
         if carriers := self._extract_carriers(self.n):
             facets["carriers"] = carriers
@@ -312,6 +316,8 @@ def _apply_network_metadata(network: Network, file_path: Path, file_hash: str) -
     network.components_count = info["components_count"]
     network.meta = info["meta"]
     network.facets = info["facets"]
+    network.is_solved = info["is_solved"]
+    network.objective = info["objective"]
     # SQLite stores naive datetimes; strip tzinfo but always generate UTC.
     network.update_history = [
         *(network.update_history or []),

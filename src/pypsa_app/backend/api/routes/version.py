@@ -19,4 +19,5 @@ async def get_version() -> dict:
         "local_mode": settings.local_mode,
         "demo_mode": settings.demo_mode,
         "runs_enabled": bool(settings.resolved_backends) or settings.demo_mode,
+        "chat_enabled": settings.llm.chat_enabled,
     }
