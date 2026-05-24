@@ -83,11 +83,11 @@ def serve(
 
     # Set mode
     if dev:
-        os.environ["SERVE_FRONTEND"] = "false"
+        os.environ["BACKEND_ONLY"] = "true"
         click.echo(f"   API docs: http://{host}:{port}/docs")
         click.echo("   Start Vite dev server separately: cd frontend && npm run dev")
     else:
-        os.environ["SERVE_FRONTEND"] = "true"
+        os.environ["BACKEND_ONLY"] = "false"
         click.echo(f"   Application: http://{host}:{port}")
         click.echo(f"   API docs: http://{host}:{port}/api/docs")
 
@@ -196,7 +196,7 @@ def info() -> None:
     for key in [
         "DATA_DIR",
         "DATABASE_URL",
-        "SERVE_FRONTEND",
+        "BACKEND_ONLY",
         "USE_REDIS",
     ]:
         value = os.getenv(key, "(not set)")
