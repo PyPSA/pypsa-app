@@ -135,6 +135,10 @@ class SnakedispatchClient:
                 elif line.startswith("event:") or line.strip() == "":
                     continue
 
+    def reveal_job_log(self, job_id: str) -> dict:
+        """Ask Snakedispatch to reveal the persisted job log on disk."""
+        return self._request("POST", f"/jobs/{job_id}/logs/reveal")
+
     def download_job_output(self, job_id: str, path: str) -> Iterator[bytes]:
         """Download an output file without buffering into memory."""
         return self._proxy_stream(f"/jobs/{job_id}/outputs/{path}")

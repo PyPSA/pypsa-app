@@ -92,8 +92,43 @@ func (s *Setup) Run(lo, hi int, progress func(pct int, msg string)) error {
 
 func (s *Setup) createVenv(name, logPath string) error {
 	venvPath := filepath.Join(s.dataDir, "venvs", name)
-	// uv will auto-download Python 3.13 if not present on the system.
-	return s.run(logPath, s.uvBin, "venv", "--python", "3.13", venvPath)
+	return s.run(logPath, s.uvBin, "venv", "--python", s.pythonVersion(), venvPath)
+}
+
+// pythonVersion returns the CPython version to use for venv creation.
+// In bundled mode, the version is inferred from the wheel filenames so that
+// arm64 bundles (Python 3.13 wheels) and x86_64 bundles (Python 3.12 wheels)
+// each get the correct interpreter without a code change per build.
+// Falls back to "3.13" for dev/online mode.
+func (s *Setup) pythonVersion() string {
+	if s.wheelsDir != "" {
+		if v := inferPythonVersion(s.wheelsDir); v != "" {
+			return v
+		}
+	}
+	return "3.13"
+}
+
+// inferPythonVersion scans wheel filenames for a cpXYZ-cpXYZ tag (not abi3,
+// not py3-none) and returns the matching Python version string (e.g. "3.12").
+func inferPythonVersion(wheelsDir string) string {
+	for _, pkg := range []string{"pypsa-app", "snakedispatch"} {
+		entries, _ := os.ReadDir(filepath.Join(wheelsDir, pkg))
+		for _, e := range entries {
+			parts := strings.Split(strings.TrimSuffix(e.Name(), ".whl"), "-")
+			if len(parts) < 5 {
+				continue
+			}
+			pyTag, abiTag := parts[2], parts[3]
+			if abiTag == "abi3" || abiTag == "none" {
+				continue // skip stable-ABI and pure-python wheels
+			}
+			if strings.HasPrefix(pyTag, "cp") && len(pyTag) == 5 {
+				return string(pyTag[2]) + "." + pyTag[3:]
+			}
+		}
+	}
+	return ""
 }
 
 func (s *Setup) installPkg(venvName, pkg, logPath string) error {
@@ -104,12 +139,15 @@ func (s *Setup) installPkg(venvName, pkg, logPath string) error {
 	case s.wheelsDir != "":
 		// Production: install from bundled wheels, no internet needed.
 		wheelDir := filepath.Join(s.wheelsDir, venvName)
+		_ = appendLogLine(logPath, "installing "+pkg+" from bundled wheels: "+wheelDir)
 		args = append(args, "--no-index", "--find-links", wheelDir, pkg)
 	case devInstallSpec(venvName) != "":
 		// Dev: reinstall only this package from local source; leave deps alone.
 		src := devInstallSpec(venvName)
+		_ = appendLogLine(logPath, "installing "+pkg+" from local source: "+src)
 		args = append(args, "--reinstall-package", pkg, src)
 	default:
+		_ = appendLogLine(logPath, "installing "+pkg+" from package index")
 		args = append(args, pkg)
 	}
 
@@ -205,6 +243,17 @@ func (s *Setup) run(logPath, name string, args ...string) error {
 	return cmd.Run()
 }
 
+func appendLogLine(logPath, line string) error {
+	f, err := os.OpenFile(logPath, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o644)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	_, err = fmt.Fprintln(f, line)
+	return err
+}
+
 func findUV() string {
 	if p := bundledUVPath(); p != "" {
 		if _, err := os.Stat(p); err == nil {
@@ -218,17 +267,34 @@ func findUV() string {
 }
 
 func bundledUVPath() string {
-	if runtime.GOOS == "windows" {
+	switch runtime.GOOS {
+	case "windows":
 		return `C:\Program Files\pypsa-desktop\uv.exe`
+	case "darwin":
+		exe, err := os.Executable()
+		if err != nil {
+			return ""
+		}
+		return filepath.Join(filepath.Dir(exe), "uv")
+	default:
+		return ""
 	}
-	return ""
 }
 
 func bundledWheelsDir() string {
-	if runtime.GOOS != "windows" {
+	var dir string
+	switch runtime.GOOS {
+	case "windows":
+		dir = `C:\Program Files\pypsa-desktop\wheels`
+	case "darwin":
+		exe, err := os.Executable()
+		if err != nil {
+			return ""
+		}
+		dir = filepath.Join(filepath.Dir(exe), "wheels")
+	default:
 		return ""
 	}
-	dir := `C:\Program Files\pypsa-desktop\wheels`
 	if _, err := os.Stat(dir); err != nil {
 		return ""
 	}

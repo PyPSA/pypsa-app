@@ -37,23 +37,25 @@ type Sidecar struct {
 
 // ProcessManager owns both sidecars and their full lifecycle.
 type ProcessManager struct {
-	dataDir  string
-	logDir   string
-	ctx      context.Context
-	cancel   context.CancelFunc
-	dispatch *Sidecar
-	app      *Sidecar
-	errCh    chan error
+	dataDir    string
+	runtimeDir string
+	logDir     string
+	ctx        context.Context
+	cancel     context.CancelFunc
+	dispatch   *Sidecar
+	app        *Sidecar
+	errCh      chan error
 }
 
-func NewProcessManager(dataDir, logDir string) *ProcessManager {
+func NewProcessManager(dataDir, runtimeDir, logDir string) *ProcessManager {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &ProcessManager{
-		dataDir: dataDir,
-		logDir:  logDir,
-		ctx:     ctx,
-		cancel:  cancel,
-		errCh:   make(chan error, 2),
+		dataDir:    dataDir,
+		runtimeDir: runtimeDir,
+		logDir:     logDir,
+		ctx:        ctx,
+		cancel:     cancel,
+		errCh:      make(chan error, 2),
 	}
 }
 
@@ -248,7 +250,7 @@ func (pm *ProcessManager) dispatchCmd() *exec.Cmd {
 	)
 	cmd.Env = append(os.Environ(),
 		"SNAKEDISPATCH_CONFIG="+configPath,
-		"DATA_DIR="+filepath.Join(pm.dataDir, "snakedispatch"),
+		"DATA_DIR="+filepath.Join(pm.runtimeDir, "snakedispatch"),
 	)
 	return cmd
 }

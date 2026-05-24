@@ -10,7 +10,10 @@ import (
 
 // dispatchConfigTmpl is the snakedispatch.yaml written on every launch (idempotent).
 // Top-level key is the backend type ("local") — not wrapped under "backends:".
-// DATA_DIR sets the job-data directory; pixi_path is re-resolved each launch.
+// DATA_DIR sets the persisted API/state directory; it must not be the same as
+// scratch_dir because snakedispatch syncs queryable copies of per-job snkmt.db
+// into DATA_DIR/jobs/<job_id>/ while workflows write the live database in
+// scratch_dir/jobs/<job_id>/.
 const dispatchConfigTmpl = `# snakedispatch local backend — managed by pypsa-desktop, do not edit manually.
 # Regenerated on each launch.
 local:
@@ -23,7 +26,7 @@ DATA_DIR: "{{ .DataDir }}"
 
 // writeDispatchConfig writes snakedispatch.yaml to <dataDir>/config/.
 // Safe to call on every launch.
-func writeDispatchConfig(dataDir string) error {
+func writeDispatchConfig(dataDir, runtimeDir string) error {
 	pixiPath, err := exec.LookPath("pixi")
 	if err != nil {
 		pixiPath = "pixi" // will fail loudly at runtime if truly absent
@@ -34,9 +37,9 @@ func writeDispatchConfig(dataDir string) error {
 		PixiPath   string
 		DataDir    string
 	}{
-		ScratchDir: filepath.ToSlash(filepath.Join(dataDir, "snakedispatch")),
+		ScratchDir: filepath.ToSlash(filepath.Join(runtimeDir, "snakedispatch")),
 		PixiPath:   filepath.ToSlash(pixiPath),
-		DataDir:    filepath.ToSlash(filepath.Join(dataDir, "snakedispatch")),
+		DataDir:    filepath.ToSlash(filepath.Join(runtimeDir, "snakedispatch-state")),
 	}
 
 	configPath := filepath.Join(dataDir, "config", "snakedispatch.yaml")

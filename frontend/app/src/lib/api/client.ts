@@ -420,6 +420,9 @@ export const runs = {
 	logsUrl(id: string): string {
 		return `${API_BASE}/runs/${id}/logs`;
 	},
+	async revealLogs(id: string): Promise<void> {
+		return request<void>(`/runs/${id}/logs/reveal`, { method: 'POST' });
+	},
 	async listOutputs(id: string): Promise<OutputFile[]> {
 		return request<OutputFile[]>(`/runs/${id}/outputs`);
 	},

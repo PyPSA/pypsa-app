@@ -6,6 +6,10 @@ export function Quit() {
   return window['go']['main']['App']['Quit']();
 }
 
+export function ShowAbout() {
+  return window['go']['main']['App']['ShowAbout']();
+}
+
 export function ShowWindow() {
   return window['go']['main']['App']['ShowWindow']();
 }

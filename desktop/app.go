@@ -20,17 +20,20 @@ type StatusEvent struct {
 
 // App is the Wails application struct (control plane).
 type App struct {
-	ctx     context.Context
-	dataDir string
-	manager *ProcessManager
+	ctx        context.Context
+	dataDir    string
+	runtimeDir string
+	manager    *ProcessManager
 }
 
 func NewApp() *App {
 	dataDir := appDataDir()
+	runtimeDir := dispatchRuntimeDir()
 	logDir := filepath.Join(dataDir, "logs")
 	return &App{
-		dataDir: dataDir,
-		manager: NewProcessManager(dataDir, logDir),
+		dataDir:    dataDir,
+		runtimeDir: runtimeDir,
+		manager:    NewProcessManager(dataDir, runtimeDir, logDir),
 	}
 }
 
@@ -73,7 +76,7 @@ func (a *App) emitErr(msg string) {
 
 func (a *App) runStartupSequence() {
 	// 1. Ensure all data/log/config directories exist
-	if err := ensureDirs(a.dataDir); err != nil {
+	if err := ensureDirs(a.dataDir, a.runtimeDir); err != nil {
 		a.emitErr(fmt.Sprintf("Failed to create data directories: %v", err))
 		return
 	}
@@ -120,7 +123,7 @@ func (a *App) runStartupSequence() {
 
 	// 5. Write snakedispatch config (idempotent — refreshes pixi_path each launch)
 	a.emit("setup", "Writing snakedispatch config…", 50)
-	if err := writeDispatchConfig(a.dataDir); err != nil {
+	if err := writeDispatchConfig(a.dataDir, a.runtimeDir); err != nil {
 		a.emitErr(fmt.Sprintf("Failed to write snakedispatch config: %v", err))
 		return
 	}

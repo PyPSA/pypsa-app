@@ -359,6 +359,16 @@ def stream_run_logs(
     )
 
 
+@router.post("/{run_id}/logs/reveal", response_model=MessageResponse)
+def reveal_run_logs(
+    auth: Authorized[Run] = Depends(require_run("read")),
+) -> dict:
+    """Reveal the persisted run log file on the local machine, if available."""
+    run = auth.model
+    sd_client = _get_client_for_run(run)
+    return sd_client.reveal_job_log(str(run.job_id))
+
+
 @cache("run_outputs", ttl=settings.run_outputs_cache_ttl)
 def _get_job_outputs_cached(job_id: str, backend_id: str) -> list[dict]:
     """Fetch job outputs via Snakedispatch (cached at module level)."""

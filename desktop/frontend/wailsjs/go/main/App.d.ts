@@ -3,4 +3,6 @@
 
 export function Quit():Promise<void>;
 
+export function ShowAbout():Promise<void>;
+
 export function ShowWindow():Promise<void>;

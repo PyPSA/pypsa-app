@@ -27,7 +27,6 @@
 	import RunHeader from '../components/RunHeader.svelte';
 	import LockedContentPreview from '$lib/components/LockedContentPreview.svelte';
 	import NotFound from '$lib/components/NotFound.svelte';
-
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
 
 	const runId = $derived($page.params.id as string);
@@ -208,12 +207,13 @@ const workflowDisplay = $derived.by(() => {
 
 	const breadcrumbLabel = $derived.by(() => {
 		if (!displayRun) return '...';
-		if (configDisplay) return configDisplay;
+		if (configDisplay) return `${configDisplay} · ${displayRun.id}`;
 		const repo = workflowDisplay?.split('/').pop() || '';
 		let label = repo;
 		const ref = displayRun.git_ref || displayRun.git_sha?.slice(0, 8) || '';
 		if (ref) label += `@${ref}`;
-		return label || displayRun.id.slice(0, 8);
+		if (label) return `${label} · ${displayRun.id}`;
+		return displayRun.id;
 	});
 
 	$effect(() => {
@@ -373,6 +373,11 @@ const workflowDisplay = $derived.by(() => {
 			}
 		});
 	}
+
+	async function handleRevealLogs(event: MouseEvent) {
+		event.stopPropagation();
+		await runs.revealLogs(runId);
+	}
 </script>
 
 <div class="min-h-screen">
@@ -519,27 +524,36 @@ const workflowDisplay = $derived.by(() => {
 
 				<!-- Logs -->
 				<div class="bg-card rounded-lg border border-border overflow-hidden mt-4">
-					<button
-						class="flex items-center gap-2 px-4 py-3 w-full text-left hover:bg-accent/50 transition-colors"
-						onclick={() => (logsOpen = !logsOpen)}
-					>
-						<Terminal class="h-4 w-4 text-muted-foreground" />
-						<span class="text-sm font-medium">Logs</span>
-						<a
-							href={`${runs.logsUrl(runId)}?format=text`}
-							target="_blank"
-							rel="noopener noreferrer"
-							class="ml-auto inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground hover:underline transition-colors"
-							onclick={(e) => e.stopPropagation()}
+					<div class="flex items-center gap-2 px-4 py-3">
+						<button
+							type="button"
+							class="flex min-w-0 flex-1 items-center gap-2 text-left hover:text-foreground transition-colors"
+							onclick={() => (logsOpen = !logsOpen)}
+						>
+							<Terminal class="h-4 w-4 text-muted-foreground" />
+							<span class="text-sm font-medium">Logs</span>
+						</button>
+						<button
+							type="button"
+							class="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground hover:underline transition-colors"
+							onclick={handleRevealLogs}
+							title="Reveal the persisted run log file in Finder"
 						>
 							<ExternalLink class="h-3.5 w-3.5" />
 							Raw logs
-						</a>
-						<ChevronRight
-							class="h-4 w-4 text-muted-foreground transition-transform duration-200"
-							style={logsOpen ? 'transform: rotate(90deg)' : ''}
-						/>
-					</button>
+						</button>
+						<button
+							type="button"
+							class="inline-flex items-center text-muted-foreground hover:text-foreground transition-colors"
+							onclick={() => (logsOpen = !logsOpen)}
+							aria-label={logsOpen ? 'Collapse logs' : 'Expand logs'}
+						>
+							<ChevronRight
+								class="h-4 w-4 transition-transform duration-200"
+								style={logsOpen ? 'transform: rotate(90deg)' : ''}
+							/>
+						</button>
+					</div>
 					{#if logsOpen}
 						<div
 							bind:this={logContainer}
@@ -557,7 +571,7 @@ const workflowDisplay = $derived.by(() => {
 									{/if}
 								</span>
 							{:else}
-								{#each logs as line, i}
+								{#each logs as line}
 									<div class="whitespace-pre-wrap hover:bg-zinc-900/50">{line}</div>
 								{/each}
 							{/if}
