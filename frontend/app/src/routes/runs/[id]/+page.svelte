@@ -27,7 +27,7 @@
 	import RunHeader from '../components/RunHeader.svelte';
 	import LockedContentPreview from '$lib/components/LockedContentPreview.svelte';
 	import NotFound from '$lib/components/NotFound.svelte';
-	import { toast } from 'svelte-sonner';
+
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
 
 	const runId = $derived($page.params.id as string);
@@ -248,10 +248,7 @@ const workflowDisplay = $derived.by(() => {
 		loading = true;
 		try {
 			run = await runs.get(runId);
-		} catch (err) {
-			if (!(err as ApiError).cancelled && (err as ApiError).status !== 404 && (err as ApiError).status !== 422) {
-				toast.error((err as Error).message);
-			}
+		} catch {
 		} finally {
 			loading = false;
 		}
@@ -335,8 +332,7 @@ const workflowDisplay = $derived.by(() => {
 		setBusy(true);
 		try {
 			await action();
-		} catch (err) {
-			if (!(err as ApiError).cancelled) toast.error((err as Error).message);
+		} catch {
 		} finally {
 			setBusy(false);
 		}

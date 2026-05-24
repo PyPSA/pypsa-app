@@ -133,9 +133,13 @@ func (a *App) runStartupSequence() {
 		return
 	}
 
-	// 7. Navigate WebView to the running app
+	// 7. Start nav proxy, then navigate the WebView through it.
+	// The proxy injects a Back button + keyboard shortcuts into every HTML page.
+	startProxy(appPort, proxyPort)
 	a.emit("ready", "Ready!", 100)
-	runtime.EventsEmit(a.ctx, "navigate", fmt.Sprintf("http://localhost:%d", appPort))
+	runtime.WindowSetSize(a.ctx, 1280, 800)
+	runtime.WindowCenter(a.ctx)
+	runtime.EventsEmit(a.ctx, "navigate", fmt.Sprintf("http://localhost:%d", proxyPort))
 
 	go a.watchCrashes()
 }

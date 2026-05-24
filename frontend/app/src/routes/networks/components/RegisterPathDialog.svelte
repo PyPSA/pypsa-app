@@ -29,8 +29,7 @@
 			toast.success('Network registered');
 			onSuccess?.();
 			open = false;
-		} catch (err) {
-			toast.error((err as Error).message);
+		} catch {
 		} finally {
 			registering = false;
 		}

@@ -1,5 +1,9 @@
 # Desktop Distribution Plan — Windows
 
+> **Current dev platform**: macOS M4. Windows is the distribution target.
+> Daily iteration runs both services manually with `uv` — no Wails involved.
+> `wails build` / `wails dev` are only used when testing the Wails shell itself.
+
 ## Goal
 
 Ship `pypsa-app` + `snakedispatch` as a single Windows desktop application: a native executable the user double-clicks, which manages all background services and opens the UI in an embedded browser window.
@@ -54,6 +58,76 @@ These are required on the user's machine and must be documented in the installer
 **pypsa-app** runs in minimal mode: SQLite database, in-memory Celery fallback (no Redis, no PostgreSQL, no separate worker process).
 
 **snakedispatch** runs with a local backend config written by the Wails app on first launch. `SNAKEDISPATCH_BACKENDS=local=http://localhost:8766` is passed to pypsa-app as an env var at startup.
+
+---
+
+## Development Workflow (macOS / Linux)
+
+For daily iteration you do **not** need Wails at all. Run both services directly with `uv` and access the UI in a browser.
+
+### One-time setup
+
+```bash
+# pypsa-app — install deps into the project venv
+cd /path/to/pypsa-app
+uv sync
+
+# snakedispatch — install deps into its project venv
+cd /path/to/snakedispatch
+uv sync
+```
+
+### Run services manually
+
+**Terminal 1 — pypsa-app** (from `pypsa-app` repo root)
+```bash
+uv run pypsa-app serve --host 127.0.0.1 --port 8000 --data-dir ./data
+```
+
+**Terminal 2 — snakedispatch** (from `snakedispatch` repo root)
+```bash
+uv run uvicorn app.main:app --host 127.0.0.1 --port 8001
+```
+
+**Terminal 3 — SvelteKit dev server** (hot reload; skip if testing static build)
+```bash
+cd frontend/app
+pnpm run dev
+# UI at http://localhost:5173  (API proxied to :8000)
+```
+
+Open `http://localhost:8000` (static build) or `http://localhost:5173` (dev server with hot reload).
+
+> **Note**: dev ports (8000/8001) differ from the Wails production ports (8765/8766). This is intentional — running both at the same time won't conflict.
+
+> **Version discrepancy between `uv run` and `wails dev`**: `setuptools_scm` freezes the version number at install time by counting git commits since the last tag (e.g. `v0.1.0a1.dev78`). The project `.venv` (used by `uv run`) and the Wails-managed venv (`~/Library/Application Support/pypsa-desktop/venvs/pypsa-app`) are installed independently, so they show different `devN` numbers if installed at different commits. The running code is identical — the number is cosmetic. To sync the project venv to the current commit:
+> ```bash
+> uv sync --reinstall-package pypsa-app
+> ```
+
+### After changing frontend code
+
+```bash
+# Rebuild static files into src/pypsa_app/backend/static/app/
+cd frontend/app && pnpm run build
+# Then restart pypsa-app (Terminal 1) to serve the new files
+```
+
+### When to use `wails dev`
+
+Only when you are working on the **Wails shell** itself (splash screen, startup sequence, system tray). It is not needed for pypsa-app or frontend changes.
+
+```bash
+cd desktop
+wails dev
+```
+
+`wails dev` will detect the local `pypsa-app` source, install it into a managed venv under `~/Library/Application Support/pypsa-desktop/`, and spawn both services. Because no sentinel file is written in dev mode (`setup.go`), it reinstalls `pypsa-app` from local source on every launch using `uv pip install --reinstall-package pypsa-app`.
+
+> **Stale venv from a previous run?** If an old venv exists from before this behaviour was introduced, delete the sentinel to force a clean reinstall:
+> ```bash
+> rm ~/Library/Application\ Support/pypsa-desktop/venvs/setup_complete
+> ```
 
 ---
 
@@ -133,7 +207,11 @@ uv venv %APPDATA%\pypsa-desktop\venvs\snakedispatch
 uv pip install --python ...venvs\snakedispatch <bundled wheels>
 ```
 
-Progress is streamed to the splash screen so the user sees what's happening. On subsequent launches this step is skipped entirely (sentinel file check).
+Progress is streamed to the splash screen so the user sees what's happening. On subsequent launches this step is skipped entirely via a sentinel file (`venvs/setup_complete`).
+
+**Sentinel behaviour differs by mode:**
+- **Production** (bundled wheels): sentinel written after first install → setup skipped on every subsequent launch.
+- **Dev** (local source, no bundled wheels): sentinel is never written → `pypsa-app` is reinstalled from local source on every launch (`uv pip install --reinstall-package pypsa-app`). Deps are left untouched so restarts stay fast.
 
 ---
 
@@ -150,6 +228,26 @@ Both apps are shipped as **pre-built wheels bundled in the installer**. Bundle s
 > **Future:** If bundle size becomes a concern, switch to PyPI download during warm-up (deferred install). The warm-up UI already handles progress display, so the transition is a one-line change in `setup.go`.
 
 For updates: ship a new installer. No in-app update mechanism in v1.
+
+### Rebuilding the pypsa-app wheel (Windows distribution only)
+
+**You do not need this for daily development** — see the Development Workflow section for the faster manual `uv` approach.
+
+Build the wheel when you are ready to produce a new Windows installer. The SvelteKit frontend must be compiled first; `wails build` does **not** do this (the Wails binary only contains the splash screen in `desktop/frontend/`).
+
+```bash
+# 1. Build the SvelteKit app
+#    Output goes directly to src/pypsa_app/backend/static/app/
+cd frontend/app
+pnpm run build
+
+# 2. Build the Python wheel
+#    Packages static files via MANIFEST.in, output in dist/
+cd ../..
+uv build
+```
+
+The resulting `dist/pypsa_app-X.Y.Z-py3-none-any.whl` is the file to drop into the installer's `wheels/` directory.
 
 ---
 
@@ -240,7 +338,7 @@ If Snakemake workflows fail on Windows during this spike, document which types f
 
 | # | Decision |
 |---|---|
-| 1 | **Wheel build**: Built manually on a developer Windows machine. No GitHub Actions CI in v1. |
+| 1 | **Wheel build**: Built manually on a developer Windows machine for distribution. Development and iteration happen on macOS M4 using manual `uv` commands — no Wails involved. No GitHub Actions CI in v1. |
 | 2 | **Version pinning**: `desktop/versions.yaml` pins both `pypsa-app` and `snakedispatch` versions for each installer release. Go code reads this file at build time. |
 | 3 | **Local backend in admin**: The bundled snakedispatch appears as **"local (managed)"** — visible but not editable. Users can freely add additional remote backends via the admin panel. |
 | 4 | **Authentication**: `ENABLE_AUTH=false` for all desktop installs. Single shared instance per machine. Acceptable for v1 close-client distribution. |

@@ -108,8 +108,7 @@
 				filter_q: JSON.stringify({ type: 'in', field: 'role', values: ['bot'] })
 			});
 			botUsers = response.data;
-		} catch (err) {
-			toast.error(`Failed to load bot users: ${(err as Error).message}`);
+		} catch {
 		}
 	}
 
@@ -117,8 +116,7 @@
 		keysLoading = true;
 		try {
 			allKeys = await apiKeys.list();
-		} catch (err) {
-			toast.error(`Failed to load API keys: ${(err as Error).message}`);
+		} catch {
 		} finally {
 			keysLoading = false;
 		}
@@ -138,8 +136,7 @@
 				createOpen = false;
 			}
 			await loadApiKeys();
-		} catch (err) {
-			toast.error((err as Error).message);
+		} catch {
 		} finally {
 			creatingKey = false;
 		}
@@ -154,9 +151,7 @@
 			selectedKey = null;
 			toast.success('API key deleted');
 			await loadApiKeys();
-		} catch (err) {
-			toast.error((err as Error).message);
-		}
+		} catch {}
 	}
 
 </script>

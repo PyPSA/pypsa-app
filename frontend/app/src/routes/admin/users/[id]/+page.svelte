@@ -102,8 +102,7 @@
 			} else {
 				userKeys = [];
 			}
-		} catch (err) {
-			toast.error((err as Error).message);
+		} catch {
 		} finally {
 			loading = false;
 		}
@@ -119,9 +118,7 @@
 			} else {
 				userKeys = [];
 			}
-		} catch (err) {
-			toast.error((err as Error).message);
-		}
+		} catch {}
 	}
 
 	async function deleteUser() {
@@ -132,9 +129,7 @@
 			confirmDeleteOpen = false;
 			toast.success(`User ${username} deleted`);
 			goto('/admin/users');
-		} catch (err) {
-			toast.error((err as Error).message);
-		}
+		} catch {}
 	}
 
 	async function assignBackend(backendId: string) {
@@ -143,9 +138,7 @@
 			await admin.assignBackendToUser(user.id, backendId);
 			userBackends = await admin.listUserBackends(user.id);
 			toast.success('Backend assigned');
-		} catch (err) {
-			toast.error((err as Error).message);
-		}
+		} catch {}
 	}
 
 	async function removeBackend(backendId: string) {
@@ -154,9 +147,7 @@
 			await admin.unassignBackendFromUser(user.id, backendId);
 			userBackends = await admin.listUserBackends(user.id);
 			toast.success('Backend removed');
-		} catch (err) {
-			toast.error((err as Error).message);
-		}
+		} catch {}
 	}
 
 	async function createApiKey() {
@@ -172,8 +163,7 @@
 				toast.success('API key created');
 				createKeyOpen = false;
 			}
-		} catch (err) {
-			toast.error((err as Error).message);
+		} catch {
 		} finally {
 			creatingKey = false;
 		}
@@ -187,9 +177,7 @@
 			keyToDelete = null;
 			toast.success('API key deleted');
 			userKeys = await admin.listUserApiKeys(user.id);
-		} catch (err) {
-			toast.error((err as Error).message);
-		}
+		} catch {}
 	}
 
 	const STATUS_COLORS: Record<string, string> = {

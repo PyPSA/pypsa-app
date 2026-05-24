@@ -48,8 +48,7 @@
 			backend = b;
 			assignedUsers = users;
 			allUsers = allU.data;
-		} catch (err) {
-			toast.error((err as Error).message);
+		} catch {
 		} finally {
 			loading = false;
 		}
@@ -61,9 +60,7 @@
 			await admin.assignUserToBackend(backend.id, userId);
 			assignedUsers = await admin.listBackendUsers(backend.id);
 			toast.success('User assigned');
-		} catch (err) {
-			toast.error((err as Error).message);
-		}
+		} catch {}
 	}
 
 	async function removeUser(userId: string) {
@@ -72,9 +69,7 @@
 			await admin.unassignUserFromBackend(backend.id, userId);
 			assignedUsers = await admin.listBackendUsers(backend.id);
 			toast.success('User removed');
-		} catch (err) {
-			toast.error((err as Error).message);
-		}
+		} catch {}
 	}
 </script>
 

@@ -57,14 +57,19 @@ func (s *Setup) Run(lo, hi int, progress func(pct int, msg string)) error {
 	}
 
 	for _, t := range tasks {
-		if s.venvReady(t.name) {
-			progress(t.hi, fmt.Sprintf("%s already installed.", t.name))
-			continue
-		}
+		isLocalDev := s.wheelsDir == "" && devInstallSpec(t.name) != ""
 
-		progress(t.lo, fmt.Sprintf("Creating %s environment…", t.name))
-		if err := s.createVenv(t.name, logPath); err != nil {
-			return fmt.Errorf("Creating %s environment: %w", t.name, err)
+		if s.venvReady(t.name) {
+			if !isLocalDev {
+				progress(t.hi, fmt.Sprintf("%s already installed.", t.name))
+				continue
+			}
+			// Local dev: venv exists but reinstall to pick up source changes.
+		} else {
+			progress(t.lo, fmt.Sprintf("Creating %s environment…", t.name))
+			if err := s.createVenv(t.name, logPath); err != nil {
+				return fmt.Errorf("Creating %s environment: %w", t.name, err)
+			}
 		}
 
 		progress(t.lo+span/4, fmt.Sprintf("Installing %s…", t.name))
@@ -74,6 +79,11 @@ func (s *Setup) Run(lo, hi int, progress func(pct int, msg string)) error {
 	}
 
 	progress(hi, "Setup complete.")
+	// In production (bundled wheels) write the sentinel so setup is skipped on next launch.
+	// In dev mode skip it so local source changes are always picked up on restart.
+	if s.wheelsDir == "" {
+		return nil
+	}
 	return os.WriteFile(
 		filepath.Join(s.dataDir, "venvs", setupSentinel),
 		[]byte("ok"), 0o644,
@@ -96,8 +106,9 @@ func (s *Setup) installPkg(venvName, pkg, logPath string) error {
 		wheelDir := filepath.Join(s.wheelsDir, venvName)
 		args = append(args, "--no-index", "--find-links", wheelDir, pkg)
 	case devInstallSpec(venvName) != "":
-		// Dev: use auto-detected or env-var-specified local source.
-		args = append(args, devInstallSpec(venvName))
+		// Dev: reinstall only this package from local source; leave deps alone.
+		src := devInstallSpec(venvName)
+		args = append(args, "--reinstall-package", pkg, src)
 	default:
 		args = append(args, pkg)
 	}

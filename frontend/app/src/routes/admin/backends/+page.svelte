@@ -12,7 +12,6 @@
 	import { breadcrumbStore } from '$lib/stores/breadcrumb.svelte.js';
 	import { TableSkeleton } from '$lib/components/skeletons';
 	import { createColumns } from '../components/backend-columns.js';
-	import { toast } from 'svelte-sonner';
 	import type { Backend } from '$lib/types.js';
 	import type { SortingState } from '@tanstack/table-core';
 
@@ -59,8 +58,7 @@
 		loading = true;
 		try {
 			allBackends = await admin.listBackends();
-		} catch (err) {
-			toast.error((err as Error).message);
+		} catch {
 		} finally {
 			loading = false;
 		}

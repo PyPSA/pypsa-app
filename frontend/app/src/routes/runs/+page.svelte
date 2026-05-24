@@ -6,7 +6,7 @@
 	import { runs } from '$lib/api/client.js';
 	import { saveTablePref, buildOwnerOptions, loadTablePrefs, clampPage } from '$lib/utils.js';
 	import { RUN_FINAL_STATUSES } from '$lib/types.js';
-	import type { RunSummary, User, BackendPublic, ApiError, Visibility } from '$lib/types.js';
+	import type { RunSummary, User, BackendPublic, Visibility } from '$lib/types.js';
 	import type { FilterCategory } from '$lib/components/widgets/filter-dialog';
 	import type { FilterAst } from '$lib/filters/ast';
 	import { emptyAnd, isEmpty as astIsEmpty } from '$lib/filters/ast';
@@ -18,7 +18,6 @@
 	import Play from '@lucide/svelte/icons/play';
 	import Plus from '@lucide/svelte/icons/plus';
 	import Button from '$lib/components/ui/button/button.svelte';
-	import { toast } from 'svelte-sonner';
 	import { createColumns } from './components/columns.js';
 	import CreateRunDialog from './components/CreateRunDialog.svelte';
 	import { authStore } from '$lib/stores/auth.svelte.js';
@@ -181,9 +180,7 @@
 				await updateURL();
 				return loadRuns(silent);
 			}
-		} catch (err) {
-			if ((err as ApiError).cancelled) return;
-			toast.error((err as Error).message);
+		} catch {
 		} finally {
 			loading = false;
 		}
@@ -237,8 +234,7 @@
 		try {
 			await runs.cancel(runId);
 			await loadRuns();
-		} catch (err) {
-			if (!(err as ApiError).cancelled) toast.error((err as Error).message);
+		} catch {
 		} finally {
 			cancellingId = null;
 		}
@@ -249,9 +245,7 @@
 			const fullRun = await runs.get(run.id);
 			const newRun = await runs.rerun(fullRun);
 			goto(`/runs/${newRun.id}`);
-		} catch (err) {
-			if (!(err as ApiError).cancelled) toast.error((err as Error).message);
-		}
+		} catch {}
 	}
 
 	async function handleVisibilityToggle(runId: string, visibility: Visibility) {
@@ -260,8 +254,7 @@
 		try {
 			await runs.updateVisibility(runId, visibility);
 			await loadRuns(true);
-		} catch (err) {
-			if (!(err as ApiError).cancelled) toast.error((err as Error).message);
+		} catch {
 		} finally {
 			updatingVisibilityId = null;
 		}
@@ -276,8 +269,7 @@
 		try {
 			await runs.remove(runId);
 			await loadRuns();
-		} catch (err) {
-			if (!(err as ApiError).cancelled) toast.error((err as Error).message);
+		} catch {
 		} finally {
 			removingId = null;
 		}

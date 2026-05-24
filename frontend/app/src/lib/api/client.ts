@@ -24,6 +24,7 @@ import type {
 	UserStatsResponse,
 } from "$lib/types.js";
 import type { ReportState } from "$lib/stores/reportStore.svelte.js";
+import { toast } from 'svelte-sonner';
 
 const API_BASE = '/api/v1';
 
@@ -81,6 +82,8 @@ async function request<T>(endpoint: string, options: RequestInit = {}, cancellat
 				if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/login')) {
 					window.location.href = '/login';
 				}
+			} else {
+				toast.error(message);
 			}
 
 			throw err;

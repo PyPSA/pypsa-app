@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -197,18 +198,42 @@ func (pm *ProcessManager) pollHealth(port int) error {
 }
 
 // pypsaCmd builds a fresh exec.Cmd for pypsa-app.
+// We use "serve" (not "open") so we can set SNAKEDISPATCH_BACKENDS.
+// "open" forces LOCAL_MODE=true which blocks that env var, hiding the Runs view.
 func (pm *ProcessManager) pypsaCmd() *exec.Cmd {
 	cmd := exec.Command(
 		venvScript(pm.dataDir, "pypsa-app", "pypsa-app"),
-		"open",
+		"serve",
+		"--host", "127.0.0.1",
 		"--port", fmt.Sprintf("%d", appPort),
-		"--no-open",
 	)
-	cmd.Env = append(os.Environ(),
+	cmd.Env = append(filterEnv("SNAKEDISPATCH_BACKENDS"),
+		"ENABLE_AUTH=false",
+		"SNAKEDISPATCH_BACKENDS=local=http://127.0.0.1:"+fmt.Sprintf("%d", dispatchPort),
 		"DATA_DIR="+filepath.Join(pm.dataDir, "data"),
 		"DATABASE_URL=sqlite:///"+filepath.Join(pm.dataDir, "data", "pypsa-app.db"),
 	)
 	return cmd
+}
+
+// filterEnv returns os.Environ() with the given keys removed.
+func filterEnv(strip ...string) []string {
+	blocked := make(map[string]bool, len(strip))
+	for _, k := range strip {
+		blocked[k] = true
+	}
+	env := os.Environ()
+	out := make([]string, 0, len(env))
+	for _, e := range env {
+		key := e
+		if i := strings.IndexByte(e, '='); i >= 0 {
+			key = e[:i]
+		}
+		if !blocked[key] {
+			out = append(out, e)
+		}
+	}
+	return out
 }
 
 // dispatchCmd builds a fresh exec.Cmd for snakedispatch.
@@ -238,7 +263,7 @@ func isPortInUse(port int) bool {
 }
 
 func checkPortConflicts() []int {
-	ports := []int{appPort, dispatchPort}
+	ports := []int{appPort, dispatchPort, proxyPort}
 	var taken []int
 	for _, p := range ports {
 		if isPortInUse(p) {

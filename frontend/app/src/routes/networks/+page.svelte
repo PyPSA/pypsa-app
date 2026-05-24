@@ -7,7 +7,6 @@
 	import { formatFileSize, getTagType, getTagColor, saveTablePref, buildOwnerOptions, loadTablePrefs, clampPage } from '$lib/utils.js';
 	import Network from '@lucide/svelte/icons/network';
 	import Loader2 from '@lucide/svelte/icons/loader-2';
-	import { toast } from 'svelte-sonner';
 	import * as Dialog from '$lib/components/ui/dialog';
 	import { Combobox } from '$lib/components/widgets/combobox';
 	import { Label } from '$lib/components/ui/label';
@@ -19,7 +18,7 @@
 	import { features } from '$lib/stores/features.svelte.js';
 	import EmptyState from '$lib/components/EmptyState.svelte';
 	import { TableSkeleton } from '$lib/components/skeletons';
-	import type { Network as NetworkType, User, NetworkUpdate, ApiError, Visibility } from '$lib/types.js';
+	import type { Network as NetworkType, User, NetworkUpdate, Visibility } from '$lib/types.js';
 	import type { FilterCategory } from '$lib/components/widgets/filter-dialog';
 	import type { FilterAst } from '$lib/filters/ast';
 	import { emptyAnd, isEmpty as astIsEmpty } from '$lib/filters/ast';
@@ -171,9 +170,7 @@
 				await updateURL();
 				return loadNetworks();
 			}
-		} catch (err) {
-			if ((err as ApiError).cancelled) return;
-			toast.error((err as Error).message);
+		} catch {
 		} finally {
 			loading = false;
 		}
@@ -257,8 +254,7 @@
 				await networks.delete(networkId, removeFile);
 			}
 			await loadNetworks();
-		} catch (err) {
-			if (!(err as ApiError).cancelled) toast.error((err as Error).message);
+		} catch {
 		} finally {
 			deletingId = null;
 			deleteTarget = null;
@@ -275,8 +271,7 @@
 				await networks.updateVisibility(networkId, newVisibility);
 			}
 			await loadNetworks();
-		} catch (err) {
-			if (!(err as ApiError).cancelled) toast.error((err as Error).message);
+		} catch {
 		} finally {
 			updatingVisibilityId = null;
 		}
@@ -291,9 +286,7 @@
 			try {
 				const response = await admin.listUsers(0, 1000);
 				allUsers = response.data;
-			} catch (err) {
-				toast.error(`Failed to load users: ${(err as Error).message}`);
-			}
+			} catch {}
 		}
 	}
 
@@ -308,8 +301,7 @@
 			await admin.updateNetwork(editNetwork.id, { user_id: editOwner });
 			await loadNetworks();
 			editDialogOpen = false;
-		} catch (err) {
-			toast.error(`Failed to update owner: ${(err as Error).message}`);
+		} catch {
 		} finally {
 			saving = false;
 		}

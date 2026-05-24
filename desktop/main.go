@@ -16,10 +16,11 @@ func main() {
 	app := NewApp()
 
 	err := wails.Run(&options.App{
-		Title:            "pypsa-desktop",
-		Width:            640,
-		Height:           420,
-		DisableResize:    true,
+		Title:     "pypsa-desktop",
+		Width:     640,
+		Height:    420,
+		MinWidth:  800,
+		MinHeight: 600,
 		AssetServer:      &assetserver.Options{Assets: assets},
 		BackgroundColour: &options.RGBA{R: 17, G: 24, B: 39, A: 1},
 		OnStartup:        app.startup,

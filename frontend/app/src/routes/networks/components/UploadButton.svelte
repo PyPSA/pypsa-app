@@ -8,6 +8,7 @@
 	import { Button } from '$lib/components/ui/button';
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
 	import { networks } from '$lib/api/client.js';
+	import type { ApiError } from '$lib/types.js';
 	import { features } from '$lib/stores/features.svelte.js';
 	import { toast } from 'svelte-sonner';
 	import UrlImportDialog from './UrlImportDialog.svelte';
@@ -44,7 +45,9 @@
 			toast.success('Network imported');
 			onUpload?.();
 		} catch (err) {
-			toast.error((err as Error).message);
+			if (!(err as ApiError).cancelled && !(err as ApiError).status) {
+				toast.error((err as Error).message);
+			}
 		} finally {
 			importing = false;
 			input.value = '';

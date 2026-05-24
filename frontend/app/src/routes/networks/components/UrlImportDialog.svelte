@@ -3,6 +3,7 @@
 	import * as Dialog from '$lib/components/ui/dialog';
 	import { Button } from '$lib/components/ui/button';
 	import { networks } from '$lib/api/client.js';
+	import type { ApiError } from '$lib/types.js';
 	import { toast } from 'svelte-sonner';
 
 	interface Props {
@@ -31,7 +32,9 @@
 			open = false;
 			url = '';
 		} catch (err) {
-			toast.error((err as Error).message);
+			if (!(err as ApiError).cancelled && !(err as ApiError).status) {
+				toast.error((err as Error).message);
+			}
 		} finally {
 			importing = false;
 		}

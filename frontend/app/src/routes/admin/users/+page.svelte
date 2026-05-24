@@ -110,8 +110,7 @@
 			});
 			users = response.data;
 			totalUsers = response.meta.total;
-		} catch (err) {
-			toast.error((err as Error).message);
+		} catch {
 		} finally {
 			loading = false;
 		}
@@ -148,9 +147,7 @@
 			await admin.approveUser(userId);
 			toast.success('User approved');
 			await loadUsers();
-		} catch (err) {
-			toast.error((err as Error).message);
-		}
+		} catch {}
 	}
 
 	async function createUser() {
@@ -168,8 +165,7 @@
 			createOpen = false;
 			toast.success('User created');
 			await loadUsers();
-		} catch (err) {
-			toast.error((err as Error).message);
+		} catch {
 		} finally {
 			creatingUser = false;
 		}

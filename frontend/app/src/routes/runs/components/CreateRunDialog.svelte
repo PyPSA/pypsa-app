@@ -12,7 +12,7 @@
 	import Button from '$lib/components/ui/button/button.svelte';
 	import Loader2 from '@lucide/svelte/icons/loader-2';
 	import Info from '@lucide/svelte/icons/info';
-	import type { BackendPublic, ApiError } from '$lib/types.js';
+	import type { BackendPublic } from '$lib/types.js';
 
 	const FIELD_PATHS = [
 		'workflow',
@@ -73,8 +73,7 @@
 		try {
 			backends = await runs.backends();
 			if (!backend_id) autoSelectBackend();
-		} catch (err) {
-			if (!(err as ApiError).cancelled) toast.error((err as Error).message);
+		} catch {
 		} finally {
 			backendsLoaded = true;
 		}
@@ -159,8 +158,7 @@
 			reset();
 			open = false;
 			onCreated?.();
-		} catch (err) {
-			toast.error((err as Error).message);
+		} catch {
 		} finally {
 			submitting = false;
 		}
