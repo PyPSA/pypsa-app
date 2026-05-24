@@ -1,0 +1,96 @@
+# Development setup - backend only (run frontend with npm run dev)
+# Copy .env.dev.example to .env.dev and configure your settings
+
+services:
+  postgres:
+    image: postgres:18-alpine
+    container_name: pypsa-postgres
+
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    # Uncomment for access Postgres on host machine
+    # ports:
+    #   - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:8-alpine
+    container_name: pypsa-redis
+
+    # Uncomment to access Redis from host machine
+    # ports:
+    #   - "6379:6379"
+    command: redis-server --maxmemory ${REDIS_MAXMEMORY:-2gb} --maxmemory-policy allkeys-lru
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  pypsa-app:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+      target: backend
+    container_name: pypsa-app
+    ports:
+      - "${APP_PORT:-8000}:8000"
+
+    environment:
+      # These use docker network hostnames, so we construct them here
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      REDIS_URL: redis://redis:6379/0
+      DATA_DIR: /data
+      DEBUG: true
+    volumes:
+      - ../src:/app/src
+      - ../data:/data
+      - ../alembic.ini:/app/alembic.ini:ro
+      - ../frontend/app/package.json:/app/frontend/app/package.json:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: ["pypsa-app", "serve", "--reload", "--dev"]
+
+  celery-worker:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+      target: backend
+    container_name: pypsa-celery-worker
+
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      REDIS_URL: redis://redis:6379/0
+      DATA_DIR: /data
+    command:
+      [
+        "celery",
+        "-A",
+        "pypsa_app.backend.task_queue.task_app",
+        "worker",
+        "--loglevel=${CELERY_LOGLEVEL:-info}",
+        "--concurrency=${CELERY_CONCURRENCY:-2}",
+      ]
+    volumes:
+      - ../src:/app/src
+      - ../data:/data
+      - ../alembic.ini:/app/alembic.ini:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
