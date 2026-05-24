@@ -27,7 +27,7 @@ func venvScript(dataDir, venvName, scriptName string) string {
 
 // ensureDirs creates all required subdirectories under dataDir.
 func ensureDirs(dataDir string) error {
-	for _, sub := range []string{"data", "logs", "config", "venvs"} {
+	for _, sub := range []string{"data", "logs", "config", "venvs", "snakedispatch"} {
 		if err := os.MkdirAll(filepath.Join(dataDir, sub), 0o755); err != nil {
 			return err
 		}

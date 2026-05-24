@@ -207,23 +207,23 @@ func (pm *ProcessManager) pypsaCmd() *exec.Cmd {
 	cmd.Env = append(os.Environ(),
 		"DATA_DIR="+filepath.Join(pm.dataDir, "data"),
 		"DATABASE_URL=sqlite:///"+filepath.Join(pm.dataDir, "data", "pypsa-app.db"),
-		"SNAKEDISPATCH_BACKENDS=local=http://127.0.0.1:"+fmt.Sprintf("%d", dispatchPort),
 	)
 	return cmd
 }
 
 // dispatchCmd builds a fresh exec.Cmd for snakedispatch.
+// snakedispatch has no console script; it is started via uvicorn directly.
 func (pm *ProcessManager) dispatchCmd() *exec.Cmd {
 	configPath := filepath.Join(pm.dataDir, "config", "snakedispatch.yaml")
 	cmd := exec.Command(
-		venvScript(pm.dataDir, "snakedispatch", "snakedispatch"),
-		"serve",
+		venvScript(pm.dataDir, "snakedispatch", "uvicorn"),
+		"app.main:app",
 		"--host", "127.0.0.1",
 		"--port", fmt.Sprintf("%d", dispatchPort),
-		"--config", configPath,
 	)
 	cmd.Env = append(os.Environ(),
 		"SNAKEDISPATCH_CONFIG="+configPath,
+		"DATA_DIR="+filepath.Join(pm.dataDir, "snakedispatch"),
 	)
 	return cmd
 }

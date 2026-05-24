@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
+	"strings"
+	"time"
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
@@ -37,20 +39,28 @@ func (a *App) startup(ctx context.Context) {
 	a.initSystray()
 }
 
-// domReady fires after the WebView DOM is loaded and event listeners are registered.
-// Starting the sequence here avoids losing early EventsEmit calls.
+// domReady fires after the WebView DOM is parsed but the JS onMount may not have run yet.
+// We wait for a "frontend:ready" signal from Svelte (emitted after EventsOn is registered),
+// with a 500 ms fallback so we never get stuck if the event is missed.
 func (a *App) domReady(_ context.Context) {
-	go a.runStartupSequence()
+	ready := make(chan struct{}, 1)
+	runtime.EventsOnce(a.ctx, "frontend:ready", func(...interface{}) {
+		select {
+		case ready <- struct{}{}:
+		default:
+		}
+	})
+	go func() {
+		select {
+		case <-ready:
+		case <-time.After(500 * time.Millisecond):
+		}
+		a.runStartupSequence()
+	}()
 }
 
 func (a *App) shutdown(_ context.Context) {
 	a.manager.Stop()
-}
-
-// beforeClose hides the window instead of quitting when the user clicks X.
-func (a *App) beforeClose(ctx context.Context) bool {
-	runtime.WindowHide(ctx)
-	return true // returning true cancels the default close
 }
 
 func (a *App) emit(phase, msg string, pct int) {
@@ -62,26 +72,60 @@ func (a *App) emitErr(msg string) {
 }
 
 func (a *App) runStartupSequence() {
-	// Step 1: ensure data/log/config dirs exist
+	// 1. Ensure all data/log/config directories exist
 	if err := ensureDirs(a.dataDir); err != nil {
 		a.emitErr(fmt.Sprintf("Failed to create data directories: %v", err))
 		return
 	}
 
-	// Step 2: port conflict detection
+	// 2. Port conflict detection
 	a.emit("checking", "Checking for port conflicts…", 5)
 	if conflicts := checkPortConflicts(); len(conflicts) > 0 {
 		a.emitErr(fmt.Sprintf("Ports %v already in use. Close other applications and restart.", conflicts))
 		return
 	}
 
-	// Step 3: prerequisites (stub — implemented in Phase 3)
-	a.emit("checking", "Checking prerequisites…", 20)
+	// 3. Prerequisites — warn but don't fail (Git/Pixi needed only for workflows)
+	a.emit("checking", "Checking prerequisites…", 10)
+	prereqs := CheckPrereqs()
+	var missing []string
+	for _, p := range prereqs {
+		if !p.Found {
+			missing = append(missing, p.Name)
+		}
+	}
+	if len(missing) > 0 {
+		a.emit("checking",
+			fmt.Sprintf("Warning: %s not found in PATH — Snakemake workflows may fail.",
+				strings.Join(missing, ", ")),
+			10)
+		time.Sleep(2 * time.Second)
+	}
 
-	// Step 4: first-launch setup (stub — implemented in Phase 3)
-	a.emit("setup", "Checking installation…", 40)
+	// 4. First-launch setup (create venvs + install packages)
+	setup := NewSetup(a.dataDir)
+	if !setup.IsComplete() {
+		if err := setup.Run(15, 48, func(pct int, msg string) {
+			a.emit("setup", msg, pct)
+		}); err != nil {
+			a.emitErr(fmt.Sprintf(
+				"Setup failed: %v\n\nSee %s for details.",
+				err, filepath.Join(a.dataDir, "logs", "setup.log"),
+			))
+			return
+		}
+	} else {
+		a.emit("setup", "Installation verified.", 48)
+	}
 
-	// Step 5: spawn services with progress callback
+	// 5. Write snakedispatch config (idempotent — refreshes pixi_path each launch)
+	a.emit("setup", "Writing snakedispatch config…", 50)
+	if err := writeDispatchConfig(a.dataDir); err != nil {
+		a.emitErr(fmt.Sprintf("Failed to write snakedispatch config: %v", err))
+		return
+	}
+
+	// 6. Spawn services and health-poll each
 	if err := a.manager.Start(func(pct int, msg string) {
 		a.emit("starting", msg, pct)
 	}); err != nil {
@@ -89,11 +133,10 @@ func (a *App) runStartupSequence() {
 		return
 	}
 
-	// Step 6: navigate WebView to the running app
+	// 7. Navigate WebView to the running app
 	a.emit("ready", "Ready!", 100)
 	runtime.EventsEmit(a.ctx, "navigate", fmt.Sprintf("http://localhost:%d", appPort))
 
-	// Monitor for post-launch crashes in the background
 	go a.watchCrashes()
 }
 
@@ -107,15 +150,13 @@ func (a *App) watchCrashes() {
 	}
 }
 
-// Quit stops services and exits the application.
-// Callable from the system tray and frontend.
+// Quit stops services and exits. Callable from system tray and frontend.
 func (a *App) Quit() {
 	a.manager.Stop()
 	runtime.Quit(a.ctx)
 }
 
-// ShowWindow brings the main window to the foreground.
-// Callable from the system tray.
+// ShowWindow brings the main window to the foreground. Callable from system tray.
 func (a *App) ShowWindow() {
 	runtime.WindowShow(a.ctx)
 }

@@ -26,7 +26,6 @@ func main() {
 		OnDomReady:       app.domReady,
 		OnShutdown:       app.shutdown,
 		OnBeforeClose:    app.beforeClose,
-		HideWindowOnClose: true,
 		Bind:             []interface{}{app},
 		Windows: &windows.Options{
 			WebviewIsTransparent: false,

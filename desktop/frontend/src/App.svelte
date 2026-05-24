@@ -1,6 +1,6 @@
 <script>
   import { onMount, onDestroy } from 'svelte';
-  import { EventsOn, EventsOff } from '../wailsjs/runtime/runtime.js';
+  import { EventsOn, EventsOff, EventsEmit } from '../wailsjs/runtime/runtime.js';
 
   let phase = 'starting';
   let message = 'Initialising…';
@@ -18,6 +18,9 @@
     EventsOn('navigate', (url) => {
       window.location.href = url;
     });
+
+    // Signal Go that event listeners are registered and it's safe to emit.
+    EventsEmit('frontend:ready');
   });
 
   onDestroy(() => {
