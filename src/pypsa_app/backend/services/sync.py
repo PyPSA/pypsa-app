@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -51,6 +52,23 @@ _SYNC_FIELDS = [
 _CALLBACK_STATUSES = SYNCED_STATUSES - {RunStatus.UPLOADING}
 
 
+def _normalize_job_field(field: str, value: object) -> object:
+    """Coerce Snakedispatch payload values into DB-friendly Python values."""
+    if value is None:
+        return None
+    if field not in {"started_at", "completed_at"}:
+        return value
+    if isinstance(value, datetime):
+        dt = value
+    elif isinstance(value, str):
+        dt = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    else:
+        return value
+    if dt.tzinfo is not None:
+        dt = dt.astimezone(UTC).replace(tzinfo=None)
+    return dt
+
+
 def sync_run_from_job(run: Run, job: dict, db: Session) -> bool:
     """Update a Run record from a Snakedispatch response dict.
 
@@ -60,7 +78,7 @@ def sync_run_from_job(run: Run, job: dict, db: Session) -> bool:
     old_status = run.status
     changed = False
     for field in _SYNC_FIELDS:
-        new_val = job.get(field)
+        new_val = _normalize_job_field(field, job.get(field))
         if new_val is not None and getattr(run, field) != new_val:
             setattr(run, field, new_val)
             changed = True
@@ -116,15 +134,16 @@ def sync_non_terminal_runs() -> list[dict]:
                 continue
             callback_runs: list[Run] = []
             for run in backend_runs:
+                run_id = str(run.job_id)
                 try:
-                    job = client.get_job(str(run.job_id))
+                    job = client.get_job(run_id)
                     if sync_run_from_job(run, job, db):
                         callback_runs.append(run)
                 except SnakedispatchError as exc:
                     if exc.status_code == 404:  # noqa: PLR2004
                         logger.warning(
                             "Run %s not found on backend %s, marking as ERROR",
-                            run.job_id,
+                            run_id,
                             backend_id,
                         )
                         run.status = RunStatus.ERROR
@@ -132,14 +151,15 @@ def sync_non_terminal_runs() -> list[dict]:
                     else:
                         logger.warning(
                             "Transient error syncing run %s on backend %s: %s",
-                            run.job_id,
+                            run_id,
                             backend_id,
                             exc.detail,
                         )
                 except Exception:
+                    db.rollback()
                     logger.warning(
                         "Unexpected error syncing run %s on backend %s",
-                        run.job_id,
+                        run_id,
                         backend_id,
                         exc_info=True,
                     )

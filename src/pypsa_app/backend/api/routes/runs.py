@@ -145,9 +145,13 @@ def create_run(
         payload["cache_key"] = body.cache.key
         payload["cache_dirs"] = body.cache.dirs
     result = client.submit_job(payload)
+    try:
+        job_id = uuid.UUID(str(result["job_id"]))
+    except (KeyError, ValueError, TypeError) as exc:
+        raise HTTPException(502, "Snakedispatch returned an invalid job_id") from exc
 
     run = Run(
-        job_id=result["job_id"],
+        job_id=job_id,
         user_id=user.id,
         backend_id=backend.id,
         workflow=result.get("workflow", body.workflow),
@@ -167,7 +171,7 @@ def create_run(
     logger.info(
         "Run created",
         extra={
-            "run_id": result["job_id"],
+            "run_id": str(job_id),
             "user": user.username,
             "backend": backend.name,
         },

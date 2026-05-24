@@ -121,6 +121,15 @@ class NetworkCache:
 _network_cache = NetworkCache(ttl_seconds=settings.network_cache_ttl)
 
 
+def _validate_nonempty_netcdf(file_path: Path) -> None:
+    """Reject empty .nc files with a clear error before PyPSA/xarray loads them."""
+    if file_path.suffix.lower() != ".nc":
+        return
+    if file_path.stat().st_size == 0:
+        msg = f"Network file is empty: {file_path}"
+        raise ValueError(msg)
+
+
 class NetworkService:
     """Service for PyPSA network operations (handles single networks)"""
 
@@ -130,6 +139,7 @@ class NetworkService:
         """Initialize service with a network object or file path"""
         if isinstance(network, (Path, str)):
             self.file_path = validate_path(Path(network), must_exist=True)
+            _validate_nonempty_netcdf(self.file_path)
 
             # Try to get from cache first
             if use_cache and (cached_network := _network_cache.get(self.file_path)):
@@ -263,6 +273,7 @@ class NetworkCollectionService:
         networks = {}
         for file_path, name in zip(file_paths, names, strict=True):
             validated = validate_path(file_path, must_exist=True)
+            _validate_nonempty_netcdf(validated)
 
             # Try cache first
             if use_cache and (cached := _network_cache.get(validated)):
@@ -344,6 +355,8 @@ def import_network_file(  # noqa: PLR0913
         msg = "User does not have permission to import networks"
         raise PermissionError(msg)
 
+    _validate_nonempty_netcdf(file_path)
+
     file_hash = _calculate_file_hash(file_path)
 
     existing = db.scalars(
@@ -400,6 +413,7 @@ def register_network_in_place(
     if not file_path.is_file() or file_path.suffix.lower() != ".nc":
         msg = f"Expected an existing .nc file, got: {file_path}"
         raise ValueError(msg)
+    _validate_nonempty_netcdf(file_path)
     return import_network_file(file_path, file_path.name, user_id, db, is_external=True)
 
 
