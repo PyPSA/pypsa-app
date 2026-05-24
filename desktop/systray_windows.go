@@ -21,6 +21,11 @@ func (a *App) initSystray() {
 
 		systray.AddSeparator()
 
+		mAbout := systray.AddMenuItem("About", "Show version information")
+		mAbout.Click(func() { a.ShowAbout() })
+
+		systray.AddSeparator()
+
 		mQuit := systray.AddMenuItem("Quit", "Quit pypsa-desktop")
 		mQuit.Click(func() {
 			systray.Quit()

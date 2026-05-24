@@ -367,10 +367,71 @@ If Snakemake workflows fail on Windows during this spike, document which types f
 
 ### Phase 6 — Polish & release (~2 days)
 
-- [ ] Code signing setup (self-signed for internal distribution, CA-signed for wider release)
-- [ ] Windows Event Log or toast notifications for crash events
-- [ ] "About" menu: shows pypsa-app version, snakedispatch version, Python version
-- [ ] Smoke test checklist on a clean Windows 11 VM
+- [x] Code signing: NSIS hooks pre-wired (commented out in `project.nsi`); see "Code signing" below
+- [x] Windows toast notification on fatal crash (`notify_windows.go` via `go-toast`; fires before window is shown)
+- [x] "About" systray menu: shows pypsa-app version, snakedispatch version, Python version (`about.go` + `systray_windows.go`)
+- [ ] Smoke test on a clean Windows 11 VM — checklist below
+
+### Code signing
+
+To avoid the Windows SmartScreen "Unknown Publisher" block, the Wails binary and installer must be signed with a code signing certificate.
+
+**For internal / close-client distribution (self-signed):**
+```powershell
+# Generate self-signed cert (run once on the developer machine)
+New-SelfSignedCertificate -Type CodeSigning -Subject "CN=pypsa-desktop" `
+    -KeyUsage DigitalSignature -FriendlyName "pypsa-desktop" `
+    -CertStoreLocation Cert:\CurrentUser\My -TextExtension @("2.5.29.37={text}1.3.6.1.5.5.7.3.3")
+
+# Export to PFX
+$cert = Get-ChildItem Cert:\CurrentUser\My | Where-Object { $_.Subject -eq "CN=pypsa-desktop" }
+Export-PfxCertificate -Cert $cert -FilePath cert.pfx -Password (Read-Host -AsSecureString)
+
+# Sign the exe and installer using signtool (Windows SDK)
+signtool sign /fd SHA256 /f cert.pfx /p <password> pypsa-desktop.exe
+signtool sign /fd SHA256 /f cert.pfx /p <password> pypsa-desktop-setup-v0.1.0-amd64.exe
+```
+
+Self-signed certs still require the recipient to manually trust the cert on first run. For wider distribution, use a CA-issued OV or EV code signing certificate (DigiCert, Sectigo, etc.).
+
+**Wiring it into the build:** Uncomment the `!finalize` / `!uninstfinalize` lines in `project.nsi` and set `CERT_PASSWORD`.
+
+### Smoke test checklist (Windows 11 VM)
+
+Run these on a **clean Windows 11 install** (no Python, no existing pypsa-desktop) before each release.
+
+**Installer**
+- [ ] Installer runs without UAC prompt errors
+- [ ] SmartScreen warning appears (expected without EV cert); user can bypass via "More info → Run anyway"
+- [ ] Install completes without errors; shortcut appears on Desktop and Start Menu
+- [ ] Prerequisite warning shown if Git or Pixi is absent
+
+**First launch**
+- [ ] Splash screen appears
+- [ ] uv downloads Python 3.13 automatically (no Python pre-installed)
+- [ ] First-launch setup progress bar advances through both venv installs
+- [ ] App navigates to `http://localhost:8767` and the pypsa-app UI loads
+- [ ] Runs nav is visible (snakedispatch backend wired up)
+- [ ] System tray icon appears with correct tooltip
+
+**System tray**
+- [ ] "Show Window" brings window to foreground
+- [ ] "About" shows correct pypsa-app, snakedispatch, and Python versions
+- [ ] "Quit" stops both sidecars and exits cleanly
+
+**Subsequent launch**
+- [ ] Warm-up is skipped (sentinel file present); app starts in < 5 s
+- [ ] Previously uploaded networks still visible (SQLite preserved)
+
+**Crash recovery**
+- [ ] Kill one sidecar process manually (`taskkill /F /PID <pid>`) — app restarts it
+- [ ] Kill the sidecar 3 more times — toast notification appears, error shown in UI
+
+**Uninstaller**
+- [ ] Uninstaller removes `C:\Program Files\pypsa-desktop\` completely
+- [ ] `%APPDATA%\pypsa-desktop\` is **not** removed (user data preserved)
+- [ ] Shortcuts removed from Desktop and Start Menu
+- [ ] App no longer appears in "Apps & features"
 
 ---
 

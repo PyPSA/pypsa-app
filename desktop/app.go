@@ -145,11 +145,15 @@ func (a *App) runStartupSequence() {
 }
 
 // watchCrashes surfaces fatal sidecar errors to the user after successful launch.
+// On Windows a toast notification is sent so the user is alerted even if the
+// window is minimised to the tray.
 func (a *App) watchCrashes() {
 	select {
 	case err := <-a.manager.ErrCh():
+		msg := fmt.Sprintf("A service crashed and could not be restarted: %v", err)
+		notifyCrash(msg)
 		runtime.WindowShow(a.ctx)
-		a.emitErr(fmt.Sprintf("A service crashed and could not be restarted: %v", err))
+		a.emitErr(msg)
 	case <-a.ctx.Done():
 	}
 }
