@@ -39,6 +39,11 @@ sdist/
 var/
 wheels/
 *.egg-info/
+# Wails desktop build — source assets are tracked; compiled outputs and auto-generated files are not.
+# The `build/` and `wheels/` patterns above would catch these, so negate them explicitly.
+!desktop/build/
+desktop/build/windows/installer/wails_tools.nsh
+!desktop/build/windows/wheels/
 .installed.cfg
 *.egg
 

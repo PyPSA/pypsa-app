@@ -9,5 +9,12 @@
   "author": {
     "name": "mikoding",
     "email": "mikoding9@gmail.com"
+  },
+  "info": {
+    "companyName": "mikoding",
+    "productName": "pypsa-desktop",
+    "productVersion": "0.1.0",
+    "copyright": "Copyright 2025 mikoding",
+    "comments": "Network planning and dispatch optimisation desktop app"
   }
 }

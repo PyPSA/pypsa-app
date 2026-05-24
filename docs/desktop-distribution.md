@@ -253,19 +253,60 @@ The resulting `dist/pypsa_app-X.Y.Z-py3-none-any.whl` is the file to drop into t
 
 ## Installer
 
-Built with **NSIS** (Wails' recommended Windows installer toolchain). The `.nsi` script lives in `desktop/build/windows/`.
+Built with **NSIS** (Wails' recommended Windows installer toolchain). The `.nsi` script lives in `desktop/build/windows/installer/project.nsi`.
 
 The installer bundles:
 - `pypsa-desktop.exe` (the Wails binary)
-- `uv.exe` (copied to `%PROGRAMFILES%\pypsa-desktop\`)
-- Pre-built `.whl` files for both Python apps and their dependencies
-- `appicon.ico`, EULA, README
+- `uv.exe` (placed at `%PROGRAMFILES%\pypsa-desktop\uv.exe`)
+- Pre-built `.whl` files for both Python apps and their dependencies (placed under `%PROGRAMFILES%\pypsa-desktop\wheels\`)
 
-The installer optionally launches Git for Windows and Pixi installers if not detected (user can skip).
+At the end of installation the NSIS script checks for Git and Pixi using `where.exe` and shows a message box listing any that are missing, with install instructions.
 
 **Built locally**: Installer is built manually on a developer Windows machine using NSIS. No GitHub Actions pipeline in v1.
 
 **Code signing**: Required to avoid Windows SmartScreen "unknown publisher" block. Use a code signing certificate for production releases.
+
+### Building the installer (Windows)
+
+Prerequisites: NSIS (`winget install NSIS.NSIS`), Git, `uv`.
+
+```powershell
+# 1. Build the SvelteKit frontend (output → src/pypsa_app/backend/static/app/)
+cd frontend\app
+pnpm run build
+
+# 2. Build the Python wheels for both apps
+#    Run these in the respective repo roots on Windows:
+cd <pypsa-app root>
+uv build   # produces dist\pypsa_app-X.Y.Z-py3-none-any.whl
+
+cd <snakedispatch root>
+uv build   # produces dist\snakedispatch-X.Y.Z-py3-none-any.whl
+
+# 3. Collect all wheels (app + all dependencies) into the installer staging dirs.
+#    Use `uv pip download` to fetch dependencies:
+uv pip download pypsa-app --find-links <pypsa-app>\dist `
+    -d desktop\build\windows\wheels\pypsa-app
+
+uv pip download snakedispatch --find-links <snakedispatch>\dist `
+    -d desktop\build\windows\wheels\snakedispatch
+
+# 4. Download uv.exe and place it next to the installer script's parent:
+#    desktop\build\windows\uv.exe
+#    Latest release: https://github.com/astral-sh/uv/releases
+
+# 5. Build the Wails binary and populate wails_tools.nsh:
+cd desktop
+wails build --target windows/amd64 --nsis
+
+# 6. Run makensis to produce the installer:
+cd build\windows\installer
+makensis -DARG_WAILS_AMD64_BINARY=..\..\bin\pypsa-desktop.exe project.nsi
+
+# Output: desktop\build\bin\pypsa-desktop-setup-v0.1.0-amd64.exe
+```
+
+> **Wheel size note**: The `wheels\` directories are excluded from git (`.gitignore`). They are built and placed manually on the developer Windows machine for each release. Total installer size is expected to be 300–500 MB.
 
 ---
 
@@ -318,11 +359,11 @@ If Snakemake workflows fail on Windows during this spike, document which types f
 
 ### Phase 5 — Installer (~2 days)
 
-- [ ] `desktop/build/windows/installer.nsi`: NSIS script
-- [ ] Bundle exe, uv.exe, wheels directory (built manually, no CI)
-- [ ] Optional: detect Git/Pixi absence, prompt to install during setup wizard
-- [ ] Uninstaller removes `%PROGRAMFILES%\pypsa-desktop\` (not `%APPDATA%` — preserve user data)
-- [ ] Produce `pypsa-desktop-setup-vX.Y.Z.exe` from local build
+- [x] `desktop/build/windows/installer/project.nsi`: NSIS script (extends Wails scaffold)
+- [x] Bundle exe, uv.exe, wheels directory (built manually, no CI) — script references `../uv.exe` and `../wheels/`
+- [x] Detect Git/Pixi absence at end of installation, show message with install instructions
+- [x] Uninstaller removes `%PROGRAMFILES%\pypsa-desktop\` only — user data at `%APPDATA%\pypsa-desktop\` preserved
+- [x] Output: `pypsa-desktop-setup-v${VERSION}-amd64.exe` — see "Building the installer" section above
 
 ### Phase 6 — Polish & release (~2 days)
 

@@ -1,0 +1,4 @@
+# Wheels are built manually on a Windows machine and placed here before running makensis.
+# They are not committed to git (300-500 MB total).
+# See docs/desktop-distribution.md — "Building the installer" for build instructions.
+*.whl
