@@ -40,6 +40,19 @@ class AuthStore {
 		}
 	}
 
+	async refreshUser(): Promise<void> {
+		try {
+			this.user = await auth.me();
+		} catch (err) {
+			const apiErr = err as ApiError;
+			if (apiErr.status === 400 || apiErr.status === 401) {
+				this.user = null;
+			} else {
+				console.error('Failed to refresh user:', err);
+			}
+		}
+	}
+
 	async logout(): Promise<void> {
 		this.loading = true;
 		try {

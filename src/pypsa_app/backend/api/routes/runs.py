@@ -335,9 +335,7 @@ def stream_run_logs(
         else:
             log_path = settings.data_dir_path / "pypsa_demo_run_logs.txt"
             body = (
-                log_path.read_text()
-                if log_path.exists()
-                else "(no demo logs file)\n"
+                log_path.read_text() if log_path.exists() else "(no demo logs file)\n"
             )
         if format == "text":
             return StreamingResponse(iter([body]), media_type="text/plain")
@@ -379,9 +377,7 @@ def get_run_workflow(
     if settings.demo_mode:
         import json as _json  # noqa: PLC0415
 
-        fixture = (
-            settings.data_dir_path / "demo_workflows" / f"{run.job_id}.json"
-        )
+        fixture = settings.data_dir_path / "demo_workflows" / f"{run.job_id}.json"
         if fixture.exists():
             return _json.loads(fixture.read_text())
         return {"rules": [], "rulegraph": {"nodes": []}, "errors": []}

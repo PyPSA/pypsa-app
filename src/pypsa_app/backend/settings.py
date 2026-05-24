@@ -219,6 +219,36 @@ class Settings(BaseSettings):
         json_schema_extra={"category": "Redis", "depends_on": "redis_url"},
     )
 
+    # Rate limiting
+    ratelimit_enabled: bool | None = Field(
+        default=None,
+        description=("Enable per route rate limiting. Auto on when LOCAL_MODE is off."),
+        json_schema_extra={"category": "Rate limiting"},
+    )
+    ratelimit_default: str = Field(
+        default="120/minute",
+        description="Default per key rate limit applied to all routes",
+        json_schema_extra={"category": "Rate limiting"},
+    )
+    ratelimit_login: str = Field(
+        default="5/minute;20/hour",
+        description="Rate limit for POST /auth/login/password",
+        json_schema_extra={"category": "Rate limiting"},
+    )
+    ratelimit_expensive: str = Field(
+        default="60/minute;600/hour",
+        description="Rate limit for task queueing routes (plots, statistics).",
+        json_schema_extra={"category": "Rate limiting"},
+    )
+    trust_cloudflare_ip: bool = Field(
+        default=False,
+        description=(
+            "Trust the CF-Connecting-IP header as the client IP for rate limiting. "
+            "Only enable when the app sits behind a Cloudflare tunnel."
+        ),
+        json_schema_extra={"category": "Rate limiting"},
+    )
+
     # SMTP
     smtp_host: str | None = Field(
         default=None,
@@ -290,6 +320,12 @@ class Settings(BaseSettings):
     def resolve_database_url(self) -> Self:
         if self.database_url == _DEFAULT_DATABASE_URL_SENTINEL:
             self.database_url = f"sqlite:///{self.data_dir_path}/pypsa-app.db"
+        return self
+
+    @model_validator(mode="after")
+    def resolve_ratelimit_enabled(self) -> Self:
+        if self.ratelimit_enabled is None:
+            self.ratelimit_enabled = not self.local_mode
         return self
 
     @model_validator(mode="after")

@@ -2,6 +2,7 @@
 	import { goto } from '$app/navigation';
 	import { toast } from 'svelte-sonner';
 	import { auth, type AuthProviderInfo } from '$lib/api/client.js';
+	import { authStore } from '$lib/stores/auth.svelte.js';
 	import { features } from '$lib/stores/features.svelte.js';
 	import {
 		FieldGroup,
@@ -30,12 +31,13 @@
 	const id = $props.id();
 
 	let loading = $state(false);
-	// Demo credentials mirror DEMO_EMAIL/DEMO_PASSWORD in src/pypsa_app/backend/auth/password.py
 	let email = $state('');
 	let password = $state('');
 	let showPassword = $state(false);
 	let errorMsg = $state<string | null>(null);
 
+	// Mirror DEMO_EMAIL/DEMO_PASSWORD in src/pypsa_app/backend/auth/password.py.
+	// One-shot latch so a user clearing the field is not overwritten.
 	let demoPrefilled = false;
 	$effect(() => {
 		if (features.demoMode && !demoPrefilled) {
@@ -67,6 +69,7 @@
 		errorMsg = null;
 		try {
 			await auth.passwordLogin(email, password);
+			await authStore.refreshUser();
 			goto('/networks');
 		} catch (err) {
 			errorMsg = (err as Error).message || 'Invalid credentials';

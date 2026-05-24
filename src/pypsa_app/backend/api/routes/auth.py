@@ -18,6 +18,7 @@ from pypsa_app.backend.auth.providers import (
 )
 from pypsa_app.backend.auth.session import attach_session_cookie, get_session_store
 from pypsa_app.backend.models import User, UserRole
+from pypsa_app.backend.ratelimit import limiter
 from pypsa_app.backend.schemas.auth import (
     AuthProviderInfo,
     AuthProvidersResponse,
@@ -125,7 +126,9 @@ async def oauth_callback(
 
 
 @router.post("/login/password")
+@limiter.limit(settings.ratelimit_login)
 async def password_login(
+    request: Request,
     body: PasswordLoginRequest,
     db: Session = Depends(get_db),
 ) -> JSONResponse:

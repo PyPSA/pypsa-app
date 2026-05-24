@@ -46,9 +46,7 @@ def ensure_system_user(db: Session) -> User:
 
 
 def ensure_demo_user(db: Session) -> User:
-    """Return the shared demo user, creating it if missing.
-
-    """
+    """Return the shared demo user, creating it if missing."""
     demo_user = db.scalars(select(User).where(User.username == "demo")).first()
     if not demo_user:
         demo_user = User(username="demo", role=UserRole.ADMIN)
@@ -92,6 +90,11 @@ def _authenticate_api_key(token: str, db: Session) -> User | None:
 
 def resolve_current_user(request: Request, db: Session) -> User | None:
     """Return authenticated user or None, never blocking requests."""
+    # Reuse the user already resolved by the rate limit middleware
+    cached = getattr(request.state, "user", None) if hasattr(request, "state") else None
+    if cached is not None:
+        return cached
+
     if _auth_disabled_user is not None:
         return _auth_disabled_user
 
