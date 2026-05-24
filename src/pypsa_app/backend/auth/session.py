@@ -2,7 +2,10 @@
 
 import logging
 import secrets
+from urllib.parse import urlparse
 from uuid import UUID
+
+from starlette.responses import Response
 
 try:
     import redis
@@ -11,7 +14,7 @@ try:
 except ImportError:
     REDIS_AVAILABLE = False
 
-from pypsa_app.backend.settings import settings
+from pypsa_app.backend.settings import SESSION_COOKIE_NAME, settings
 
 logger = logging.getLogger(__name__)
 
@@ -143,3 +146,21 @@ def get_session_store() -> SessionStore:
         msg = "Session store not initialized. Enable authentication in settings."
         raise RuntimeError(msg)
     return session_store
+
+
+def attach_session_cookie(
+    response: Response, user_id: UUID, *, base_url: str, ttl: int
+) -> Response:
+    """Set the session cookie on any Response (JSON or Redirect)."""
+    store = get_session_store()
+    session_id = store.create_session(user_id)
+    is_localhost = urlparse(base_url).hostname in ("localhost", "127.0.0.1", "::1")
+    response.set_cookie(
+        key=SESSION_COOKIE_NAME,
+        value=session_id,
+        httponly=True,
+        secure=not is_localhost,
+        samesite="lax",
+        max_age=ttl,
+    )
+    return response

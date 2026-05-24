@@ -4,7 +4,9 @@
 	import { admin, apiKeys } from '$lib/api/client.js';
 	import Plus from '@lucide/svelte/icons/plus';
 	import Trash2 from '@lucide/svelte/icons/trash-2';
+	import KeyRound from '@lucide/svelte/icons/key-round';
 	import Button from '$lib/components/ui/button/button.svelte';
+	import EmptyState from '$lib/components/EmptyState.svelte';
 	import { Combobox } from '$lib/components/widgets/combobox';
 	import * as Dialog from '$lib/components/ui/dialog';
 	import DataTable from '$lib/components/DataTable.svelte';
@@ -173,7 +175,11 @@
 {#if keysLoading}
 	<TableSkeleton rows={3} columns={7} />
 {:else if keys.length === 0}
-	<p class="text-muted-foreground text-sm">No API keys.</p>
+	<EmptyState
+		icon={KeyRound}
+		title="No API Keys"
+		description="Create an API key to authenticate programmatic requests."
+	/>
 {:else}
 	<DataTable
 		data={keys}

@@ -70,9 +70,7 @@
 
 	{#if candidates.length === 0}
 		<p class="text-xs text-muted-foreground">No candidates available.</p>
-	{:else if options.length === 0}
-		<p class="text-xs text-muted-foreground">All candidates assigned.</p>
-	{:else}
+	{:else if options.length > 0}
 		<Combobox {options} onSelect={onAdd} {searchPlaceholder} emptyText="No matches.">
 			{#snippet trigger({ props })}
 				<Button variant="outline" size="sm" {...props}>

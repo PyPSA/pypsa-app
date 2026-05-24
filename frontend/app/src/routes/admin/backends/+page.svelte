@@ -4,6 +4,7 @@
 	import { admin } from '$lib/api/client.js';
 	import Server from '@lucide/svelte/icons/server';
 	import DataTable from '$lib/components/DataTable.svelte';
+	import EmptyState from '$lib/components/EmptyState.svelte';
 	import type { FilterCategory } from '$lib/components/widgets/filter-dialog';
 	import type { FilterAst } from '$lib/filters/ast';
 	import { emptyAnd } from '$lib/filters/ast';
@@ -73,13 +74,11 @@
 {#if loading}
 	<TableSkeleton rows={3} columns={5} />
 {:else if backends.length === 0}
-	<div class="rounded-md border p-6 text-center text-muted-foreground">
-		<Server class="mx-auto mb-2 size-8" />
-		<p>No backends configured.</p>
-		<p class="mt-1 text-xs">
-			Set <code>SNAKEDISPATCH_BACKENDS</code> to register backends.
-		</p>
-	</div>
+	<EmptyState
+		icon={Server}
+		title="No Backends"
+		description="Set SNAKEDISPATCH_BACKENDS to register backends."
+	/>
 {:else}
 	<DataTable
 		data={backends}

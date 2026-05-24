@@ -29,7 +29,8 @@ from pypsa_app.backend.api.routes import (
     version,
 )
 from pypsa_app.backend.auth import session
-from pypsa_app.backend.auth.authenticate import ensure_system_user
+from pypsa_app.backend.auth.authenticate import ensure_demo_user, ensure_system_user
+from pypsa_app.backend.auth.providers import build_oauth_clients
 from pypsa_app.backend.cache import cache_service
 from pypsa_app.backend.database import SessionLocal, engine
 from pypsa_app.backend.models import SnakedispatchBackend
@@ -114,37 +115,30 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     try:
         db.execute(text("SELECT 1"))
         logger.info("Database ready")
-        if not settings.enable_auth:
+        if settings.demo_mode:
+            ensure_demo_user(db)
+        elif not settings.auth_enabled:
             ensure_system_user(db)
     finally:
         db.close()
 
-    # Initialize authentication if enabled
-    if settings.enable_auth:
-        logger.info(
-            "Authentication enabled - initializing session store",
-            extra={
-                "github_client_id": settings.github_client_id,
-                "session_ttl": settings.session_ttl,
-            },
-        )
-
-        # Verify required auth settings
-        if not settings.github_client_id or not settings.github_client_secret:
-            msg = (
-                "Authentication is enabled but GitHub OAuth"
-                " credentials are not configured. "
-                "Set GITHUB_CLIENT_ID and GITHUB_CLIENT_SECRET"
-                " environment variables."
+    if settings.auth_enabled:
+        if settings.auth_oauth_enabled:
+            logger.info(
+                "OAuth providers enabled: %s",
+                settings.enabled_oauth_providers,
+                extra={"session_ttl": settings.session_ttl},
             )
-            raise RuntimeError(msg)
+            build_oauth_clients(settings)
+
+        if settings.auth_password_enabled:
+            logger.info("Password authentication enabled")
 
         # Verify Redis is available (required for session storage)
         if not cache_service.ping():
             msg = (
-                "Authentication is enabled but Redis is not available. "
-                "Redis is required for session storage when authentication is enabled. "
-                "Set REDIS_URL environment variable and ensure Redis is running."
+                "Session based auth requires Redis. "
+                "Set REDIS_URL and ensure Redis is running."
             )
             raise RuntimeError(msg)
 
@@ -152,9 +146,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         session.session_store = session.SessionStore()
         logger.info(
             "Session store initialized",
-            extra={
-                "redis_url": settings.redis_url,
-            },
+            extra={"redis_url": settings.redis_url},
         )
     else:
         logger.info("Authentication disabled")
@@ -210,6 +202,33 @@ app.add_middleware(
     https_only=not settings.base_url.startswith("http://localhost"),
 )
 
+if settings.demo_mode:
+    _DEMO_POST_ALLOWLIST = frozenset(
+        {
+            f"{API_V1_PREFIX}/auth/login/password",
+            f"{API_V1_PREFIX}/plots/generate",
+            f"{API_V1_PREFIX}/plots/explore",
+            f"{API_V1_PREFIX}/statistics/",
+            f"{API_V1_PREFIX}/statistics",
+        }
+    )
+
+    @app.middleware("http")
+    async def _demo_readonly(
+        request: Request,
+        call_next,  # noqa: ANN001
+    ) -> JSONResponse:
+        if (
+            request.method not in ("GET", "HEAD", "OPTIONS")
+            and request.url.path not in _DEMO_POST_ALLOWLIST
+        ):
+            return JSONResponse(
+                status_code=403,
+                content={"detail": "Demo deployment is read-only"},
+            )
+        return await call_next(request)
+
+
 # Configure CORS (only needed in dev mode with separate frontend server)
 if settings.backend_only:
     # Parse comma-separated CORS origins from environment variable
@@ -256,8 +275,8 @@ async def global_exception_handler(request: Request, exc: Exception) -> JSONResp
 
 
 # Include routers
-if settings.enable_auth:
-    app.include_router(auth.router, prefix=f"{API_V1_PREFIX}/auth", tags=["auth"])
+app.include_router(auth.router, prefix=f"{API_V1_PREFIX}/auth", tags=["auth"])
+if settings.auth_enabled:
     app.include_router(
         api_keys.router, prefix=f"{API_V1_PREFIX}/auth/api-keys", tags=["auth"]
     )
@@ -266,14 +285,17 @@ app.include_router(admin.router, prefix=f"{API_V1_PREFIX}/admin", tags=["admin"]
 app.include_router(
     networks.router, prefix=f"{API_V1_PREFIX}/networks", tags=["networks"]
 )
-if settings.local_mode:
-    app.include_router(
-        networks_local.router, prefix=f"{API_V1_PREFIX}/networks", tags=["networks"]
-    )
-else:
-    app.include_router(
-        networks_remote.router, prefix=f"{API_V1_PREFIX}/networks", tags=["networks"]
-    )
+if not settings.demo_mode:
+    if settings.local_mode:
+        app.include_router(
+            networks_local.router, prefix=f"{API_V1_PREFIX}/networks", tags=["networks"]
+        )
+    else:
+        app.include_router(
+            networks_remote.router,
+            prefix=f"{API_V1_PREFIX}/networks",
+            tags=["networks"],
+        )
 app.include_router(plots.router, prefix=f"{API_V1_PREFIX}/plots", tags=["plots"])
 app.include_router(
     statistics.router,
@@ -283,7 +305,7 @@ app.include_router(
 app.include_router(cache.router, prefix=f"{API_V1_PREFIX}/cache", tags=["cache"])
 app.include_router(version.router, prefix=f"{API_V1_PREFIX}/version", tags=["version"])
 app.include_router(tasks.router, prefix=f"{API_V1_PREFIX}/tasks", tags=["tasks"])
-if settings.resolved_backends:
+if settings.resolved_backends or settings.demo_mode:
     app.include_router(runs.router, prefix=f"{API_V1_PREFIX}/runs", tags=["runs"])
 
 

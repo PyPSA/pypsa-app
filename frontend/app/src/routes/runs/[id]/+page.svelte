@@ -482,7 +482,7 @@ const workflowDisplay = $derived.by(() => {
 			</RunHeader>
 
 				<!-- Workflow -->
-				{#if run.status !== 'PENDING'}
+				{#if run.status !== 'PENDING' && run.status !== 'SETUP'}
 					<WorkflowSection {runId} isTerminal={!!isTerminal} isFailedRun={run.status === 'FAILED' || run.status === 'ERROR'} />
 				{/if}
 

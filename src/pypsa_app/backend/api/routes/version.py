@@ -17,5 +17,6 @@ async def get_version() -> dict:
         "version": __version__,
         "pypsa_version": pypsa.__version__,
         "local_mode": settings.local_mode,
-        "runs_enabled": bool(settings.resolved_backends),
+        "demo_mode": settings.demo_mode,
+        "runs_enabled": bool(settings.resolved_backends) or settings.demo_mode,
     }

@@ -91,7 +91,9 @@ def app_factory(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
         url = f"sqlite:///{tmp_path}/test.db"
         monkeypatch.setattr(settings_module.settings, "database_url", url)
         monkeypatch.setattr(settings_module.settings, "data_dir", str(tmp_path))
-        monkeypatch.setattr(settings_module.settings, "enable_auth", False)
+        monkeypatch.setattr(settings_module.settings, "auth_github_client_id", None)
+        monkeypatch.setattr(settings_module.settings, "auth_github_client_secret", None)
+        monkeypatch.setattr(settings_module.settings, "auth_password_enabled", False)
         for name, value in settings_overrides.items():
             monkeypatch.setattr(settings_module.settings, name, value)
         run_migrations()

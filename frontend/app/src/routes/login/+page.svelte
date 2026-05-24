@@ -1,15 +1,6 @@
 <script lang="ts">
 	import { authStore } from '$lib/stores/auth.svelte.js';
 	import LoginForm from './login-form.svelte';
-
-	let loading = $state(false);
-
-	// Server guard handles redirect if already logged in
-
-	function handleLogin() {
-		loading = true;
-		authStore.login();
-	}
 </script>
 
 <svelte:head>
@@ -27,8 +18,8 @@
 			</a>
 		</div>
 		<div class="flex flex-1 items-center justify-center">
-			<div class="w-full max-w-xs">
-				<LoginForm onclick={handleLogin} {loading} />
+			<div class="relative w-full max-w-xs">
+				<LoginForm providers={authStore.providers} />
 			</div>
 		</div>
 	</div>

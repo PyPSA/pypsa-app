@@ -6,7 +6,7 @@
 	import '../app.css';
 	import favicon from '$lib/assets/favicon.svg';
 	import { authStore } from '$lib/stores/auth.svelte.js';
-	import { initFeatures } from '$lib/stores/features.svelte.js';
+	import { features, initFeatures } from '$lib/stores/features.svelte.js';
 	import { breadcrumbStore } from '$lib/stores/breadcrumb.svelte.js';
 	import { sidebarStore } from '$lib/stores/sidebar.svelte.js';
 	import AppSidebar from '$lib/components/AppSidebar.svelte';
@@ -30,9 +30,10 @@
 	// Client-side auth guard
 	$effect(() => {
 		if (authStore.loading || authStore.authEnabled === null) return;
-		if (authStore.authEnabled === false) return;
 
 		const path = $page.url.pathname;
+
+		if (authStore.authEnabled === false) return;
 
 		if (path === '/login') {
 			if (authStore.isAuthenticated && authStore.isApproved) {
@@ -149,7 +150,9 @@
 		</div>
 	{/if}
 
-	{#if authStore.loading || showSidebar}
+	{#if authStore.loading}
+		<!-- Wait for auth initialization before rendering layout -->
+	{:else if showSidebar}
 		<Sidebar.Provider bind:open={sidebarStore.open} class="flex-1">
 			<AppSidebar />
 			<Sidebar.Inset class="overflow-auto">

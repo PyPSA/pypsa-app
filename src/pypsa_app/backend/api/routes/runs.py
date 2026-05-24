@@ -329,6 +329,26 @@ def stream_run_logs(
 ) -> StreamingResponse:
     """Stream live logs via SSE, or plain text with ?format=text."""
     run = auth.model
+    if settings.demo_mode:
+        if run.status in {RunStatus.PENDING, RunStatus.SETUP}:
+            body = "Waiting for logs...\n"
+        else:
+            log_path = settings.data_dir_path / "pypsa_demo_run_logs.txt"
+            body = (
+                log_path.read_text()
+                if log_path.exists()
+                else "(no demo logs file)\n"
+            )
+        if format == "text":
+            return StreamingResponse(iter([body]), media_type="text/plain")
+        sse_payload = (
+            "".join(f"data: {line}\n\n" for line in body.splitlines())
+            + "event: done\ndata: \n\n"
+        )
+        return StreamingResponse(
+            iter([sse_payload]),
+            media_type="text/event-stream",
+        )
     sd_client = _get_client_for_run(run)
     if format == "text":
         return StreamingResponse(
@@ -356,6 +376,15 @@ def get_run_workflow(
 ) -> dict:
     """Get workflow metadata (DAG, rules, jobs, errors) for a run."""
     run = auth.model
+    if settings.demo_mode:
+        import json as _json  # noqa: PLC0415
+
+        fixture = (
+            settings.data_dir_path / "demo_workflows" / f"{run.job_id}.json"
+        )
+        if fixture.exists():
+            return _json.loads(fixture.read_text())
+        return {"rules": [], "rulegraph": {"nodes": []}, "errors": []}
     client = _get_client_for_run(run)
     return client.get_job_workflow(str(run.job_id))
 

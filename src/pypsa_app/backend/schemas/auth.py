@@ -48,3 +48,15 @@ class UserCreate(BaseModel):
     username: str = Field(..., min_length=1, max_length=255)
     role: UserRole
     avatar_url: str | None = Field(None, max_length=512)
+
+
+class AuthProviderInfo(BaseModel):
+    id: str
+    name: str
+    type: str
+    login_url: str | None = None
+    icon: str | None = None
+
+
+class AuthProvidersResponse(BaseModel):
+    providers: list[AuthProviderInfo]
