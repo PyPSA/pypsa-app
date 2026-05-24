@@ -1,0 +1,4 @@
+# Built on macOS dev machine — not committed.
+# See docs/desktop-build-and-distribute.md — macOS section for build instructions.
+uv
+wheels/**/*.whl

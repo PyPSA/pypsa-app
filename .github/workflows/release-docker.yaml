@@ -87,7 +87,7 @@ jobs:
           ver=$(curl -sS \
             -H "CF-Access-Client-Id: $CF_ACCESS_CLIENT_ID" \
             -H "CF-Access-Client-Secret: $CF_ACCESS_CLIENT_SECRET" \
-            "$APP_URL/api/v1/version/" | jq -r '.version // empty' || true)
+            "$APP_URL/api/v1/version/" | jq -r '.version // empty' 2>/dev/null || true)
           if [[ "$ver" == *"g${SHORT}"* ]]; then
             echo "Deployed: $ver"
             exit 0
