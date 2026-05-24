@@ -149,9 +149,7 @@ def test_429_threshold_and_headers(monkeypatch: pytest.MonkeyPatch) -> None:
     app = _make_rl_app(monkeypatch, f"{limit}/minute")
     with TestClient(app) as client:
         headers = {"CF-Connecting-IP": "10.0.0.1"}
-        responses = [
-            client.post("/route", headers=headers) for _ in range(limit + 1)
-        ]
+        responses = [client.post("/route", headers=headers) for _ in range(limit + 1)]
     codes = [r.status_code for r in responses]
     assert codes == [200] * limit + [429], codes
     last = responses[-1]
@@ -165,9 +163,7 @@ def test_per_ip_isolation_via_cf_header(monkeypatch: pytest.MonkeyPatch) -> None
     app = _make_rl_app(monkeypatch, "5/minute")
     with TestClient(app) as client:
         codes_a = [
-            client.post(
-                "/route", headers={"CF-Connecting-IP": "10.0.0.3"}
-            ).status_code
+            client.post("/route", headers={"CF-Connecting-IP": "10.0.0.3"}).status_code
             for _ in range(6)
         ]
         # Fresh IP, fresh bucket.

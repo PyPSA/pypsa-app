@@ -15,6 +15,7 @@
 	import DataTable from '$lib/components/DataTable.svelte';
 	import StatusBadge from './cells/StatusBadge.svelte';
 	import * as Avatar from '$lib/components/ui/avatar';
+	import * as Dialog from '$lib/components/ui/dialog';
 	import Play from '@lucide/svelte/icons/play';
 	import Plus from '@lucide/svelte/icons/plus';
 	import Button from '$lib/components/ui/button/button.svelte';
@@ -32,6 +33,12 @@
 	let removingId = $state<string | null>(null);
 	let updatingVisibilityId = $state<string | null>(null);
 	let createOpen = $state(false);
+
+	// Confirm dialogs
+	let cancelDialogOpen = $state(false);
+	let cancelTarget = $state<RunSummary | null>(null);
+	let removeDialogOpen = $state(false);
+	let removeTarget = $state<RunSummary | null>(null);
 
 	// Filter categories use the singular field names that match the backend
 	// AST/DSL (e.g. `status`, not `statuses`). The `?q=` URL param carries
@@ -225,11 +232,16 @@
 		await loadRuns();
 	}
 
-	async function handleCancel(runId: string) {
+	function handleCancel(runId: string) {
 		if (cancellingId) return;
-		if (!confirm('Are you sure you want to cancel this run?')) {
-			return;
-		}
+		cancelTarget = runsList.find((r) => r.id === runId) ?? null;
+		cancelDialogOpen = true;
+	}
+
+	async function confirmCancel() {
+		if (!cancelTarget || cancellingId) return;
+		const runId = cancelTarget.id;
+		cancelDialogOpen = false;
 		cancellingId = runId;
 		try {
 			await runs.cancel(runId);
@@ -237,6 +249,7 @@
 		} catch {
 		} finally {
 			cancellingId = null;
+			cancelTarget = null;
 		}
 	}
 
@@ -260,11 +273,16 @@
 		}
 	}
 
-	async function handleRemove(runId: string) {
+	function handleRemove(runId: string) {
 		if (removingId) return;
-		if (!confirm('Are you sure you want to remove this run? This will delete all associated files and cannot be undone.')) {
-			return;
-		}
+		removeTarget = runsList.find((r) => r.id === runId) ?? null;
+		removeDialogOpen = true;
+	}
+
+	async function confirmRemove() {
+		if (!removeTarget || removingId) return;
+		const runId = removeTarget.id;
+		removeDialogOpen = false;
 		removingId = runId;
 		try {
 			await runs.remove(runId);
@@ -272,6 +290,7 @@
 		} catch {
 		} finally {
 			removingId = null;
+			removeTarget = null;
 		}
 	}
 </script>
@@ -330,3 +349,53 @@
 </div>
 
 <CreateRunDialog bind:open={createOpen} onCreated={() => loadRuns()} />
+
+<!-- Cancel confirmation dialog -->
+<Dialog.Root bind:open={cancelDialogOpen}>
+	<Dialog.Content class="max-w-sm">
+		<Dialog.Header>
+			<Dialog.Title>Cancel run?</Dialog.Title>
+			{#if cancelTarget}
+				<Dialog.Description class="text-xs text-muted-foreground truncate">
+					{cancelTarget.workflow}
+				</Dialog.Description>
+			{/if}
+		</Dialog.Header>
+		<div class="py-4 text-sm text-muted-foreground">
+			The running job will be stopped. This cannot be undone.
+		</div>
+		<Dialog.Footer class="flex gap-2">
+			<Button variant="outline" size="sm" onclick={() => (cancelDialogOpen = false)}>
+				Keep running
+			</Button>
+			<Button variant="destructive" size="sm" onclick={confirmCancel}>
+				Cancel run
+			</Button>
+		</Dialog.Footer>
+	</Dialog.Content>
+</Dialog.Root>
+
+<!-- Remove confirmation dialog -->
+<Dialog.Root bind:open={removeDialogOpen}>
+	<Dialog.Content class="max-w-sm">
+		<Dialog.Header>
+			<Dialog.Title>Remove run?</Dialog.Title>
+			{#if removeTarget}
+				<Dialog.Description class="text-xs text-muted-foreground truncate">
+					{removeTarget.workflow}
+				</Dialog.Description>
+			{/if}
+		</Dialog.Header>
+		<div class="py-4 text-sm text-muted-foreground">
+			This will delete all associated files and cannot be undone.
+		</div>
+		<Dialog.Footer class="flex gap-2">
+			<Button variant="outline" size="sm" onclick={() => (removeDialogOpen = false)}>
+				Cancel
+			</Button>
+			<Button variant="destructive" size="sm" onclick={confirmRemove}>
+				Remove
+			</Button>
+		</Dialog.Footer>
+	</Dialog.Content>
+</Dialog.Root>

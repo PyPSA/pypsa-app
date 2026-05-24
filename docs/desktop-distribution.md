@@ -284,38 +284,37 @@ If Snakemake workflows fail on Windows during this spike, document which types f
 
 ### Phase 1 — Wails shell (~3 days)
 
-- [ ] `desktop/` project: `wails init`, configure Go module
-- [ ] Minimal splash screen frontend (SvelteKit or plain HTML): status text, progress bar, error view
-- [ ] WebView navigation: splash → app URL once healthy
-- [ ] System tray: Show window, Quit
-- [ ] Basic port conflict detection (log and abort with message if :8765/:8766 are taken)
+- [x] `desktop/` project: `wails init`, configure Go module
+- [x] Minimal splash screen frontend (SvelteKit or plain HTML): status text, progress bar, error view
+- [x] WebView navigation: splash → app URL once healthy
+- [x] System tray: Show window, Quit
+- [x] Basic port conflict detection (log and abort with message if :8765/:8766 are taken)
 
 ### Phase 2 — Process management (~3 days)
 
-- [ ] `process.go`: spawn subprocess, capture stdout/stderr to rotating log file, detect exit
-- [ ] Health polling: GET /health on both services, retry with backoff, timeout
-- [ ] Graceful shutdown: SIGTERM to children, wait up to 5s, then SIGKILL
-- [ ] Crash recovery: restart a dead sidecar up to 3 times before surfacing error to user
-- [ ] Pass correct env vars to pypsa-app:
+- [x] `process.go`: spawn subprocess, capture stdout/stderr to rotating log file, detect exit
+- [x] Health polling: GET /health on both services, retry with backoff, timeout
+- [x] Graceful shutdown: SIGTERM to children, wait up to 5s, then SIGKILL
+- [x] Crash recovery: restart a dead sidecar up to 3 times before surfacing error to user
+- [x] Pass correct env vars to pypsa-app:
   - `DATABASE_URL=sqlite:///%APPDATA%\pypsa-desktop\data\pypsa-app.db`
   - `DATA_DIR=%APPDATA%\pypsa-desktop\data`
   - `SNAKEDISPATCH_BACKENDS=local=http://localhost:8766`
-  - `ENABLE_AUTH=false`
   - `BASE_URL=http://localhost:8765`
 
 ### Phase 3 — First-launch setup (~3 days)
 
-- [ ] `prereqs.go`: check Git and Pixi in PATH, return structured results
-- [ ] `setup.go`: detect venvs, run uv to create and populate them from bundled wheels, stream progress to frontend
-- [ ] Splash screen shows per-step warm-up progress ("Installing pypsa-app... 47%")
-- [ ] On error: show actionable message (e.g. "Git not found. Install from git-scm.com and restart.")
-- [ ] Mark setup complete in a sentinel file so it's skipped on subsequent launches
+- [x] `prereqs.go`: check Git and Pixi in PATH, return structured results
+- [x] `setup.go`: detect venvs, run uv to create and populate them from bundled wheels, stream progress to frontend
+- [x] Splash screen shows per-step warm-up progress ("Installing pypsa-app... 47%")
+- [x] On error: show actionable message (e.g. "Git not found. Install from git-scm.com and restart.")
+- [x] Mark setup complete in a sentinel file so it's skipped on subsequent launches
 
 ### Phase 4 — snakedispatch config generation (~1 day)
 
-- [ ] Write `snakedispatch.yaml` to `%APPDATA%\pypsa-desktop\config\` on first launch
-- [ ] Local backend config: `scratch_dir`, `pixi_path` (resolved from PATH), `poll_interval: 5`
-- [ ] Pass config path to snakedispatch via env var or CLI arg
+- [x] Write `snakedispatch.yaml` to `%APPDATA%\pypsa-desktop\config\` on first launch
+- [x] Local backend config: `scratch_dir`, `pixi_path` (resolved from PATH), `poll_interval: 5`
+- [x] Pass config path to snakedispatch via env var or CLI arg
 
 ### Phase 5 — Installer (~2 days)
 
@@ -341,5 +340,5 @@ If Snakemake workflows fail on Windows during this spike, document which types f
 | 1 | **Wheel build**: Built manually on a developer Windows machine for distribution. Development and iteration happen on macOS M4 using manual `uv` commands — no Wails involved. No GitHub Actions CI in v1. |
 | 2 | **Version pinning**: `desktop/versions.yaml` pins both `pypsa-app` and `snakedispatch` versions for each installer release. Go code reads this file at build time. |
 | 3 | **Local backend in admin**: The bundled snakedispatch appears as **"local (managed)"** — visible but not editable. Users can freely add additional remote backends via the admin panel. |
-| 4 | **Authentication**: `ENABLE_AUTH=false` for all desktop installs. Single shared instance per machine. Acceptable for v1 close-client distribution. |
+| 4 | **Authentication**: No auth providers configured for desktop installs (no OAuth clients, `AUTH_PASSWORD_ENABLED` not set). Single shared instance per machine. Acceptable for v1 close-client distribution. |
 | 5 | **Dependency bundle**: Ship pre-built wheels (300–500 MB) in the installer. No internet required after install. If bundle size becomes a concern in a future release, switch to first-launch warm-up via PyPI download — the warm-up UI already supports this flow. |

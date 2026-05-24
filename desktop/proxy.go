@@ -81,6 +81,9 @@ func startProxy(appPort, pxPort int) {
 		if !strings.Contains(resp.Header.Get("Content-Type"), "text/html") {
 			return nil
 		}
+		// Prevent WebView from caching index.html across launches; JS/CSS files
+		// are content-hashed so they can be cached safely.
+		resp.Header.Set("Cache-Control", "no-store")
 		body, err := io.ReadAll(resp.Body)
 		resp.Body.Close()
 		if err != nil {

@@ -126,29 +126,43 @@ func devInstallSpec(venvName string) string {
 	return findLocalSrc(venvName)
 }
 
-// findLocalSrc walks up from cwd looking for a pyproject.toml that names venvName.
-// If not found going up, it also scans sibling directories of the first ancestor
-// that has any pyproject.toml — this handles packages in sibling repos.
+// findLocalSrc walks up from cwd (and from the executable's directory as a
+// fallback) looking for a pyproject.toml that names venvName. The exe-path
+// fallback is needed when running a macOS app bundle, where os.Getwd() is
+// $HOME rather than the project directory.
 func findLocalSrc(venvName string) string {
-	cwd, err := os.Getwd()
-	if err != nil {
-		return ""
-	}
 	altName := strings.ReplaceAll(venvName, "-", "_")
 	matches := func(data []byte) bool {
 		c := string(data)
 		return strings.Contains(c, `"`+venvName+`"`) || strings.Contains(c, `"`+altName+`"`)
 	}
 
-	// Walk up; track the parent of the first dir that has any pyproject.toml
-	// (that's the workspace root — scan its children as siblings).
+	if cwd, err := os.Getwd(); err == nil {
+		if src := walkUpSrc(cwd, matches, 6); src != "" {
+			return src
+		}
+	}
+	// Fallback for app bundles: walk up from the executable.
+	// e.g. build/bin/pypsa-desktop.app/Contents/MacOS/pypsa-desktop → 7 levels up → project root.
+	if exe, err := os.Executable(); err == nil {
+		if src := walkUpSrc(filepath.Dir(exe), matches, 9); src != "" {
+			return src
+		}
+	}
+	return ""
+}
+
+// walkUpSrc walks up at most maxLevels from startDir looking for a
+// pyproject.toml that matches. Also scans sibling dirs of the first ancestor
+// that has any pyproject.toml (handles packages in sibling repos).
+func walkUpSrc(startDir string, matches func([]byte) bool, maxLevels int) string {
 	var siblingParent string
-	dir := cwd
-	for range 5 {
+	dir := startDir
+	for range maxLevels {
 		data, err := os.ReadFile(filepath.Join(dir, "pyproject.toml"))
 		if err == nil {
 			if matches(data) {
-				return dir // direct hit
+				return dir
 			}
 			if siblingParent == "" {
 				siblingParent = filepath.Dir(dir)
@@ -160,8 +174,6 @@ func findLocalSrc(venvName string) string {
 		}
 		dir = parent
 	}
-
-	// Scan siblings of the project root.
 	if siblingParent == "" {
 		return ""
 	}

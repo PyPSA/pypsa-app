@@ -208,7 +208,7 @@ func (pm *ProcessManager) pypsaCmd() *exec.Cmd {
 		"--port", fmt.Sprintf("%d", appPort),
 	)
 	cmd.Env = append(filterEnv("SNAKEDISPATCH_BACKENDS"),
-		"ENABLE_AUTH=false",
+		fmt.Sprintf("BASE_URL=http://127.0.0.1:%d", appPort),
 		"SNAKEDISPATCH_BACKENDS=local=http://127.0.0.1:"+fmt.Sprintf("%d", dispatchPort),
 		"DATA_DIR="+filepath.Join(pm.dataDir, "data"),
 		"DATABASE_URL=sqlite:///"+filepath.Join(pm.dataDir, "data", "pypsa-app.db"),

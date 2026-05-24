@@ -82,7 +82,8 @@ async function request<T>(endpoint: string, options: RequestInit = {}, cancellat
 				if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/login')) {
 					window.location.href = '/login';
 				}
-			} else {
+			} else if (endpoint !== '/auth/me') {
+				// /auth/me returns expected 400/401 responses handled by authStore — don't toast
 				toast.error(message);
 			}
 

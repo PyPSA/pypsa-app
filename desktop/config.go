@@ -17,6 +17,7 @@ local:
   scratch_dir: "{{ .ScratchDir }}"
   pixi_path: "{{ .PixiPath }}"
   poll_interval: 5
+  default_snakemake_args: ["--cores", "1"]
 DATA_DIR: "{{ .DataDir }}"
 `
 

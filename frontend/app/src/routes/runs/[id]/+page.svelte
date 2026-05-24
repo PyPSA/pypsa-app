@@ -185,7 +185,7 @@ const workflowDisplay = $derived.by(() => {
 			stopLogStream();
 			if (pollInterval) { clearInterval(pollInterval); pollInterval = null; }
 			loadPublicRun();
-		} else if (isAuthenticated) {
+		} else if (isAuthenticated || authStore.authEnabled === false) {
 			// Authenticated mode: full experience
 			run = null;
 			logs = [];
