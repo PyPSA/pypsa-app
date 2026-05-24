@@ -3,7 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
-	"time"
+	"path/filepath"
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
@@ -19,18 +19,27 @@ type StatusEvent struct {
 // App is the Wails application struct (control plane).
 type App struct {
 	ctx     context.Context
+	dataDir string
 	manager *ProcessManager
 }
 
 func NewApp() *App {
+	dataDir := appDataDir()
+	logDir := filepath.Join(dataDir, "logs")
 	return &App{
-		manager: NewProcessManager(),
+		dataDir: dataDir,
+		manager: NewProcessManager(dataDir, logDir),
 	}
 }
 
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
 	a.initSystray()
+}
+
+// domReady fires after the WebView DOM is loaded and event listeners are registered.
+// Starting the sequence here avoids losing early EventsEmit calls.
+func (a *App) domReady(_ context.Context) {
 	go a.runStartupSequence()
 }
 
@@ -53,29 +62,49 @@ func (a *App) emitErr(msg string) {
 }
 
 func (a *App) runStartupSequence() {
-	// Step 1: port conflict detection
+	// Step 1: ensure data/log/config dirs exist
+	if err := ensureDirs(a.dataDir); err != nil {
+		a.emitErr(fmt.Sprintf("Failed to create data directories: %v", err))
+		return
+	}
+
+	// Step 2: port conflict detection
 	a.emit("checking", "Checking for port conflicts…", 5)
 	if conflicts := checkPortConflicts(); len(conflicts) > 0 {
 		a.emitErr(fmt.Sprintf("Ports %v already in use. Close other applications and restart.", conflicts))
 		return
 	}
 
-	// Step 2: prerequisites (stub — implemented in Phase 3)
+	// Step 3: prerequisites (stub — implemented in Phase 3)
 	a.emit("checking", "Checking prerequisites…", 20)
-	time.Sleep(150 * time.Millisecond)
 
-	// Step 3: first-launch setup (stub — implemented in Phase 3)
+	// Step 4: first-launch setup (stub — implemented in Phase 3)
 	a.emit("setup", "Checking installation…", 40)
-	time.Sleep(150 * time.Millisecond)
 
-	// Step 4: start services (stub — implemented in Phase 2)
-	a.emit("starting", "Starting services…", 70)
-	time.Sleep(150 * time.Millisecond)
+	// Step 5: spawn services with progress callback
+	if err := a.manager.Start(func(pct int, msg string) {
+		a.emit("starting", msg, pct)
+	}); err != nil {
+		a.emitErr(fmt.Sprintf("Failed to start services: %v", err))
+		return
+	}
 
-	// Step 5: navigate WebView to the running app
+	// Step 6: navigate WebView to the running app
 	a.emit("ready", "Ready!", 100)
-	time.Sleep(300 * time.Millisecond)
-	runtime.EventsEmit(a.ctx, "navigate", "http://localhost:8765")
+	runtime.EventsEmit(a.ctx, "navigate", fmt.Sprintf("http://localhost:%d", appPort))
+
+	// Monitor for post-launch crashes in the background
+	go a.watchCrashes()
+}
+
+// watchCrashes surfaces fatal sidecar errors to the user after successful launch.
+func (a *App) watchCrashes() {
+	select {
+	case err := <-a.manager.ErrCh():
+		runtime.WindowShow(a.ctx)
+		a.emitErr(fmt.Sprintf("A service crashed and could not be restarted: %v", err))
+	case <-a.ctx.Done():
+	}
 }
 
 // Quit stops services and exits the application.

@@ -5,6 +5,7 @@ go 1.23.0
 require (
 	github.com/energye/systray v1.0.3
 	github.com/wailsapp/wails/v2 v2.12.0
+	gopkg.in/natefinch/lumberjack.v2 v2.2.1
 )
 
 require (
