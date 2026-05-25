@@ -1,0 +1,4 @@
+# Built on dev machine — not committed.
+# See docs/desktop-distribution.md — Windows section for build instructions.
+uv.exe
+installer/tmp/

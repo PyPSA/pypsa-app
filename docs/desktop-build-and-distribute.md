@@ -36,22 +36,28 @@ platform config directory:
 | pnpm | `npm i -g pnpm` |
 | uv | `curl -LsSf https://astral.sh/uv/install.sh \| sh` |
 
-**Windows build machine only**
+**macOS build machine (can build Windows, macOS, and Linux targets)**
+
+```bash
+# Xcode command-line tools (codesign, hdiutil, xcrun)
+xcode-select --install
+
+# Cross-compiler for Windows/amd64 targets
+brew install mingw-w64
+
+# NSIS installer builder (used automatically by wails build -nsis)
+brew install makensis
+
+# Optional: nicer DMG layout
+brew install create-dmg
+```
+
+**Windows build machine only** (alternative to macOS cross-build)
 
 | Tool | Install |
 |------|---------|
 | NSIS 3.x | `winget install NSIS.NSIS` |
 | Windows SDK (signtool) | Visual Studio installer → "Desktop development with C++" |
-
-**macOS build machine only**
-
-```bash
-# Xcode command-line tools (includes codesign, hdiutil, xcrun)
-xcode-select --install
-
-# Optional: nicer DMG layout
-brew install create-dmg
-```
 
 **Linux build machine only** (Ubuntu 22.04)
 
@@ -76,71 +82,117 @@ pnpm run build
 
 ## Windows
 
+> All steps below can be run from **macOS** (the cross-compile path) or from a
+> Windows machine. macOS is the recommended primary build environment.
+
 ### Step 2W — Build the Python wheels
 
-Run in each repo on the Windows build machine:
-
-```powershell
-# pypsa-app
-cd <pypsa-app root>
-uv build
-# → dist\pypsa_app-X.Y.Z-py3-none-any.whl
-
-# snakedispatch
-cd <snakedispatch root>
-uv build
-# → dist\snakedispatch-X.Y.Z-py3-none-any.whl
+```bash
+# Run in each repo root (macOS or Windows):
+cd <pypsa-app root>    && uv build  # → dist/pypsa_app-X.Y.Z-py3-none-any.whl
+cd <snakedispatch root> && uv build  # → dist/snakedispatch-X.Y.Z-py3-none-any.whl
 ```
 
 ### Step 3W — Collect dependency wheels
 
-Fetch the full transitive dependency trees into the installer staging directories.
-Run on Windows so platform-specific wheels (compiled extensions) are correct.
+`uv` does not expose a `pip download` subcommand. Use `uv export` to get a
+pinned requirements list, filter environment markers for the win_amd64 target,
+then download with `python3 -m pip download`.
 
-```powershell
-# pypsa-app + all deps
-uv pip download pypsa-app `
-    --find-links <pypsa-app root>\dist `
-    --output-dir desktop\build\windows\wheels\pypsa-app `
-    --python-version 3.13 --platform win_amd64 --only-binary :all:
+```bash
+# ── pypsa-app ─────────────────────────────────────────────────────────────────
 
-# snakedispatch + all deps
-uv pip download snakedispatch `
-    --find-links <snakedispatch root>\dist `
-    --output-dir desktop\build\windows\wheels\snakedispatch `
-    --python-version 3.13 --platform win_amd64 --only-binary :all:
+# 1. Export pinned deps (no hashes, no -e lines)
+uv export --format requirements-txt --no-hashes --package pypsa-app \
+    | grep -v '^#\|^-e\|^$' > /tmp/pypsa-app-requirements.txt
+
+# 2. Filter markers for win_amd64 (removes uvloop which has no Windows wheel,
+#    keeps colorama/tzdata/greenlet which are Windows-only or amd64-conditional)
+python3 - << 'EOF'
+import re, sys
+win_reqs = []
+for line in open('/tmp/pypsa-app-requirements.txt'):
+    s = line.strip()
+    if not s or s.startswith('#'): continue
+    if ' ; ' in s:
+        spec, marker = s.split(' ; ', 1)
+        spec, marker = spec.strip(), marker.strip()
+        if 'sys_platform == "win32"' in marker or "sys_platform == 'win32'" in marker:
+            win_reqs.append(spec)           # Windows-only: include
+        elif "sys_platform != 'win32'" in marker or 'sys_platform != "win32"' in marker:
+            pass                            # non-Windows only: skip
+        elif 'AMD64' in marker or 'amd64' in marker:
+            win_reqs.append(spec)           # AMD64-conditional: include
+        else:
+            win_reqs.append(spec)           # no OS condition: include
+    else:
+        win_reqs.append(s)
+open('/tmp/pypsa-app-win-requirements.txt', 'w').write('\n'.join(win_reqs) + '\n')
+EOF
+
+# 3. Copy the app wheel; download all deps as win_amd64/cp313 wheels
+cp <pypsa-app root>/dist/pypsa_app-*.whl desktop/build/windows/wheels/pypsa-app/
+python3 -m pip download \
+    -r /tmp/pypsa-app-win-requirements.txt \
+    --platform win_amd64 --python-version 313 --implementation cp --abi cp313 \
+    --only-binary :all: \
+    -d desktop/build/windows/wheels/pypsa-app/
+
+# ── snakedispatch ─────────────────────────────────────────────────────────────
+
+# Repeat for snakedispatch (same filtering logic, fewer deps)
+cd <snakedispatch root>
+uv export --format requirements-txt --no-hashes \
+    | grep -v '^#\|^-e\|^$' > /tmp/snakedispatch-requirements.txt
+# Apply the same Python marker-filter script (swap filenames), then:
+cp <snakedispatch root>/dist/snakedispatch-*.whl desktop/build/windows/wheels/snakedispatch/
+python3 -m pip download \
+    -r /tmp/snakedispatch-win-requirements.txt \
+    --platform win_amd64 --python-version 313 --implementation cp --abi cp313 \
+    --only-binary :all: \
+    -d desktop/build/windows/wheels/snakedispatch/
 ```
 
-> **If a package has no Windows wheel** the download fails. Build it from source on
-> Windows (`uv build` in that package's repo) and add the resulting `.whl` to
-> `--find-links` before retrying.
+> **Why `python3 -m pip download` and not `pip download --platform` directly?**
+> pip evaluates environment markers against the *host* platform, not the target.
+> Exporting the pinned list with `uv export` and filtering markers manually avoids
+> pulling `uvloop` (which has no Windows wheel) while correctly including
+> `colorama`, `tzdata`, and `greenlet`.
 
 ### Step 4W — Get uv.exe
 
-Download the Windows x64 release from https://github.com/astral-sh/uv/releases
-(`uv-x86_64-pc-windows-msvc.zip`), extract, and copy `uv.exe` to:
-
+```bash
+curl -L https://github.com/astral-sh/uv/releases/latest/download/uv-x86_64-pc-windows-msvc.zip \
+    -o /tmp/uv-windows.zip
+unzip /tmp/uv-windows.zip uv.exe -d desktop/build/windows/
 ```
-desktop\build\windows\uv.exe
-```
 
-### Step 5W — Build the Wails binary + populate wails_tools.nsh
+### Step 5W — Cross-compile the Wails binary and build the NSIS installer
 
-```powershell
+With `mingw-w64` and `makensis` installed (see prerequisites), a single command
+builds the exe and runs the NSIS installer script automatically:
+
+```bash
 cd desktop
-wails build --target windows/amd64 --nsis
+GOOS=windows GOARCH=amd64 CGO_ENABLED=1 CC=x86_64-w64-mingw32-gcc \
+    wails build -platform windows/amd64 -nsis
 # Produces:
-#   build\bin\pypsa-desktop.exe
-#   build\windows\installer\wails_tools.nsh  (auto-generated, not tracked in git)
+#   build/bin/pypsa-desktop.exe
+#   build/bin/pypsa-desktop-setup-v0.1.0-amd64.exe  (~250 MB)
+#   build/windows/installer/wails_tools.nsh          (auto-generated, gitignored)
 ```
 
-### Step 6W — Build the NSIS installer
-
-```powershell
-cd desktop\build\windows\installer
-makensis -DARG_WAILS_AMD64_BINARY=..\..\bin\pypsa-desktop.exe project.nsi
-# Output: desktop\build\bin\pypsa-desktop-setup-v0.1.0-amd64.exe
-```
+> **On Windows** (without the cross-compile env vars):
+> ```powershell
+> cd desktop
+> wails build -platform windows/amd64 -nsis
+> ```
+> If NSIS is not in PATH, `wails build -nsis` will skip the installer step.
+> Run makensis manually in that case:
+> ```powershell
+> cd build\windows\installer
+> makensis -DARG_WAILS_AMD64_BINARY=..\..\bin\pypsa-desktop.exe project.nsi
+> ```
 
 ### Step 7W — Sign (optional)
 

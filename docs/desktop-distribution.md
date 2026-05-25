@@ -21,7 +21,7 @@ These are required on the user's machine and must be documented in the installer
 | Windows 10 22H2+ or Windows 11 | Edge WebView2 is built-in on these versions | — |
 | Git for Windows | snakedispatch clones workflow repos | Bundled optional installer or [git-scm.com](https://git-scm.com/download/win) |
 | Pixi | snakedispatch uses Pixi to isolate Snakemake envs | `winget install prefix-dev.pixi` or bundled |
-| Internet (first launch only) | uv warm-up installs Python packages on first run | — |
+| Internet | Not required — Python packages are bundled in the installer | — |
 
 **WSL2 note**: Not required for the app itself. Required only if a user's Snakemake workflows use Unix shell commands (`rule: shell: "bash ..."`, GNU coreutils, etc.). Workflow authors are responsible for cross-platform compatibility. If users need Unix-only workflows, they should set up a remote snakedispatch on a Linux/WSL2 machine and configure it as an additional backend via the admin panel.
 
@@ -151,10 +151,13 @@ pypsa-app/
     │       └── App.svelte      # Splash screen, warm-up progress, error states
     └── build/
         ├── windows/
-        │   ├── installer.nsi   # NSIS script (built locally, no CI)
-        │   └── icon.ico
-        └── assets/
-            └── uv.exe          # Bundled uv binary (windows/amd64)
+        │   ├── icon.ico
+        │   ├── uv.exe              # Bundled uv binary (gitignored, downloaded manually)
+        │   ├── wheels/
+        │   │   ├── pypsa-app/      # win_amd64 wheels (gitignored, collected manually)
+        │   │   └── snakedispatch/  # win_amd64 wheels (gitignored, collected manually)
+        │   └── installer/
+        │       └── project.nsi     # NSIS script (tracked in git)
 ```
 
 The Wails `frontend/` here is only the **loading/status shell** (splash screen, setup progress bar, error messages). Once pypsa-app is healthy, the WebView navigates to `http://localhost:8765` and this shell is replaced by the full pypsa-app SvelteKit UI.
@@ -266,47 +269,38 @@ At the end of installation the NSIS script checks for Git and Pixi using `where.
 
 **Code signing**: Required to avoid Windows SmartScreen "unknown publisher" block. Use a code signing certificate for production releases.
 
-### Building the installer (Windows)
+### Building the installer
 
-Prerequisites: NSIS (`winget install NSIS.NSIS`), Git, `uv`.
+The full installer can be built from **macOS** (recommended) or from Windows.
+See `docs/desktop-build-and-distribute.md` → "Windows" for the complete step-by-step.
 
-```powershell
-# 1. Build the SvelteKit frontend (output → src/pypsa_app/backend/static/app/)
-cd frontend\app
-pnpm run build
+Short form (macOS with `brew install mingw-w64 makensis`):
 
-# 2. Build the Python wheels for both apps
-#    Run these in the respective repo roots on Windows:
-cd <pypsa-app root>
-uv build   # produces dist\pypsa_app-X.Y.Z-py3-none-any.whl
+```bash
+# 1. Build frontend + Python wheels
+cd frontend/app && pnpm run build
+cd <pypsa-app root>     && uv build
+cd <snakedispatch root> && uv build
 
-cd <snakedispatch root>
-uv build   # produces dist\snakedispatch-X.Y.Z-py3-none-any.whl
+# 2. Collect win_amd64/cp313 wheels via uv export + pip download
+#    (see desktop-build-and-distribute.md Step 3W for the full marker-filter script)
 
-# 3. Collect all wheels (app + all dependencies) into the installer staging dirs.
-#    Use `uv pip download` to fetch dependencies:
-uv pip download pypsa-app --find-links <pypsa-app>\dist `
-    -d desktop\build\windows\wheels\pypsa-app
+# 3. Download uv.exe
+curl -L https://github.com/astral-sh/uv/releases/latest/download/uv-x86_64-pc-windows-msvc.zip \
+    -o /tmp/uv-windows.zip && unzip /tmp/uv-windows.zip uv.exe -d desktop/build/windows/
 
-uv pip download snakedispatch --find-links <snakedispatch>\dist `
-    -d desktop\build\windows\wheels\snakedispatch
-
-# 4. Download uv.exe and place it next to the installer script's parent:
-#    desktop\build\windows\uv.exe
-#    Latest release: https://github.com/astral-sh/uv/releases
-
-# 5. Build the Wails binary and populate wails_tools.nsh:
+# 4. Build exe + NSIS installer in one command
 cd desktop
-wails build --target windows/amd64 --nsis
-
-# 6. Run makensis to produce the installer:
-cd build\windows\installer
-makensis -DARG_WAILS_AMD64_BINARY=..\..\bin\pypsa-desktop.exe project.nsi
-
-# Output: desktop\build\bin\pypsa-desktop-setup-v0.1.0-amd64.exe
+GOOS=windows GOARCH=amd64 CGO_ENABLED=1 CC=x86_64-w64-mingw32-gcc \
+    wails build -platform windows/amd64 -nsis
+# Output: desktop/build/bin/pypsa-desktop-setup-v0.1.0-amd64.exe (~250 MB)
 ```
 
-> **Wheel size note**: The `wheels\` directories are excluded from git (`.gitignore`). They are built and placed manually on the developer Windows machine for each release. Total installer size is expected to be 300–500 MB.
+> **Wheel collection note**: `uv` has no `pip download` subcommand. Use `uv export
+> --format requirements-txt` to get a pinned list, filter environment markers for
+> win_amd64 (removes `uvloop`, keeps `colorama`/`tzdata`), then use
+> `python3 -m pip download --platform win_amd64 --only-binary :all:`.
+> The `wheels/` directories are gitignored. Total installer size is ~250 MB.
 
 ---
 
@@ -439,7 +433,7 @@ Run these on a **clean Windows 11 install** (no Python, no existing pypsa-deskto
 
 | # | Decision |
 |---|---|
-| 1 | **Wheel build**: Built manually on a developer Windows machine for distribution. Development and iteration happen on macOS M4 using manual `uv` commands — no Wails involved. No GitHub Actions CI in v1. |
+| 1 | **Wheel build**: Built from the developer's macOS machine using cross-compilation (`mingw-w64` + `makensis` via Homebrew). No Windows machine required. Development and iteration happen on macOS M4 using manual `uv` commands — no Wails involved. No GitHub Actions CI in v1. |
 | 2 | **Version pinning**: `desktop/versions.yaml` pins both `pypsa-app` and `snakedispatch` versions for each installer release. Go code reads this file at build time. |
 | 3 | **Local backend in admin**: The bundled snakedispatch appears as **"local (managed)"** — visible but not editable. Users can freely add additional remote backends via the admin panel. |
 | 4 | **Authentication**: No auth providers configured for desktop installs (no OAuth clients, `AUTH_PASSWORD_ENABLED` not set). Single shared instance per machine. Acceptable for v1 close-client distribution. |
