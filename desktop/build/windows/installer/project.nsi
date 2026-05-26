@@ -105,6 +105,10 @@ Section "pypsa-desktop" SEC_MAIN
 
     SetOutPath $INSTDIR
 
+    ; Clear the setup sentinel so the new wheels are installed into venvs on next launch.
+    ; This ensures a reinstall (or upgrade) always picks up the freshly bundled packages.
+    Delete "$APPDATA\pypsa-desktop\venvs\setup_complete"
+
     CreateShortcut "$SMPROGRAMS\${INFO_PRODUCTNAME}.lnk" "$INSTDIR\${PRODUCT_EXECUTABLE}"
     CreateShortCut "$DESKTOP\${INFO_PRODUCTNAME}.lnk"    "$INSTDIR\${PRODUCT_EXECUTABLE}"
 
