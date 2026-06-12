@@ -72,6 +72,38 @@ Environment variables for PyPSA App.
 | `SMTP_USE_TLS` | Use TLS/STARTTLS for SMTP connection | `true` |
 | `SMTP_FROM_ADDRESS` | Sender email address for notifications | `noreply@pypsa-app.local` |
 
+## LLM Chat
+
+Feature-flagged AI chat assistant for network analysis (disabled by default).
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `CHAT_ENABLED` | Feature flag to enable AI chat endpoints | `false` |
+| `LLM_PROVIDER` | LLM provider name (e.g., `openai`, `anthropic`) | `openai` |
+| `LLM_MODEL` | LLM model identifier | `qwen3.5:9b` |
+| `LLM_API_KEY` | API key or bearer token for the LLM provider | - |
+| `LLM_API_BASE` | Custom API base URL for the LLM provider (omit to use provider default) | - |
+| `LLM_MAX_TOKENS` | Maximum tokens per completion | `2048` |
+| `LLM_TEMPERATURE` | Sampling temperature (0.0–2.0) | `0.2` |
+| `LLM_REQUEST_TIMEOUT_SECONDS` | Request timeout in seconds for provider calls | `120` |
+| `LLM_MAX_TOOL_ITERATIONS` | Maximum tool-calling loop iterations per chat request | `8` |
+| `LLM_INTERNAL_API_BASE` | Base URL for internal HTTP calls from chat tools to the app's own REST API | auto-derived from `LLM_INTERNAL_PORT` |
+| `LLM_INTERNAL_PORT` | Port used to derive `LLM_INTERNAL_API_BASE` when not set explicitly | `8000` |
+
+### Quick Start (Ollama)
+
+```bash
+export CHAT_ENABLED=true
+export LLM_PROVIDER=openai
+export LLM_MODEL=qwen3.5:9b
+export LLM_API_KEY=your-bearer-token
+export LLM_API_BASE=http://localhost:11434/v1
+```
+
+> [!NOTE]
+> For Ollama models, use `openai/` as the provider prefix — **not** `ollama/` — to avoid a LiteLLM
+> bug that drops `tool_calls` for reasoning models.
+
 ## Development
 
 | Variable | Description | Default |

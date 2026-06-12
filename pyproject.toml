@@ -36,6 +36,7 @@ dependencies = [
     "markupsafe>=3.0,<4",
     "platformdirs>=4.10.0",
     "slowapi>=0.1.9,<0.2",
+    "litellm>=1.83",
 ]
 
 [project.optional-dependencies]

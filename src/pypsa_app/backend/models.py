@@ -13,6 +13,7 @@ from sqlalchemy import (
     CheckConstraint,
     Column,
     Enum,
+    Float,
     ForeignKey,
     Integer,
     String,
@@ -247,6 +248,8 @@ class Network(Base):
     facets: Mapped[Any | None] = mapped_column(JSON)
     reports: Mapped[Any | None] = mapped_column(JSON)
     topology_svg: Mapped[str | None] = mapped_column(Text)
+    is_solved: Mapped[bool] = mapped_column(default=False, nullable=False)
+    objective: Mapped[float | None] = mapped_column(Float)
 
     @property
     def tags(self) -> list | None:
