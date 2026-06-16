@@ -1,0 +1,64 @@
+# Backend services for development: Postgres + Redis + Celery worker in Docker.
+# Values come from compose/.env.local. Run with:
+#   docker compose -f compose/compose.services.yaml --env-file compose/.env.local up
+
+name: pypsa-app
+
+services:
+  postgres:
+    image: postgres:18-alpine
+    container_name: pypsa-app-postgres
+    env_file: .env.local
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:8-alpine
+    container_name: pypsa-app-redis
+    env_file: .env.local
+    ports:
+      - "6379:6379"
+    command: redis-server --maxmemory 2gb --maxmemory-policy allkeys-lru
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  celery-worker:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+      target: backend
+    container_name: pypsa-app-celery-worker
+    env_file: .env.local
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      REDIS_URL: redis://redis:6379/0
+      DATA_DIR: /data
+      # The host-run backend owns migrations on startup; avoid racing it here.
+      SKIP_MIGRATIONS: "true"
+    command: ["celery", "-A", "pypsa_app.backend.task_queue.task_app", "worker", "--loglevel=info", "--concurrency=2"]
+    volumes:
+      - ../src:/app/src
+      - ../data:/data
+      - ../alembic.ini:/app/alembic.ini:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
