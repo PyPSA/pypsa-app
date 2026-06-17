@@ -58,4 +58,3 @@ jobs:
         labels: ${{ steps.meta.outputs.labels }}
         provenance: mode=max
         sbom: true
-

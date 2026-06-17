@@ -14,9 +14,9 @@ services:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     ports:
-      - "${POSTGRES_PORT:-5432}:5432"
+    - "${POSTGRES_PORT:-5432}:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql
+    - postgres_data:/var/lib/postgresql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 5s
@@ -28,7 +28,7 @@ services:
     container_name: pypsa-app-redis
     env_file: .env.local
     ports:
-      - "6379:6379"
+    - "6379:6379"
     command: redis-server --maxmemory 2gb --maxmemory-policy allkeys-lru
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
@@ -51,9 +51,9 @@ services:
       SKIP_MIGRATIONS: "true"
     command: ["celery", "-A", "pypsa_app.backend.task_queue.task_app", "worker", "--loglevel=info", "--concurrency=2"]
     volumes:
-      - ../src:/app/src
-      - ../data:/data
-      - ../alembic.ini:/app/alembic.ini:ro
+    - ../src:/app/src
+    - ../data:/data
+    - ../alembic.ini:/app/alembic.ini:ro
     depends_on:
       postgres:
         condition: service_healthy
