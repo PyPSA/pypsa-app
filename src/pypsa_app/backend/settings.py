@@ -279,7 +279,9 @@ class Settings(BaseSettings):
 
     cors_origins: str = Field(
         default="http://localhost:5173,http://localhost:5174",
-        description="Comma-separated list of allowed CORS origins for the separate frontend",
+        description=(
+            "Comma-separated list of allowed CORS origins for the separate frontend"
+        ),
         json_schema_extra={"category": "Application"},
     )
 
