@@ -38,7 +38,7 @@ docker compose -f compose/compose.services.yaml --env-file compose/.env.local up
 **2. Run the backend API**
 
 ```bash
-uv run --extra full --env-file compose/.env.local pypsa-app serve --reload --dev
+uv run --extra full --env-file compose/.env.local pypsa-app serve --reload
 ```
 
 API docs available at [`http://localhost:8000/docs`](http://localhost:8000/docs).
@@ -54,6 +54,34 @@ npm run dev
 ```
 
 App available at [`http://localhost:5173`](http://localhost:5173).
+
+## Running Tests
+
+**Requirements:** Python ≥ 3.13 + [uv](https://docs.astral.sh/uv/)
+
+Install dev dependencies (first time only):
+
+```bash
+uv sync --extra dev
+```
+
+Run the test suite:
+
+```bash
+uv run pytest
+```
+
+With coverage:
+
+```bash
+uv run pytest --cov
+```
+
+Migration tests also run against Postgres if `TEST_POSTGRES_URL` is set:
+
+```bash
+TEST_POSTGRES_URL=postgresql://user:pass@localhost/testdb uv run pytest
+```
 
 ## License
 
