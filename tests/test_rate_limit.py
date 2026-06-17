@@ -19,7 +19,6 @@ from pypsa_app.backend.ratelimit import (
 from pypsa_app.backend.settings import Settings
 
 _SERVER_ENV = {
-    "LOCAL_MODE": "false",
     "REDIS_URL": "redis://localhost:6379/0",
     "DATABASE_URL": "postgresql://x/y",
     "SESSION_SECRET_KEY": "x" * 40,
@@ -32,10 +31,9 @@ _SERVER_ENV = {
     ("env", "expected"),
     [
         (_SERVER_ENV, True),
-        ({"LOCAL_MODE": "true"}, False),
         ({**_SERVER_ENV, "RATELIMIT_ENABLED": "false"}, False),
     ],
-    ids=["server", "local", "override"],
+    ids=["default-on", "override"],
 )
 def test_ratelimit_enabled(
     monkeypatch: pytest.MonkeyPatch, env: dict[str, str], expected: bool

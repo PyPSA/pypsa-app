@@ -236,7 +236,6 @@ class Network(Base):
     source_path: Mapped[str | None] = mapped_column(Text)
     file_size: Mapped[int | None] = mapped_column(BigInteger)
     file_hash: Mapped[str | None] = mapped_column(String(64))
-    # External: file lives outside data_dir (LOCAL_MODE only); do not unlink on delete
     is_external: Mapped[bool] = mapped_column(default=False, nullable=False)
 
     # Metadata from PyPSA Network
@@ -255,9 +254,7 @@ class Network(Base):
 
     @property
     def file_missing(self) -> bool:
-        # Only external rows can legitimately point outside data_dir.
-        # For app-owned files we trust the import path.
-        return self.is_external and not Path(self.file_path).exists()
+        return False
 
 
 class RunStatus(enum.StrEnum):

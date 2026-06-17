@@ -327,18 +327,9 @@ def import_network_file(  # noqa: PLR0913
     source_run_id: uuid.UUID | None = None,
     visibility: Visibility = Visibility.PRIVATE,
     *,
-    is_external: bool = False,
     source_path: str | None = None,
 ) -> Network:
-    """Import a network file and create a DB record.
-
-    By default the file is moved into data_dir. With `is_external=True`
-    (LOCAL_MODE only) the file stays in place and its absolute path is stored.
-    """
-    if is_external and not settings.local_mode:
-        msg = "is_external imports require LOCAL_MODE"
-        raise RuntimeError(msg)
-
+    """Import a network file and create a DB record. The file is moved into data_dir."""
     user = db.get(User, user_id)
     if not user or not has_permission(user, Permission.NETWORKS_MODIFY):
         msg = "User does not have permission to import networks"
@@ -352,30 +343,15 @@ def import_network_file(  # noqa: PLR0913
         )
     ).first()
     if existing:
-        if not is_external:
-            file_path.unlink(missing_ok=True)
+        file_path.unlink(missing_ok=True)
         return existing
 
-    if is_external:
-        dest = file_path
-        # The user edited the same file in place. Refresh metadata so the
-        # unique constraint on file_path does not blow up the second open.
-        edited = db.scalars(
-            select(Network).where(
-                Network.user_id == user_id, Network.file_path == str(dest)
-            )
-        ).first()
-        if edited:
-            _apply_network_metadata(edited, dest, file_hash)
-            db.flush()
-            return edited
-    else:
-        # Store as data_dir/{user_id}/{network_id}.nc so files cannot collide.
-        network_id = uuid.uuid4()
-        user_dir = settings.networks_path / str(user_id)
-        user_dir.mkdir(parents=True, exist_ok=True)
-        dest = user_dir / f"{network_id}.nc"
-        shutil.move(str(file_path), str(dest))
+    # Store as data_dir/{user_id}/{network_id}.nc so files cannot collide.
+    network_id = uuid.uuid4()
+    user_dir = settings.networks_path / str(user_id)
+    user_dir.mkdir(parents=True, exist_ok=True)
+    dest = user_dir / f"{network_id}.nc"
+    shutil.move(str(file_path), str(dest))
 
     network = Network(
         user_id=user_id,
@@ -383,24 +359,12 @@ def import_network_file(  # noqa: PLR0913
         visibility=visibility,
         filename=original_filename,
         file_path=str(dest),
-        is_external=is_external,
         source_path=source_path,
     )
     _apply_network_metadata(network, dest, file_hash)
     db.add(network)
     db.flush()
     return network
-
-
-def register_network_in_place(
-    file_path: Path, user_id: uuid.UUID, db: Session
-) -> Network:
-    """Register a .nc file at its current location without copying it."""
-    file_path = file_path.resolve(strict=True)
-    if not file_path.is_file() or file_path.suffix.lower() != ".nc":
-        msg = f"Expected an existing .nc file, got: {file_path}"
-        raise ValueError(msg)
-    return import_network_file(file_path, file_path.name, user_id, db, is_external=True)
 
 
 def load_service(

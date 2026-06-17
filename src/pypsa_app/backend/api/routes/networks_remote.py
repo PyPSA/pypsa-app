@@ -1,4 +1,4 @@
-"""Remote-import network routes (upload, from-url). Skipped when LOCAL_MODE."""
+"""Network import routes (upload, from-url)."""
 
 from collections.abc import Iterator
 from pathlib import PurePosixPath
