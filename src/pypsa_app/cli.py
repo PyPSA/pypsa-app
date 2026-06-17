@@ -82,7 +82,8 @@ def serve(
         os.environ["DATABASE_URL"] = database_url
 
     # Set mode
-    if dev:
+    backend_only = os.environ.get("BACKEND_ONLY", "false").lower() == "true"
+    if dev or backend_only:
         os.environ["SERVE_FRONTEND"] = "false"
         click.echo(f"   API docs: http://{host}:{port}/docs")
         click.echo("   Start Vite dev server separately: cd frontend && npm run dev")
@@ -91,8 +92,8 @@ def serve(
         click.echo(f"   Application: http://{host}:{port}")
         click.echo(f"   API docs: http://{host}:{port}/api/docs")
 
-    # Check if frontend is built (prod mode)
-    if not dev:
+    # Check if frontend is built (only in full-stack mode)
+    if not dev and not backend_only:
         _require_frontend_built()
 
     # Start server
