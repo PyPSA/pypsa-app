@@ -64,28 +64,3 @@ EXPOSE 8000
 
 ENTRYPOINT ["/app/entrypoint.sh"]
 CMD ["pypsa-app", "serve"]
-
-
-# Stage 3: Build Svelte frontend (main app)
-FROM node:26-alpine@sha256:7c6af15abe4e3de859690e7db171d0d711bf37d27528eddfe625b2fe89e097f8 AS app-builder
-
-WORKDIR /frontend
-
-# Use Docker-compatible build paths
-ENV DOCKER_BUILD=true
-
-COPY frontend/app/package*.json ./
-COPY frontend/app/ ./
-
-RUN npm ci && \
-    npm run build && \
-    npm cache clean --force
-
-
-# Stage 4: Full stack (adds built frontend to backend base)
-FROM backend AS full
-
-COPY --from=app-builder --chown=appuser:appuser /frontend/build/ src/pypsa_app/backend/static/app/
-
-# Copy package.json for version detection
-COPY --from=app-builder --chown=appuser:appuser /frontend/package.json frontend/app/package.json

@@ -13,7 +13,6 @@ src/pypsa_app/backend/_version_info.py
 
 # Environment variables
 .env
-.env.local
 .env.*.local
 .env.dev-server
 

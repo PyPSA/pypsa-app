@@ -3,7 +3,6 @@ import contextlib
 import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -21,7 +20,6 @@ from pypsa_app.backend.api.routes import (
     auth,
     cache,
     networks,
-    networks_local,
     networks_remote,
     plots,
     public,
@@ -111,7 +109,6 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         extra={
             "version": __version__,
             "api_prefix": API_V1_PREFIX,
-            "backend_only": settings.backend_only,
             "networks_path": str(settings.networks_path),
             "database_url": settings.database_url,
         },
@@ -198,8 +195,8 @@ app = FastAPI(
     version=__version__,
     description=__description__,
     openapi_url=f"{API_V1_PREFIX}/openapi.json",
-    docs_url="/docs" if settings.backend_only else "/api/docs",
-    redoc_url="/redoc" if settings.backend_only else "/api/redoc",
+    docs_url="/docs",
+    redoc_url="/redoc",
     lifespan=lifespan,
 )
 
@@ -271,17 +268,14 @@ if settings.demo_mode:
         return await call_next(request)
 
 
-# Configure CORS (only needed in dev mode with separate frontend server)
-if settings.backend_only:
-    # Parse comma-separated CORS origins from environment variable
-    cors_origins = [origin.strip() for origin in settings.cors_origins.split(",")]
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=cors_origins,
-        allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
-    )
+cors_origins = [origin.strip() for origin in settings.cors_origins.split(",")]
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=cors_origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 if settings.resolved_backends:
@@ -328,16 +322,11 @@ app.include_router(
     networks.router, prefix=f"{API_V1_PREFIX}/networks", tags=["networks"]
 )
 if not settings.demo_mode:
-    if settings.local_mode:
-        app.include_router(
-            networks_local.router, prefix=f"{API_V1_PREFIX}/networks", tags=["networks"]
-        )
-    else:
-        app.include_router(
-            networks_remote.router,
-            prefix=f"{API_V1_PREFIX}/networks",
-            tags=["networks"],
-        )
+    app.include_router(
+        networks_remote.router,
+        prefix=f"{API_V1_PREFIX}/networks",
+        tags=["networks"],
+    )
 app.include_router(plots.router, prefix=f"{API_V1_PREFIX}/plots", tags=["plots"])
 app.include_router(
     statistics.router,
@@ -383,41 +372,10 @@ def health_check() -> dict:
     return health_status
 
 
-# Serve frontend static files (production mode)
-if not settings.backend_only:
-    from pypsa_app.backend.spa_static_files import SPAStaticFiles
-
-    static_dir = Path(__file__).parent / "static"
-
-    # Mount main app (catch-all for SPA routing)
-    app_dir = static_dir / "app"
-    if app_dir.exists():
-        app.mount("/", SPAStaticFiles(directory=app_dir, html=True), name="app")
-        logger.info(
-            "Serving main app",
-            extra={
-                "app_type": "main",
-                "directory": str(app_dir),
-                "mount_path": "/",
-            },
-        )
-    else:
-        logger.warning(
-            "Main app not found",
-            extra={
-                "app_type": "main",
-                "expected_directory": str(app_dir),
-                "build_command": "cd frontend/app && npm run build",
-            },
-        )
-
-else:
-    # Development mode - API only
-    @app.get("/")
-    def root() -> dict:
-        return {
-            "message": "PyPSA Web App API (dev mode)",
-            "version": __version__,
-            "docs": "/docs",
-            "frontend": "Run: cd frontend && npm run dev",
-        }
+@app.get("/")
+def root() -> dict:
+    return {
+        "message": "PyPSA Web App API",
+        "version": __version__,
+        "docs": "/docs",
+    }

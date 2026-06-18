@@ -37,15 +37,6 @@ class Settings(BaseSettings):
         description="Publicly accessible URL of the application",
         json_schema_extra={"category": "Application"},
     )
-    local_mode: bool = Field(
-        default=False,
-        description=(
-            "Single-user local-dashboard deployment (the bare `pypsa-app` CLI). "
-            "Enables zero-copy in-place network registration. "
-            "Incompatible with any authentication."
-        ),
-        json_schema_extra={"category": "Application"},
-    )
     demo_mode: bool = Field(
         default=False,
         description=(
@@ -222,7 +213,7 @@ class Settings(BaseSettings):
     # Rate limiting
     ratelimit_enabled: bool | None = Field(
         default=None,
-        description=("Enable per route rate limiting. Auto on when LOCAL_MODE is off."),
+        description="Enable per route rate limiting. Enabled by default.",
         json_schema_extra={"category": "Rate limiting"},
     )
     ratelimit_default: str = Field(
@@ -286,19 +277,12 @@ class Settings(BaseSettings):
         """Whether SMTP email notifications are configured."""
         return self.smtp_host is not None
 
-    # Development
-    backend_only: bool = Field(
-        default=False,
-        description="Run backend only without serving the frontend",
-        json_schema_extra={"category": "Development"},
-    )
     cors_origins: str = Field(
         default="http://localhost:5173,http://localhost:5174",
         description=(
-            "Comma-separated list of allowed CORS origins"
-            " (only used in backend-only mode)"
+            "Comma-separated list of allowed CORS origins for the separate frontend"
         ),
-        json_schema_extra={"category": "Development", "depends_on": "backend_only"},
+        json_schema_extra={"category": "Application"},
     )
 
     @model_validator(mode="after")
@@ -325,19 +309,7 @@ class Settings(BaseSettings):
     @model_validator(mode="after")
     def resolve_ratelimit_enabled(self) -> Self:
         if self.ratelimit_enabled is None:
-            self.ratelimit_enabled = not self.local_mode
-        return self
-
-    @model_validator(mode="after")
-    def validate_local_mode(self) -> Self:
-        if not self.local_mode:
-            return self
-        if self.auth_enabled:
-            msg = "LOCAL_MODE is incompatible with any authentication."
-            raise ValueError(msg)
-        if self.snakedispatch_backends:
-            msg = "SNAKEDISPATCH_BACKENDS is not yet implemented in LOCAL_MODE."
-            raise ValueError(msg)
+            self.ratelimit_enabled = True
         return self
 
     @model_validator(mode="after")
@@ -346,9 +318,6 @@ class Settings(BaseSettings):
             return self
         if self.auth_oauth_enabled:
             msg = "DEMO_MODE is incompatible with OAuth credentials."
-            raise ValueError(msg)
-        if self.local_mode:
-            msg = "DEMO_MODE and LOCAL_MODE are mutually exclusive."
             raise ValueError(msg)
         if self.snakedispatch_backends:
             msg = (

@@ -60,7 +60,8 @@ def db_engine(
 @pytest.fixture
 def alembic_config() -> dict[str, str]:
     """Point pytest-alembic at the project alembic.ini."""
-    return {"file": "alembic.ini"}
+    ini = Path(__file__).parent.parent / "alembic.ini"
+    return {"file": str(ini)}
 
 
 @pytest.fixture
