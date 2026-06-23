@@ -4,26 +4,6 @@ description: Build python package with bundled frontend
 runs:
   using: composite
   steps:
-  - name: Setup Node
-    uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020  # v4.4.0
-    with:
-      node-version: 22
-      cache: npm
-      cache-dependency-path: frontend/app/package-lock.json
-
-  - name: Build SvelteKit frontend
-    shell: bash
-    working-directory: frontend/app
-    run: |
-      npm ci
-      npm run build
-
   - name: Build and inspect Python package
     id: baipp
-    uses: hynek/build-and-inspect-python-package@ebd3b6c6d32b78607276633a23bdd4481bd23ca8  # v2.18.0
-
-  - name: Verify frontend bundled in wheel
-    shell: bash
-    run: |
-      unzip -l "${{ steps.baipp.outputs.dist }}"/pypsa_app-*.whl | grep -q "static/app/index.html" \
-        || { echo "wheel missing built frontend (static/app/index.html)"; exit 1; }
+    uses: hynek/build-and-inspect-python-package@ebd3b6c6d32b78607276633a23bdd4481bd23ca8   # v2.18.0

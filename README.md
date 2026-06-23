@@ -45,15 +45,7 @@ API docs available at [`http://localhost:8000/docs`](http://localhost:8000/docs)
 
 ### Frontend
 
-Applies to both modes. Requires Node.js 22.x.
-
-```bash
-cd frontend/app
-npm install
-npm run dev
-```
-
-App available at [`http://localhost:5173`](http://localhost:5173).
+Currently non-existent.
 
 ## Running Tests
 
