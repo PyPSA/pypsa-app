@@ -24,6 +24,8 @@ services:
       BASE_URL: http://localhost:${APP_PORT:-8000}
     ports:
     - "${APP_PORT:-8000}:8000"
+    extra_hosts:
+    - "host.docker.internal:host-gateway"
     volumes:
     - ../data:/data
     depends_on:

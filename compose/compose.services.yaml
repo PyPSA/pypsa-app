@@ -50,6 +50,8 @@ services:
       # The host-run backend owns migrations on startup; avoid racing it here.
       SKIP_MIGRATIONS: "true"
     command: ["celery", "-A", "pypsa_app.backend.task_queue.task_app", "worker", "--loglevel=info", "--concurrency=2"]
+    extra_hosts:
+    - "host.docker.internal:host-gateway"
     volumes:
     - ../src:/app/src
     - ../data:/data
