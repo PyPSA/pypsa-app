@@ -22,6 +22,7 @@ services:
       REDIS_URL: redis://redis:6379/0
       DATA_DIR: /data
       BASE_URL: http://localhost:${APP_PORT:-8000}
+      PREFECT_API_URL: http://prefect-server:4200/api
     ports:
     - "${APP_PORT:-8000}:8000"
     extra_hosts:
@@ -32,6 +33,8 @@ services:
       postgres:
         condition: service_healthy
       redis:
+        condition: service_healthy
+      prefect-server:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]

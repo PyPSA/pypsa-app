@@ -183,6 +183,13 @@ class Settings(BaseSettings):
             backends.append({"name": name.strip(), "url": url.strip()})
         return backends
 
+    # Prefect
+    prefect_api_url: str | None = Field(
+        default=None,
+        description="Prefect server API URL for background task orchestration",
+        json_schema_extra={"category": "Prefect"},
+    )
+
     # Caching
     redis_url: str | None = Field(
         default=None,
