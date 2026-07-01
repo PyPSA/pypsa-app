@@ -18,7 +18,7 @@ classifiers = [
 keywords = ["pypsa", "energy", "power-systems", "visualization"]
 
 dependencies = [
-    "fastapi>=0.137.2",
+    "fastapi>=0.138.0",
     "starlette>=1.3.1,<2",
     "uvicorn[standard]>=0.49.0",
     "pydantic[email]>=2.13.4,<3",
@@ -50,7 +50,7 @@ dev = [
     "pytest-asyncio>=1.4.0,<2",
     "pytest-alembic>=0.12,<0.13",
     "pytest-cov>=7.0,<8",
-    "coverage>=7.14.1,<8",
+    "coverage>=7.14.3,<8",
     "pre-commit>=4.6.0",
 ]
 
