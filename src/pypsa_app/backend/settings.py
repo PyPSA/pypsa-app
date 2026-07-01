@@ -12,6 +12,7 @@ logger = logging.getLogger(__name__)
 
 API_V1_PREFIX = "/api/v1"
 SESSION_COOKIE_NAME = "pypsa_session"
+PREFECT_DEPLOYMENT_NAME = "pypsa-app"
 
 # Sentinel value: when database_url equals this, it is derived from data_dir.
 _DEFAULT_DATABASE_URL_SENTINEL = "__derive_from_data_dir__"

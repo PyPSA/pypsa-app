@@ -1,6 +1,6 @@
 """Task response schemas"""
 
-from typing import Any, Literal
+from typing import Any
 
 from pydantic import BaseModel
 
@@ -17,10 +17,8 @@ class TaskStatusResponse(BaseModel):
     """Response when polling task status"""
 
     task_id: str
-    state: Literal["PENDING", "PROGRESS", "SUCCESS", "FAILURE"]
+    state: str
     message: str | None = None
-    current: int | None = None
-    total: int | None = None
     result: Any | None = None
     error: str | None = None
 

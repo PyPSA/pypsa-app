@@ -1,4 +1,4 @@
-"""Generic task status endpoint for all Celery tasks"""
+"""Generic task status endpoint for all background flows."""
 
 from uuid import UUID
 
@@ -13,13 +13,9 @@ router = APIRouter()
 
 
 @router.get("/status/{task_id}", response_model=TaskStatusResponse)
-def get_task_status(task_id: UUID, user: User = Depends(get_active_user)) -> dict:
-    """Get status of any background Celery task.
+async def get_task_status(task_id: UUID, user: User = Depends(get_active_user)) -> dict:
+    """Get status of any background flow run.
 
-    States:
-    - PENDING: Task is waiting to be processed
-    - PROGRESS: Task is running (includes progress metadata)
-    - SUCCESS: Task completed successfully
-    - FAILURE: Task failed with error
+    State is passed through directly from Prefect.
     """
-    return get_task_status_response(str(task_id))
+    return await get_task_status_response(str(task_id))

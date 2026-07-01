@@ -2,13 +2,12 @@
 
 import logging
 import re
-import threading
 import urllib.parse
 import uuid
 from pathlib import PurePosixPath
 from typing import Any, Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from fastapi import Path as PathParam
 from fastapi.responses import StreamingResponse
 from sqlalchemy import or_, select
@@ -25,6 +24,7 @@ from pypsa_app.backend.api.pagination import (
     apply_pagination,
     list_meta,
 )
+from pypsa_app.backend.api.utils.task_utils import submit_flow
 from pypsa_app.backend.cache import cache
 from pypsa_app.backend.filters import (
     FieldMap,
@@ -33,6 +33,7 @@ from pypsa_app.backend.filters import (
     enum_coercer,
     name_to_id,
 )
+from pypsa_app.backend.flows import import_run_outputs_flow
 from pypsa_app.backend.models import (
     Permission,
     Run,
@@ -272,6 +273,7 @@ def list_runs(
 
 @router.get("/{run_id}", response_model=RunResponse)
 def get_run(
+    background_tasks: BackgroundTasks,
     auth: Authorized[Run] = Depends(require_run("read")),
     db: Session = Depends(get_db),
 ) -> RunResponse:
@@ -283,18 +285,16 @@ def get_run(
         if client:
             try:
                 job = client.get_job(str(run.job_id))
-                needs_callback = sync_run_from_job(run, job, db)
+                needs_callback, needs_import = sync_run_from_job(run, job, db)
                 db.commit()
                 if needs_callback and run.callback_url:
-                    # TODO: replace with proper async callback or
-                    # FastAPI BackgroundTasks.
-                    url = str(run.callback_url)
-                    payload = _build_payload(run)
-                    threading.Thread(
-                        target=post_callback_sync,
-                        args=(url, payload),
-                        daemon=True,
-                    ).start()
+                    background_tasks.add_task(
+                        post_callback_sync, str(run.callback_url), _build_payload(run)
+                    )
+                if needs_import:
+                    background_tasks.add_task(
+                        submit_flow, import_run_outputs_flow, job_id=str(run.job_id)
+                    )
             except SnakedispatchError:
                 pass
 
@@ -421,6 +421,7 @@ def download_run_output(
 
 @router.post("/{run_id}/cancel", response_model=MessageResponse)
 def cancel_run(
+    background_tasks: BackgroundTasks,
     auth: Authorized[Run] = Depends(require_run("modify")),
     db: Session = Depends(get_db),
 ) -> dict:
@@ -430,31 +431,25 @@ def cancel_run(
     sd_client = _get_client_for_run(run)
     try:
         result = sd_client.cancel_job(str(run.job_id))
-        needs_callback = sync_run_from_job(run, result, db)
+        needs_callback, needs_import = sync_run_from_job(run, result, db)
         db.commit()
         if needs_callback and run.callback_url:
-            # TODO: replace with proper async callback or
-            # FastAPI BackgroundTasks.
-            url = str(run.callback_url)
-            payload = _build_payload(run)
-            threading.Thread(
-                target=post_callback_sync, args=(url, payload), daemon=True
-            ).start()
+            background_tasks.add_task(
+                post_callback_sync, str(run.callback_url), _build_payload(run)
+            )
+        if needs_import:
+            background_tasks.add_task(
+                submit_flow, import_run_outputs_flow, job_id=str(run.job_id)
+            )
     except SnakedispatchError as e:
         if e.status_code in (404, 409):
             if run.status not in SYNCED_STATUSES:
                 run.status = RunStatus.CANCELLED
                 db.commit()
                 if run.callback_url:
-                    # TODO: replace with proper async callback or
-                    # FastAPI BackgroundTasks.
-                    url = str(run.callback_url)
-                    payload = _build_payload(run)
-                    threading.Thread(
-                        target=post_callback_sync,
-                        args=(url, payload),
-                        daemon=True,
-                    ).start()
+                    background_tasks.add_task(
+                        post_callback_sync, str(run.callback_url), _build_payload(run)
+                    )
         else:
             raise
 

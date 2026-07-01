@@ -1,4 +1,4 @@
-# Backend services for development: Postgres + Redis + Celery worker in Docker.
+# Backend services for development: Postgres + Redis + Prefect worker in Docker.
 # Values come from compose/.env.local. Run with:
 #   docker compose -f compose/compose.services.yaml --env-file compose/.env.local up
 
@@ -17,6 +17,7 @@ services:
     - "${POSTGRES_PORT:-5432}:5432"
     volumes:
     - postgres_data:/var/lib/postgresql
+    - ./postgres-init:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 5s
@@ -41,13 +42,14 @@ services:
     container_name: pypsa-app-prefect-server
     command: prefect server start --host 0.0.0.0
     environment:
-      PREFECT_API_DATABASE_CONNECTION_URL: sqlite+aiosqlite:////prefect/prefect.db
+      PREFECT_API_DATABASE_CONNECTION_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/prefect
     ports:
     - "4200:4200"
-    volumes:
-    - prefect_data:/prefect
+    depends_on:
+      postgres:
+        condition: service_healthy
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:4200/api/health"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:4200/api/health')"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -65,6 +67,8 @@ services:
       REDIS_URL: redis://redis:6379/0
       DATA_DIR: /data
       PREFECT_API_URL: http://prefect-server:4200/api
+      PREFECT_WORKER_CONCURRENCY: "8"
+      PREFECT_LOCAL_STORAGE_PATH: /data/prefect-results
       # The host-run backend owns migrations on startup; avoid racing it here.
       SKIP_MIGRATIONS: "true"
     command: ["python", "-m", "pypsa_app.worker"]
@@ -84,4 +88,3 @@ services:
 
 volumes:
   postgres_data:
-  prefect_data:
