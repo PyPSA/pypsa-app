@@ -83,7 +83,6 @@ def sync_run_from_job(run: Run, job: dict, db: Session) -> tuple[bool, bool]:
         if completed_with_import_pending and run.import_networks:
             run.status = RunStatus.UPLOADING
             db.flush()
-            needs_import = True
             return False, True
         if completed_with_import_pending:
             run.status = RunStatus.COMPLETED
