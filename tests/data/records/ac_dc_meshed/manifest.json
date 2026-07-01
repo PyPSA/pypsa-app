@@ -1,0 +1,1746 @@
+{
+  "format": "pypsa-parquet",
+  "format_version": 1,
+  "kind": "network",
+  "layout": {
+    "files": {
+      "components.parquet": "Wide table of pure-static inputs (one row per component, per scenario). Varying inputs are NOT here -- see data/.",
+      "data/<attr>.parquet": "One long file per varying ('static or series') input attribute; the sole home of both its static scalar and its time series.",
+      "results/<attr>.parquet": "One long file per output attribute.",
+      "scenarios|snapshots|periods.parquet": "Axis tables and their weightings."
+    },
+    "long_schema": [
+      "component_type",
+      "component",
+      "snapshot",
+      "scenario",
+      "period",
+      "value"
+    ],
+    "value_resolution": "null snapshot => the component's static scalar; timestamped snapshot => a time-series value; attribute absent for a component => the attribute_catalog default.",
+    "scenario_sentinel": "scenario == '' marks a deterministic (non-stochastic) network.",
+    "infinity": "inf/-inf appear as the strings 'inf'/'-inf' in JSON (attribute_catalog defaults); parquet value columns store native float inf.",
+    "key_mapping": "The wide table's entity column is `name`; long files call the same key `component` (component would clash with the Shape `component` attribute)."
+  },
+  "stochastic": false,
+  "multiperiod": false,
+  "attributes": {
+    "_linearized_uc": 0,
+    "_multi_invest": 0,
+    "_objective": -3474256.0405499237,
+    "_objective_constant": 21915277.518279143,
+    "name": "AC-DC-Meshed",
+    "now": "now",
+    "pypsa_version": "1.2.3",
+    "srid": 4326
+  },
+  "meta": {},
+  "crs": "GEOGCRS[\"WGS 84\",ENSEMBLE[\"World Geodetic System 1984 ensemble\",MEMBER[\"World Geodetic System 1984 (Transit)\"],MEMBER[\"World Geodetic System 1984 (G730)\"],MEMBER[\"World Geodetic System 1984 (G873)\"],MEMBER[\"World Geodetic System 1984 (G1150)\"],MEMBER[\"World Geodetic System 1984 (G1674)\"],MEMBER[\"World Geodetic System 1984 (G1762)\"],MEMBER[\"World Geodetic System 1984 (G2139)\"],MEMBER[\"World Geodetic System 1984 (G2296)\"],ELLIPSOID[\"WGS 84\",6378137,298.257223563,LENGTHUNIT[\"metre\",1]],ENSEMBLEACCURACY[2.0]],PRIMEM[\"Greenwich\",0,ANGLEUNIT[\"degree\",0.0174532925199433]],CS[ellipsoidal,2],AXIS[\"geodetic latitude (Lat)\",north,ORDER[1],ANGLEUNIT[\"degree\",0.0174532925199433]],AXIS[\"geodetic longitude (Lon)\",east,ORDER[2],ANGLEUNIT[\"degree\",0.0174532925199433]],USAGE[SCOPE[\"Horizontal component of 3D system.\"],AREA[\"World.\"],BBOX[-90,-180,90,180]],ID[\"EPSG\",4326]]",
+  "column_order": {
+    "Bus": [
+      "v_nom",
+      "type",
+      "x",
+      "y",
+      "carrier",
+      "unit",
+      "location",
+      "v_mag_pu_min",
+      "v_mag_pu_max",
+      "country"
+    ],
+    "Carrier": [
+      "co2_emissions",
+      "color",
+      "nice_name",
+      "max_growth",
+      "max_relative_growth",
+      "marginal_cost",
+      "efficiency",
+      "capital_cost"
+    ],
+    "Generator": [
+      "bus",
+      "control",
+      "type",
+      "p_nom",
+      "p_nom_mod",
+      "p_nom_extendable",
+      "p_nom_min",
+      "p_nom_max",
+      "p_nom_set",
+      "p_init",
+      "e_sum_min",
+      "e_sum_max",
+      "sign",
+      "carrier",
+      "active",
+      "build_year",
+      "lifetime",
+      "capital_cost",
+      "overnight_cost",
+      "discount_rate",
+      "fom_cost",
+      "committable",
+      "start_up_cost",
+      "shut_down_cost",
+      "min_up_time",
+      "min_down_time",
+      "up_time_before",
+      "down_time_before",
+      "ramp_limit_start_up",
+      "ramp_limit_shut_down",
+      "weight"
+    ],
+    "Load": [
+      "bus",
+      "carrier",
+      "type",
+      "sign",
+      "active"
+    ],
+    "Link": [
+      "bus0",
+      "bus1",
+      "type",
+      "carrier",
+      "active",
+      "build_year",
+      "lifetime",
+      "p_nom",
+      "p_nom_mod",
+      "p_nom_extendable",
+      "p_nom_min",
+      "p_nom_max",
+      "p_nom_set",
+      "p_init",
+      "capital_cost",
+      "overnight_cost",
+      "discount_rate",
+      "fom_cost",
+      "length",
+      "terrain_factor",
+      "committable",
+      "start_up_cost",
+      "shut_down_cost",
+      "min_up_time",
+      "min_down_time",
+      "up_time_before",
+      "down_time_before",
+      "ramp_limit_start_up",
+      "ramp_limit_shut_down",
+      "delay",
+      "cyclic_delay"
+    ],
+    "Line": [
+      "bus0",
+      "bus1",
+      "type",
+      "x",
+      "r",
+      "g",
+      "b",
+      "s_nom",
+      "s_nom_mod",
+      "s_nom_extendable",
+      "s_nom_min",
+      "s_nom_max",
+      "s_nom_set",
+      "capital_cost",
+      "overnight_cost",
+      "discount_rate",
+      "fom_cost",
+      "active",
+      "build_year",
+      "lifetime",
+      "length",
+      "carrier",
+      "terrain_factor",
+      "num_parallel",
+      "v_ang_min",
+      "v_ang_max",
+      "v_nom"
+    ],
+    "GlobalConstraint": [
+      "type",
+      "investment_period",
+      "bus",
+      "carrier_attribute",
+      "sense",
+      "constant"
+    ],
+    "SubNetwork": [
+      "obj"
+    ]
+  },
+  "attribute_catalog": {
+    "Bus": {
+      "name": {
+        "type": "string",
+        "unit": null,
+        "status": "Input (required)",
+        "static": true,
+        "varying": false,
+        "default": ""
+      },
+      "v_nom": {
+        "type": "float",
+        "unit": "kV",
+        "status": "Input (optional)",
+        "static": true,
+        "varying": false,
+        "default": 1.0
+      },
+      "type": {
+        "type": "string",
+        "unit": null,
+        "status": "Input (optional)",
+        "static": true,
+        "varying": false,
+        "default": ""
+      },
+      "x": {
+        "type": "float",
+        "unit": null,
+        "status": "Input (optional)",
+        "static": true,
+        "varying": false,
+        "default": 0.0
+      },
+      "y": {
+        "type": "float",
+        "unit": null,
+        "status": "Input (optional)",
+        "static": true,
+        "varying": false,
+        "default": 0.0
+      },
+      "carrier": {
+        "type": "string",
+        "unit": null,
+        "status": "Input (optional)",
+        "static": true,
+        "varying": false,
+        "default": "AC"
+      },
+      "unit": {
+        "type": "string",
+        "unit": null,
+        "status": "Input (optional)",
+        "static": true,
+        "varying": false,
+        "default": ""
+      },
+      "location": {
+        "type": "string",
+        "unit": null,
+        "status": "Input (optional)",
+        "static": true,
+        "varying": false,
+        "default": ""
+      },
+      "v_mag_pu_set": {
+        "type": "static or series",
+        "unit": "per unit",
+        "status": "Input (optional)",
+        "static": true,
+        "varying": true,
+        "default": 1.0
+      },
+      "v_mag_pu_min": {
+        "type": "float",
+        "unit": "per unit",
+        "status": "Input (optional)",
+        "static": true,
+        "varying": false,
+        "default": 0.0
+      },
+      "v_mag_pu_max": {
+        "type": "float",
+        "unit": "per unit",
+        "status": "Input (optional)",
+        "static": true,
+        "varying": false,
+        "default": "inf"
+      },
+      "control": {
+        "type": "string",
+        "unit": null,
+        "status": "Output",
+        "static": true,
+        "varying": false,
+        "default": "PQ"
+      },
+      "generator": {
+        "type": "string",
+        "unit": null,
+        "status": "Output",
+        "static": true,
+        "varying": false,
+        "default": ""
+      },
+      "sub_network": {
+        "type": "string",
+        "unit": null,
+        "status": "Output",
+        "static": true,
+        "varying": false,
+        "default": ""
+      },
+      "p": {
+        "type": "series",
+        "unit": "MW",
+        "status": "Output",
+        "static": false,
+        "varying": true,
+        "default": 0.0
+      },
+      "q": {
+        "type": "series",
+        "unit": "MVar",
+        "status": "Output",
+        "static": false,
+        "varying": true,
+        "default": 0.0
+      },
+      "v_mag_pu": {
+        "type": "series",
+        "unit": "per unit",
+        "status": "Output",
+        "static": false,
+        "varying": true,
+        "default": 1.0
+      },
+      "v_ang": {
+        "type": "series",
+        "unit": "radians",
+        "status": "Output",
+        "static": false,
+        "varying": true,
+        "default": 0.0
+      },
+      "marginal_price": {
+        "type": "series",
+        "unit": "currency/MWh",
+        "status": "Output",
+        "static": false,
+        "varying": true,
+        "default": 0.0
+      }
+    },
+    "Carrier": {
+      "name": {
+        "type": "string",
+        "unit": null,
+        "status": "Input (required)",
+        "static": true,
+        "varying": false,
+        "default": ""
+      },
+      "co2_emissions": {
+        "type": "float",
+        "unit": "tonnes/MWh",
+        "status": "Input (optional)",
+        "static": true,
+        "varying": false,
+        "default": 0.0
+      },
+      "color": {
+        "type": "string",
+        "unit": null,
+        "status": "Input (optional)",
+        "static": true,
+        "varying": false,
+        "default": ""
+      },
+      "nice_name": {
+        "type": "string",
+        "unit": null,
+        "status": "Input (optional)",
+        "static": true,
+        "varying": false,
+        "default": ""
+      },
+      "max_growth": {
+        "type": "float",
+        "unit": "MW",
+        "status": "Input (optional)",
+        "static": true,
+        "varying": false,
+        "default": "inf"
+      },
+      "max_relative_growth": {
+        "type": "float",
+        "unit": null,
+        "status": "Input (optional)",
+        "static": true,
+        "varying": false,
+        "default": 0.0
+      }
+    },
+    "Generator": {
+      "name": {
+        "type": "string",
+        "unit": null,
+        "status": "Input (required)",
+        "static": true,
+        "varying": false,
+        "default": ""
+      },
+      "bus": {
+        "type": "string",
+        "unit": null,
+        "status": "Input (required)",
+        "static": true,
+        "varying": false,
+        "default": ""
+      },
+      "control": {
+        "type": "string",
+        "unit": null,
+        "status": "Input (optional)",
+        "static": true,
+        "varying": false,
+        "default": "PQ"
+      },
+      "type": {
+        "type": "string",
+        "unit": null,
+        "status": "Input (optional)",
+        "static": true,
+        "varying": false,
+        "default": ""
+      },
+      "p_nom": {
+        "type": "float",
+        "unit": "MW",
+        "status": "Input (optional)",
+        "static": true,
+        "varying": false,
+        "default": 0.0
+      },
+      "p_nom_mod": {
+        "type": "float",
+        "unit": "MW",
+        "status": "Input (optional)",
+        "static": true,
+        "varying": false,
+        "default": 0.0
+      },
+      "p_nom_extendable": {
+        "type": "boolean",
+        "unit": null,
+        "status": "Input (optional)",
+        "static": true,
+        "varying": false,
+        "default": false
+      },
+      "p_nom_min": {
+        "type": "float",
+        "unit": "MW",
+        "status": "Input (optional)",
+        "static": true,
+        "varying": false,
+        "default": 0.0
+      },
+      "p_nom_max": {
+        "type": "float",
+        "unit": "MW",
+        "status": "Input (optional)",
+        "static": true,
+        "varying": false,
+        "default": "inf"
+      },
+      "p_nom_set": {
+        "type": "float",
+        "unit": "MW",
+        "status": "Input (optional)",
+        "static": true,
+        "varying": false,
+        "default": null
+      },
+      "p_min_pu": {
+        "type": "static or series",
+        "unit": "per unit",
+        "status": "Input (optional)",
+        "static": true,
+        "varying": true,
+        "default": 0.0
+      },
+      "p_max_pu": {
+        "type": "static or series",
+        "unit": "per unit",
+        "status": "Input (optional)",
+        "static": true,
+        "varying": true,
+        "default": 1.0
+      },
+      "p_set": {
+        "type": "static or series",
+        "unit": "MW",
+        "status": "Input (optional)",
+        "static": true,
+        "varying": true,
+        "default": null
+      },
+      "p_init": {
+        "type": "static",
+        "unit": "MW",
+        "status": "Input (optional)",
+        "static": true,
+        "varying": false,
+        "default": null
+      },
+      "e_sum_min": {
+        "type": "float",
+        "unit": "MWh",
+        "status": "Input (optional)",
+        "static": true,
+        "varying": false,
+        "default": "-inf"
+      },
+      "e_sum_max": {
+        "type": "float",
+        "unit": "MWh",
+        "status": "Input (optional)",
+        "static": true,
+        "varying": false,
+        "default": "inf"
+      },
+      "q_set": {
+        "type": "static or series",
+        "unit": "MVar",
+        "status": "Input (optional)",
+        "static": true,
+        "varying": true,
+        "default": 0.0
+      },
+      "sign": {
+        "type": "float",
+        "unit": null,
+        "status": "Input (optional)",
+        "static": true,
+        "varying": false,
+        "default": 1.0
+      },
+      "carrier": {
+        "type": "string",
+        "unit": null,
+        "status": "Input (optional)",
+        "static": true,
+        "varying": false,
+        "default": ""
+      },
+      "marginal_cost": {
+        "type": "static or series",
+        "unit": "currency/MWh",
+        "status": "Input (optional)",
+        "static": true,
+        "varying": true,
+        "default": 0.0
+      },
+      "marginal_cost_quadratic": {
+        "type": "static or series",
+        "unit": "currency/MWh",
+        "status": "Input (optional)",
+        "static": true,
+        "varying": true,
+        "default": 0.0
+      },
+      "active": {
+        "type": "boolean",
+        "unit": null,
+        "status": "Input (optional)",
+        "static": true,
+        "varying": false,
+        "default": true
+      },
+      "build_year": {
+        "type": "int",
+        "unit": "year",
+        "status": "Input (optional)",
+        "static": true,
+        "varying": false,
+        "default": 0
+      },
+      "lifetime": {
+        "type": "float",
+        "unit": "years",
+        "status": "Input (optional)",
+        "static": true,
+        "varying": false,
+        "default": "inf"
+      },
+      "capital_cost": {
+        "type": "float",
+        "unit": "currency/MW",
+        "status": "Input (optional)",
+        "static": true,
+        "varying": false,
+        "default": 0.0
+      },
+      "overnight_cost": {
+        "type": "float",
+        "unit": "currency/MW",
+        "status": "Input (optional)",
+        "static": true,
+        "varying": false,
+        "default": null
+      },
+      "discount_rate": {
+        "type": "float",
+        "unit": "per unit",
+        "status": "Input (optional)",
+        "static": true,
+        "varying": false,
+        "default": null
+      },
+      "fom_cost": {
+        "type": "float",
+        "unit": "currency/MW",
+        "status": "Input (optional)",
+        "static": true,
+        "varying": false,
+        "default": 0.0
+      },
+      "efficiency": {
+        "type": "static or series",
+        "unit": "per unit",
+        "status": "Input (optional)",
+        "static": true,
+        "varying": true,
+        "default": 1.0
+      },
+      "committable": {
+        "type": "boolean",
+        "unit": null,
+        "status": "Input (optional)",
+        "static": true,
+        "varying": false,
+        "default": false
+      },
+      "start_up_cost": {
+        "type": "float",
+        "unit": "currency",
+        "status": "Input (optional)",
+        "static": true,
+        "varying": false,
+        "default": 0.0
+      },
+      "shut_down_cost": {
+        "type": "float",
+        "unit": "currency",
+        "status": "Input (optional)",
+        "static": true,
+        "varying": false,
+        "default": 0.0
+      },
+      "stand_by_cost": {
+        "type": "static or series",
+        "unit": "currency/h",
+        "status": "Input (optional)",
+        "static": true,
+        "varying": true,
+        "default": 0.0
+      },
+      "min_up_time": {
+        "type": "int",
+        "unit": "snapshots",
+        "status": "Input (optional)",
+        "static": true,
+        "varying": false,
+        "default": 0
+      },
+      "min_down_time": {
+        "type": "int",
+        "unit": "snapshots",
+        "status": "Input (optional)",
+        "static": true,
+        "varying": false,
+        "default": 0
+      },
+      "up_time_before": {
+        "type": "int",
+        "unit": "snapshots",
+        "status": "Input (optional)",
+        "static": true,
+        "varying": false,
+        "default": 1
+      },
+      "down_time_before": {
+        "type": "int",
+        "unit": "snapshots",
+        "status": "Input (optional)",
+        "static": true,
+        "varying": false,
+        "default": 0
+      },
+      "ramp_limit_up": {
+        "type": "static or series",
+        "unit": "per unit",
+        "status": "Input (optional)",
+        "static": true,
+        "varying": true,
+        "default": null
+      },
+      "ramp_limit_down": {
+        "type": "static or series",
+        "unit": "per unit",
+        "status": "Input (optional)",
+        "static": true,
+        "varying": true,
+        "default": null
+      },
+      "ramp_limit_start_up": {
+        "type": "float",
+        "unit": "per unit",
+        "status": "Input (optional)",
+        "static": true,
+        "varying": false,
+        "default": null
+      },
+      "ramp_limit_shut_down": {
+        "type": "float",
+        "unit": "per unit",
+        "status": "Input (optional)",
+        "static": true,
+        "varying": false,
+        "default": null
+      },
+      "weight": {
+        "type": "float",
+        "unit": null,
+        "status": "Input (optional)",
+        "static": true,
+        "varying": false,
+        "default": 1.0
+      },
+      "p": {
+        "type": "series",
+        "unit": "MW",
+        "status": "Output",
+        "static": false,
+        "varying": true,
+        "default": 0.0
+      },
+      "q": {
+        "type": "series",
+        "unit": "MVar",
+        "status": "Output",
+        "static": false,
+        "varying": true,
+        "default": 0.0
+      },
+      "p_nom_opt": {
+        "type": "float",
+        "unit": "MW",
+        "status": "Output",
+        "static": true,
+        "varying": false,
+        "default": 0.0
+      },
+      "status": {
+        "type": "series",
+        "unit": null,
+        "status": "Output",
+        "static": false,
+        "varying": true,
+        "default": 1.0
+      },
+      "start_up": {
+        "type": "series",
+        "unit": null,
+        "status": "Output",
+        "static": false,
+        "varying": true,
+        "default": 1.0
+      },
+      "shut_down": {
+        "type": "series",
+        "unit": null,
+        "status": "Output",
+        "static": false,
+        "varying": true,
+        "default": 1.0
+      },
+      "mu_upper": {
+        "type": "series",
+        "unit": "currency/MWh",
+        "status": "Output",
+        "static": false,
+        "varying": true,
+        "default": null
+      },
+      "mu_lower": {
+        "type": "series",
+        "unit": "currency/MWh",
+        "status": "Output",
+        "static": false,
+        "varying": true,
+        "default": null
+      },
+      "mu_p_set": {
+        "type": "series",
+        "unit": "currency/MWh",
+        "status": "Output",
+        "static": false,
+        "varying": true,
+        "default": null
+      },
+      "mu_ramp_limit_up": {
+        "type": "series",
+        "unit": "currency/MWh",
+        "status": "Output",
+        "static": false,
+        "varying": true,
+        "default": null
+      },
+      "mu_ramp_limit_down": {
+        "type": "series",
+        "unit": "currency/MWh",
+        "status": "Output",
+        "static": false,
+        "varying": true,
+        "default": null
+      }
+    },
+    "Load": {
+      "name": {
+        "type": "string",
+        "unit": null,
+        "status": "Input (required)",
+        "static": true,
+        "varying": false,
+        "default": ""
+      },
+      "bus": {
+        "type": "string",
+        "unit": null,
+        "status": "Input (required)",
+        "static": true,
+        "varying": false,
+        "default": ""
+      },
+      "carrier": {
+        "type": "string",
+        "unit": null,
+        "status": "Input (optional)",
+        "static": true,
+        "varying": false,
+        "default": ""
+      },
+      "type": {
+        "type": "string",
+        "unit": null,
+        "status": "Input (optional)",
+        "static": true,
+        "varying": false,
+        "default": ""
+      },
+      "p_set": {
+        "type": "static or series",
+        "unit": "MW",
+        "status": "Input (optional)",
+        "static": true,
+        "varying": true,
+        "default": 0.0
+      },
+      "q_set": {
+        "type": "static or series",
+        "unit": "MVar",
+        "status": "Input (optional)",
+        "static": true,
+        "varying": true,
+        "default": 0.0
+      },
+      "sign": {
+        "type": "float",
+        "unit": null,
+        "status": "Input (optional)",
+        "static": true,
+        "varying": false,
+        "default": -1.0
+      },
+      "p": {
+        "type": "series",
+        "unit": "MW",
+        "status": "Output",
+        "static": false,
+        "varying": true,
+        "default": 0.0
+      },
+      "q": {
+        "type": "series",
+        "unit": "MVar",
+        "status": "Output",
+        "static": false,
+        "varying": true,
+        "default": 0.0
+      },
+      "active": {
+        "type": "boolean",
+        "unit": null,
+        "status": "Input (optional)",
+        "static": true,
+        "varying": false,
+        "default": true
+      }
+    },
+    "Link": {
+      "name": {
+        "type": "string",
+        "unit": null,
+        "status": "Input (required)",
+        "static": true,
+        "varying": false,
+        "default": ""
+      },
+      "bus0": {
+        "type": "string",
+        "unit": null,
+        "status": "Input (required)",
+        "static": true,
+        "varying": false,
+        "default": ""
+      },
+      "bus1": {
+        "type": "string",
+        "unit": null,
+        "status": "Input (required)",
+        "static": true,
+        "varying": false,
+        "default": ""
+      },
+      "type": {
+        "type": "string",
+        "unit": null,
+        "status": "Input (optional)",
+        "static": true,
+        "varying": false,
+        "default": ""
+      },
+      "carrier": {
+        "type": "string",
+        "unit": null,
+        "status": "Input (optional)",
+        "static": true,
+        "varying": false,
+        "default": ""
+      },
+      "efficiency": {
+        "type": "static or series",
+        "unit": "per unit",
+        "status": "Input (optional)",
+        "static": true,
+        "varying": true,
+        "default": 1.0
+      },
+      "active": {
+        "type": "boolean",
+        "unit": null,
+        "status": "Input (optional)",
+        "static": true,
+        "varying": false,
+        "default": true
+      },
+      "build_year": {
+        "type": "int",
+        "unit": "year",
+        "status": "Input (optional)",
+        "static": true,
+        "varying": false,
+        "default": 0
+      },
+      "lifetime": {
+        "type": "float",
+        "unit": "years",
+        "status": "Input (optional)",
+        "static": true,
+        "varying": false,
+        "default": "inf"
+      },
+      "p_nom": {
+        "type": "float",
+        "unit": "MW",
+        "status": "Input (optional)",
+        "static": true,
+        "varying": false,
+        "default": 0.0
+      },
+      "p_nom_mod": {
+        "type": "float",
+        "unit": "MW",
+        "status": "Input (optional)",
+        "static": true,
+        "varying": false,
+        "default": 0.0
+      },
+      "p_nom_extendable": {
+        "type": "boolean",
+        "unit": null,
+        "status": "Input (optional)",
+        "static": true,
+        "varying": false,
+        "default": false
+      },
+      "p_nom_min": {
+        "type": "float",
+        "unit": "MW",
+        "status": "Input (optional)",
+        "static": true,
+        "varying": false,
+        "default": 0.0
+      },
+      "p_nom_max": {
+        "type": "float",
+        "unit": "MW",
+        "status": "Input (optional)",
+        "static": true,
+        "varying": false,
+        "default": "inf"
+      },
+      "p_nom_set": {
+        "type": "float",
+        "unit": "MW",
+        "status": "Input (optional)",
+        "static": true,
+        "varying": false,
+        "default": null
+      },
+      "p_set": {
+        "type": "static or series",
+        "unit": "MW",
+        "status": "Input (optional)",
+        "static": true,
+        "varying": true,
+        "default": null
+      },
+      "p_init": {
+        "type": "static",
+        "unit": "MW",
+        "status": "Input (optional)",
+        "static": true,
+        "varying": false,
+        "default": null
+      },
+      "p_min_pu": {
+        "type": "static or series",
+        "unit": "per unit of p_nom",
+        "status": "Input (optional)",
+        "static": true,
+        "varying": true,
+        "default": 0.0
+      },
+      "p_max_pu": {
+        "type": "static or series",
+        "unit": "per unit of p_nom",
+        "status": "Input (optional)",
+        "static": true,
+        "varying": true,
+        "default": 1.0
+      },
+      "capital_cost": {
+        "type": "float",
+        "unit": "currency/MW",
+        "status": "Input (optional)",
+        "static": true,
+        "varying": false,
+        "default": 0.0
+      },
+      "overnight_cost": {
+        "type": "float",
+        "unit": "currency/MW",
+        "status": "Input (optional)",
+        "static": true,
+        "varying": false,
+        "default": null
+      },
+      "discount_rate": {
+        "type": "float",
+        "unit": "per unit",
+        "status": "Input (optional)",
+        "static": true,
+        "varying": false,
+        "default": null
+      },
+      "fom_cost": {
+        "type": "float",
+        "unit": "currency/MW",
+        "status": "Input (optional)",
+        "static": true,
+        "varying": false,
+        "default": 0.0
+      },
+      "marginal_cost": {
+        "type": "static or series",
+        "unit": "currency/MWh",
+        "status": "Input (optional)",
+        "static": true,
+        "varying": true,
+        "default": 0.0
+      },
+      "marginal_cost_quadratic": {
+        "type": "static or series",
+        "unit": "currency/MWh",
+        "status": "Input (optional)",
+        "static": true,
+        "varying": true,
+        "default": 0.0
+      },
+      "stand_by_cost": {
+        "type": "static or series",
+        "unit": "currency/h",
+        "status": "Input (optional)",
+        "static": true,
+        "varying": true,
+        "default": 0.0
+      },
+      "length": {
+        "type": "float",
+        "unit": "km",
+        "status": "Input (optional)",
+        "static": true,
+        "varying": false,
+        "default": 0.0
+      },
+      "terrain_factor": {
+        "type": "float",
+        "unit": "per unit",
+        "status": "Input (optional)",
+        "static": true,
+        "varying": false,
+        "default": 1.0
+      },
+      "committable": {
+        "type": "boolean",
+        "unit": null,
+        "status": "Input (optional)",
+        "static": true,
+        "varying": false,
+        "default": false
+      },
+      "start_up_cost": {
+        "type": "float",
+        "unit": "currency",
+        "status": "Input (optional)",
+        "static": true,
+        "varying": false,
+        "default": 0.0
+      },
+      "shut_down_cost": {
+        "type": "float",
+        "unit": "currency",
+        "status": "Input (optional)",
+        "static": true,
+        "varying": false,
+        "default": 0.0
+      },
+      "min_up_time": {
+        "type": "int",
+        "unit": "snapshots",
+        "status": "Input (optional)",
+        "static": true,
+        "varying": false,
+        "default": 0
+      },
+      "min_down_time": {
+        "type": "int",
+        "unit": "snapshots",
+        "status": "Input (optional)",
+        "static": true,
+        "varying": false,
+        "default": 0
+      },
+      "up_time_before": {
+        "type": "int",
+        "unit": "snapshots",
+        "status": "Input (optional)",
+        "static": true,
+        "varying": false,
+        "default": 1
+      },
+      "down_time_before": {
+        "type": "int",
+        "unit": "snapshots",
+        "status": "Input (optional)",
+        "static": true,
+        "varying": false,
+        "default": 0
+      },
+      "ramp_limit_up": {
+        "type": "static or series",
+        "unit": "per unit",
+        "status": "Input (optional)",
+        "static": true,
+        "varying": true,
+        "default": null
+      },
+      "ramp_limit_down": {
+        "type": "static or series",
+        "unit": "per unit",
+        "status": "Input (optional)",
+        "static": true,
+        "varying": true,
+        "default": null
+      },
+      "ramp_limit_start_up": {
+        "type": "float",
+        "unit": "per unit",
+        "status": "Input (optional)",
+        "static": true,
+        "varying": false,
+        "default": null
+      },
+      "ramp_limit_shut_down": {
+        "type": "float",
+        "unit": "per unit",
+        "status": "Input (optional)",
+        "static": true,
+        "varying": false,
+        "default": null
+      },
+      "delay": {
+        "type": "int",
+        "unit": "snapshot weighting units",
+        "status": "Input (optional)",
+        "static": true,
+        "varying": false,
+        "default": 0
+      },
+      "cyclic_delay": {
+        "type": "boolean",
+        "unit": null,
+        "status": "Input (optional)",
+        "static": true,
+        "varying": false,
+        "default": true
+      },
+      "p": {
+        "type": "series",
+        "unit": "MW",
+        "status": "Output",
+        "static": false,
+        "varying": true,
+        "default": 0.0
+      },
+      "p0": {
+        "type": "series",
+        "unit": "MW",
+        "status": "Output",
+        "static": false,
+        "varying": true,
+        "default": 0.0
+      },
+      "p1": {
+        "type": "series",
+        "unit": "MW",
+        "status": "Output",
+        "static": false,
+        "varying": true,
+        "default": 0.0
+      },
+      "p_nom_opt": {
+        "type": "float",
+        "unit": "MW",
+        "status": "Output",
+        "static": true,
+        "varying": false,
+        "default": 0.0
+      },
+      "status": {
+        "type": "series",
+        "unit": null,
+        "status": "Output",
+        "static": false,
+        "varying": true,
+        "default": 1.0
+      },
+      "start_up": {
+        "type": "series",
+        "unit": null,
+        "status": "Output",
+        "static": false,
+        "varying": true,
+        "default": 1.0
+      },
+      "shut_down": {
+        "type": "series",
+        "unit": null,
+        "status": "Output",
+        "static": false,
+        "varying": true,
+        "default": 1.0
+      },
+      "mu_lower": {
+        "type": "series",
+        "unit": "currency/MW",
+        "status": "Output",
+        "static": false,
+        "varying": true,
+        "default": null
+      },
+      "mu_upper": {
+        "type": "series",
+        "unit": "currency/MW",
+        "status": "Output",
+        "static": false,
+        "varying": true,
+        "default": null
+      },
+      "mu_p_set": {
+        "type": "series",
+        "unit": "currency/MWh",
+        "status": "Output",
+        "static": false,
+        "varying": true,
+        "default": null
+      },
+      "mu_ramp_limit_up": {
+        "type": "series",
+        "unit": "currency/MWh",
+        "status": "Output",
+        "static": false,
+        "varying": true,
+        "default": null
+      },
+      "mu_ramp_limit_down": {
+        "type": "series",
+        "unit": "currency/MWh",
+        "status": "Output",
+        "static": false,
+        "varying": true,
+        "default": null
+      }
+    },
+    "Line": {
+      "name": {
+        "type": "string",
+        "unit": null,
+        "status": "Input (required)",
+        "static": true,
+        "varying": false,
+        "default": ""
+      },
+      "bus0": {
+        "type": "string",
+        "unit": null,
+        "status": "Input (required)",
+        "static": true,
+        "varying": false,
+        "default": ""
+      },
+      "bus1": {
+        "type": "string",
+        "unit": null,
+        "status": "Input (required)",
+        "static": true,
+        "varying": false,
+        "default": ""
+      },
+      "type": {
+        "type": "string",
+        "unit": null,
+        "status": "Input (optional)",
+        "static": true,
+        "varying": false,
+        "default": ""
+      },
+      "x": {
+        "type": "float",
+        "unit": "Ohm",
+        "status": "Input (required)",
+        "static": true,
+        "varying": false,
+        "default": 0.0
+      },
+      "r": {
+        "type": "float",
+        "unit": "Ohm",
+        "status": "Input (required)",
+        "static": true,
+        "varying": false,
+        "default": 0.0
+      },
+      "g": {
+        "type": "float",
+        "unit": "Siemens",
+        "status": "Input (optional)",
+        "static": true,
+        "varying": false,
+        "default": 0.0
+      },
+      "b": {
+        "type": "float",
+        "unit": "Siemens",
+        "status": "Input (optional)",
+        "static": true,
+        "varying": false,
+        "default": 0.0
+      },
+      "s_nom": {
+        "type": "float",
+        "unit": "MVA",
+        "status": "Input (optional)",
+        "static": true,
+        "varying": false,
+        "default": 0.0
+      },
+      "s_nom_mod": {
+        "type": "float",
+        "unit": "MVA",
+        "status": "Input (optional)",
+        "static": true,
+        "varying": false,
+        "default": 0.0
+      },
+      "s_nom_extendable": {
+        "type": "boolean",
+        "unit": null,
+        "status": "Input (optional)",
+        "static": true,
+        "varying": false,
+        "default": false
+      },
+      "s_nom_min": {
+        "type": "float",
+        "unit": "MVA",
+        "status": "Input (optional)",
+        "static": true,
+        "varying": false,
+        "default": 0.0
+      },
+      "s_nom_max": {
+        "type": "float",
+        "unit": "MVA",
+        "status": "Input (optional)",
+        "static": true,
+        "varying": false,
+        "default": "inf"
+      },
+      "s_nom_set": {
+        "type": "float",
+        "unit": "MVA",
+        "status": "Input (optional)",
+        "static": true,
+        "varying": false,
+        "default": null
+      },
+      "s_max_pu": {
+        "type": "static or series",
+        "unit": "per unit",
+        "status": "Input (optional)",
+        "static": true,
+        "varying": true,
+        "default": 1.0
+      },
+      "capital_cost": {
+        "type": "float",
+        "unit": "currency/MVA",
+        "status": "Input (optional)",
+        "static": true,
+        "varying": false,
+        "default": 0.0
+      },
+      "overnight_cost": {
+        "type": "float",
+        "unit": "currency/MVA",
+        "status": "Input (optional)",
+        "static": true,
+        "varying": false,
+        "default": null
+      },
+      "discount_rate": {
+        "type": "float",
+        "unit": "per unit",
+        "status": "Input (optional)",
+        "static": true,
+        "varying": false,
+        "default": null
+      },
+      "fom_cost": {
+        "type": "float",
+        "unit": "currency/MVA",
+        "status": "Input (optional)",
+        "static": true,
+        "varying": false,
+        "default": 0.0
+      },
+      "active": {
+        "type": "boolean",
+        "unit": null,
+        "status": "Input (optional)",
+        "static": true,
+        "varying": false,
+        "default": true
+      },
+      "build_year": {
+        "type": "int",
+        "unit": "year",
+        "status": "Input (optional)",
+        "static": true,
+        "varying": false,
+        "default": 0
+      },
+      "lifetime": {
+        "type": "float",
+        "unit": "years",
+        "status": "Input (optional)",
+        "static": true,
+        "varying": false,
+        "default": "inf"
+      },
+      "length": {
+        "type": "float",
+        "unit": "km",
+        "status": "Input (optional)",
+        "static": true,
+        "varying": false,
+        "default": 0.0
+      },
+      "carrier": {
+        "type": "string",
+        "unit": null,
+        "status": "Input (optional)",
+        "static": true,
+        "varying": false,
+        "default": ""
+      },
+      "terrain_factor": {
+        "type": "float",
+        "unit": "per unit",
+        "status": "Input (optional)",
+        "static": true,
+        "varying": false,
+        "default": 1.0
+      },
+      "num_parallel": {
+        "type": "float",
+        "unit": null,
+        "status": "Input (optional)",
+        "static": true,
+        "varying": false,
+        "default": 1.0
+      },
+      "v_ang_min": {
+        "type": "float",
+        "unit": "degrees",
+        "status": "Input (optional)",
+        "static": true,
+        "varying": false,
+        "default": "-inf"
+      },
+      "v_ang_max": {
+        "type": "float",
+        "unit": "degrees",
+        "status": "Input (optional)",
+        "static": true,
+        "varying": false,
+        "default": "inf"
+      },
+      "sub_network": {
+        "type": "string",
+        "unit": null,
+        "status": "Output",
+        "static": true,
+        "varying": false,
+        "default": ""
+      },
+      "p0": {
+        "type": "series",
+        "unit": "MW",
+        "status": "Output",
+        "static": false,
+        "varying": true,
+        "default": 0.0
+      },
+      "q0": {
+        "type": "series",
+        "unit": "MVar",
+        "status": "Output",
+        "static": false,
+        "varying": true,
+        "default": 0.0
+      },
+      "p1": {
+        "type": "series",
+        "unit": "MW",
+        "status": "Output",
+        "static": false,
+        "varying": true,
+        "default": 0.0
+      },
+      "q1": {
+        "type": "series",
+        "unit": "MVar",
+        "status": "Output",
+        "static": false,
+        "varying": true,
+        "default": 0.0
+      },
+      "x_pu": {
+        "type": "float",
+        "unit": "per unit",
+        "status": "Output",
+        "static": true,
+        "varying": false,
+        "default": 0.0
+      },
+      "r_pu": {
+        "type": "float",
+        "unit": "per unit",
+        "status": "Output",
+        "static": true,
+        "varying": false,
+        "default": 0.0
+      },
+      "g_pu": {
+        "type": "float",
+        "unit": "per unit",
+        "status": "Output",
+        "static": true,
+        "varying": false,
+        "default": 0.0
+      },
+      "b_pu": {
+        "type": "float",
+        "unit": "per unit",
+        "status": "Output",
+        "static": true,
+        "varying": false,
+        "default": 0.0
+      },
+      "x_pu_eff": {
+        "type": "float",
+        "unit": "per unit",
+        "status": "Output",
+        "static": true,
+        "varying": false,
+        "default": 0.0
+      },
+      "r_pu_eff": {
+        "type": "float",
+        "unit": "per unit",
+        "status": "Output",
+        "static": true,
+        "varying": false,
+        "default": 0.0
+      },
+      "s_nom_opt": {
+        "type": "float",
+        "unit": "MVA",
+        "status": "Output",
+        "static": true,
+        "varying": false,
+        "default": 0.0
+      },
+      "mu_lower": {
+        "type": "series",
+        "unit": "currency/MVA",
+        "status": "Output",
+        "static": false,
+        "varying": true,
+        "default": 0.0
+      },
+      "mu_upper": {
+        "type": "series",
+        "unit": "currency/MVA",
+        "status": "Output",
+        "static": false,
+        "varying": true,
+        "default": 0.0
+      }
+    },
+    "GlobalConstraint": {
+      "name": {
+        "type": "string",
+        "unit": null,
+        "status": "Input (required)",
+        "static": true,
+        "varying": false,
+        "default": ""
+      },
+      "type": {
+        "type": "string",
+        "unit": null,
+        "status": "Input (optional)",
+        "static": true,
+        "varying": false,
+        "default": "primary_energy"
+      },
+      "investment_period": {
+        "type": "float",
+        "unit": null,
+        "status": "Input (optional)",
+        "static": true,
+        "varying": false,
+        "default": null
+      },
+      "bus": {
+        "type": "string",
+        "unit": null,
+        "status": "Input (optional)",
+        "static": true,
+        "varying": false,
+        "default": ""
+      },
+      "carrier_attribute": {
+        "type": "string",
+        "unit": null,
+        "status": "Input (optional)",
+        "static": true,
+        "varying": false,
+        "default": "co2_emissions"
+      },
+      "sense": {
+        "type": "string",
+        "unit": null,
+        "status": "Input (optional)",
+        "static": true,
+        "varying": false,
+        "default": "=="
+      },
+      "constant": {
+        "type": "float",
+        "unit": null,
+        "status": "Input (optional)",
+        "static": true,
+        "varying": false,
+        "default": 0.0
+      },
+      "mu": {
+        "type": "float",
+        "unit": "currency/constant",
+        "status": "Output",
+        "static": true,
+        "varying": false,
+        "default": 0.0
+      }
+    },
+    "SubNetwork": {
+      "name": {
+        "type": "string",
+        "unit": null,
+        "status": "Output",
+        "static": true,
+        "varying": false,
+        "default": ""
+      },
+      "carrier": {
+        "type": "string",
+        "unit": null,
+        "status": "Output",
+        "static": true,
+        "varying": false,
+        "default": "AC"
+      },
+      "slack_bus": {
+        "type": "string",
+        "unit": null,
+        "status": "Output",
+        "static": true,
+        "varying": false,
+        "default": ""
+      }
+    }
+  }
+}
