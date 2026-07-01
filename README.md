@@ -1,4 +1,8 @@
 # PyPSA App
+
+> [!WARNING]
+> This project is in early development. Expect frequent breaking changes and bugs.
+
 Self-hosted web application for analyzing and visualizing PyPSA networks, with modular
 architecture designed to extend into workflow execution, network editing, optimization,
 and custom integrations.
