@@ -1,4 +1,4 @@
-# Backend services for development: Postgres + Redis + Celery worker in Docker.
+# Backend services for development: Postgres + Redis + Prefect worker in Docker.
 # Values come from compose/.env.local. Run with:
 #   docker compose -f compose/compose.services.yaml --env-file compose/.env.local up
 
@@ -17,6 +17,7 @@ services:
     - "${POSTGRES_PORT:-5432}:5432"
     volumes:
     - postgres_data:/var/lib/postgresql
+    - ./postgres-init:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 5s
@@ -36,20 +37,43 @@ services:
       timeout: 3s
       retries: 5
 
-  celery-worker:
+  prefect-server:
+    image: prefecthq/prefect:3-latest
+    container_name: pypsa-app-prefect-server
+    command: prefect server start --host 0.0.0.0
+    environment:
+      PREFECT_API_DATABASE_CONNECTION_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/prefect
+    ports:
+    - "4200:4200"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:4200/api/health')"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  prefect-worker:
     build:
       context: ..
       dockerfile: Dockerfile
       target: backend
-    container_name: pypsa-app-celery-worker
+    container_name: pypsa-app-prefect-worker
     env_file: .env.local
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       REDIS_URL: redis://redis:6379/0
       DATA_DIR: /data
+      PREFECT_API_URL: http://prefect-server:4200/api
+      PREFECT_WORKER_CONCURRENCY: "8"
+      PREFECT_LOCAL_STORAGE_PATH: /data/prefect-results
       # The host-run backend owns migrations on startup; avoid racing it here.
       SKIP_MIGRATIONS: "true"
-    command: ["celery", "-A", "pypsa_app.backend.task_queue.task_app", "worker", "--loglevel=info", "--concurrency=2"]
+    command: ["python", "-m", "pypsa_app.worker"]
+    extra_hosts:
+    - "host.docker.internal:host-gateway"
     volumes:
     - ../src:/app/src
     - ../data:/data
@@ -58,6 +82,8 @@ services:
       postgres:
         condition: service_healthy
       redis:
+        condition: service_healthy
+      prefect-server:
         condition: service_healthy
 
 volumes:

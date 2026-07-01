@@ -1,4 +1,4 @@
-# Containerized mode: runs the full backend stack in Docker (postgres/redis/celery-worker + API).
+# Containerized mode: runs the full backend stack in Docker (postgres/redis/prefect + API).
 # This is the supported way to verify the app works end to end. Run with:
 #   docker compose -f compose/compose.yaml --env-file compose/.env.local up --build
 
@@ -22,14 +22,20 @@ services:
       REDIS_URL: redis://redis:6379/0
       DATA_DIR: /data
       BASE_URL: http://localhost:${APP_PORT:-8000}
+      PREFECT_API_URL: http://prefect-server:4200/api
+      PREFECT_LOCAL_STORAGE_PATH: /data/prefect-results
     ports:
     - "${APP_PORT:-8000}:8000"
+    extra_hosts:
+    - "host.docker.internal:host-gateway"
     volumes:
     - ../data:/data
     depends_on:
       postgres:
         condition: service_healthy
       redis:
+        condition: service_healthy
+      prefect-server:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]

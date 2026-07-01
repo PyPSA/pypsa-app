@@ -9,7 +9,7 @@ Both modes require the frontend to be running on the host. See [Frontend](#front
 
 ### Containerized mode (supported)
 
-Runs the full backend stack in Docker (Postgres, Redis, Celery worker, and the Python API).
+Runs the full backend stack in Docker (Postgres, Redis, Prefect worker, and the Python API).
 This is the supported way to verify the app works end to end.
 
 **Requirements:** [Docker](https://docs.docker.com/get-docker/) with Compose
@@ -29,7 +29,7 @@ and faster iteration during development.
 - Python ≥ 3.13 + [uv](https://docs.astral.sh/uv/)
 - [Docker](https://docs.docker.com/get-docker/) with Compose
 
-**1. Start Postgres, Redis, and the Celery worker**
+**1. Start Postgres, Redis, and the Prefect worker**
 
 ```bash
 docker compose -f compose/compose.services.yaml --env-file compose/.env.local up

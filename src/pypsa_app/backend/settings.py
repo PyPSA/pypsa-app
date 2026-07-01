@@ -12,6 +12,7 @@ logger = logging.getLogger(__name__)
 
 API_V1_PREFIX = "/api/v1"
 SESSION_COOKIE_NAME = "pypsa_session"
+PREFECT_DEPLOYMENT_NAME = "pypsa-app"
 
 # Sentinel value: when database_url equals this, it is derived from data_dir.
 _DEFAULT_DATABASE_URL_SENTINEL = "__derive_from_data_dir__"
@@ -182,6 +183,13 @@ class Settings(BaseSettings):
             name, url = entry.split("=", 1)
             backends.append({"name": name.strip(), "url": url.strip()})
         return backends
+
+    # Prefect
+    prefect_api_url: str | None = Field(
+        default=None,
+        description="Prefect server API URL for background task orchestration",
+        json_schema_extra={"category": "Prefect"},
+    )
 
     # Caching
     redis_url: str | None = Field(

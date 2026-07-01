@@ -5,12 +5,12 @@ from sqlalchemy.orm import Session
 
 from pypsa_app.backend.api.deps import get_db, get_networks, require_permission
 from pypsa_app.backend.api.utils.task_utils import queue_task
+from pypsa_app.backend.flows import get_explore_flow, get_plot_flow
 from pypsa_app.backend.models import Permission, User
 from pypsa_app.backend.ratelimit import limiter
 from pypsa_app.backend.schemas.plot import ExploreRequest, PlotParams
 from pypsa_app.backend.schemas.task import TaskQueuedResponse
 from pypsa_app.backend.settings import settings
-from pypsa_app.backend.tasks import get_explore_task, get_plot_task
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 @router.post("/generate", response_model=TaskQueuedResponse)
 @limiter.limit(settings.ratelimit_expensive)
-def generate_plot(
+async def generate_plot(
     request: Request,
     response: Response,
     body: PlotParams,
@@ -29,8 +29,8 @@ def generate_plot(
     networks = get_networks(db, body.network_ids, user)
     file_paths = [net.file_path for net in networks]
 
-    return queue_task(
-        get_plot_task,
+    return await queue_task(
+        get_plot_flow,
         file_paths=file_paths,
         statistic=body.statistic,
         plot_type=body.plot_type,
@@ -40,7 +40,7 @@ def generate_plot(
 
 @router.post("/explore", response_model=TaskQueuedResponse)
 @limiter.limit(settings.ratelimit_expensive)
-def generate_explore(
+async def generate_explore(
     request: Request,
     response: Response,
     body: ExploreRequest,
@@ -57,8 +57,8 @@ def generate_explore(
     if body.geometry:
         parameters["geometry"] = True
 
-    return queue_task(
-        get_explore_task,
+    return await queue_task(
+        get_explore_flow,
         file_paths=file_paths,
         parameters=parameters,
     )
